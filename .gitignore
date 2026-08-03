@@ -1,0 +1,12 @@
+# 各端原型的本地调试产物
+# Playwright CLI 运行日志与页面快照(pda/pc 等子目录都可能产生)
+*/.playwright-cli/
+.playwright-cli/
+
+# Node / 构建产物(预留)
+node_modules/
+dist/
+
+# 系统文件
+.DS_Store
+Thumbs.db

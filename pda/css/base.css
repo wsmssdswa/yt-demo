@@ -1,0 +1,212 @@
+/* ============================================
+   base.css — 所有页面共用的基础样式
+   主色:青绿 #00A99D  背景:浅灰 #F5F5F5  卡片:白
+   ============================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: #333;
+  background: #e8ebf0;          /* 页面背景(设备外的留白区) */
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input { font-family: inherit; }
+
+/* 通用:隐藏 */
+.hidden { display: none !important; }
+
+/* ---------- 设备外壳:深色边框 + 圆角 + 阴影,模拟 PDA 手持终端 ---------- */
+/* 尺寸固定 390×640,内容超出由内部滚动区处理,设备框本身不被撑大 */
+.device {
+  width: 390px;
+  height: 640px;
+  margin: 24px auto;            /* 桌面端上下留白居中 */
+  background: #F5F5F5;          /* 屏幕内容区背景 */
+  border: 10px solid #2a2d33;   /* 设备黑边 */
+  border-radius: 28px;          /* 设备外圆角 */
+  box-shadow: 0 12px 40px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.12);
+  overflow: hidden;
+  position: relative;
+}
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;                 /* 撑满设备框,不再随内容增长 */
+  border-radius: 18px;          /* 屏幕内圆角 */
+  overflow: hidden;
+}
+/* 移动端(<420px):外壳消失,设备撑满屏幕,高度跟窗口 */
+@media (max-width: 420px) {
+  body { background: #F5F5F5; }
+  .device {
+    width: 100%; margin: 0;
+    height: 100vh;              /* 移动端高度跟窗口 */
+    border: none; border-radius: 0; box-shadow: none;
+  }
+  .screen { height: 100%; border-radius: 0; }
+}
+
+/* ---------- 系统状态栏 ---------- */
+.status-bar {
+  height: 22px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F5F5F5;
+  color: #333;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.status-icons .ic { font-size: 11px; }
+
+/* ---------- 返回导航栏(详情页用) ---------- */
+.nav-bar {
+  background: #fff;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-bottom: 1px solid #ececec;
+  flex-shrink: 0;
+}
+.nav-back {
+  width: 40px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: #333;
+}
+.nav-title { flex: 1; text-align: left; font-size: 17px; font-weight: 700; color: #333; }
+.nav-placeholder { width: 40px; }
+
+/* ---------- 底部 Tab 栏(主页用) ---------- */
+.tab-bar {
+  background: #fff;
+  border-top: 1px solid #ececec;
+  display: flex;
+  padding: 6px 0 8px;
+  flex-shrink: 0;
+}
+.tab {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px;
+  color: #999;
+}
+.tab-icon { font-size: 20px; }
+.tab-text { font-size: 11px; }
+.tab--active { color: #00A99D; }
+
+/* ---------- 信息卡片(单号输入等,多页面复用) ---------- */
+.info-card {
+  background: #fff;
+  border-bottom: 1px solid #ececec;
+  padding: 12px 14px;
+  flex-shrink: 0;
+}
+.info-row {
+  display: flex;
+  align-items: baseline;
+  font-size: 14px;
+  padding: 4px 0;
+}
+.info-label { color: #888; flex-shrink: 0; }
+.info-value { color: #333; margin-left: 4px; }
+.info-input {
+  flex: 1; min-width: 0;
+  border: none; outline: none;
+  background: transparent;
+  font-size: 14px; color: #333;
+  padding: 2px 0;
+}
+.info-input::placeholder { color: #bbb; }
+.info-input:focus { background: #f5f9f9; }
+
+/* ---------- toast 提示 ---------- */
+.toast {
+  position: fixed;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.78);
+  color: #fff;
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  z-index: 10000;
+  max-width: 80%;
+  text-align: center;
+  line-height: 1.5;
+  animation: toast-in .2s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -45%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+/* ---------- 演示单号面板(设备框外,仅演示用) ----------
+   桌面端:固定在设备右侧留白处;移动端(真实 PDA)隐藏 */
+.test-panel {
+  position: fixed;
+  top: 40px;
+  left: calc(50% + 205px);        /* 设备宽390/2 + 边框/留白 ≈ 205,贴在设备右侧 */
+  width: 220px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  z-index: 100;
+  font-size: 13px;
+}
+.test-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+}
+.test-panel-tip {
+  font-size: 11px;
+  font-weight: 400;
+  color: #bbb;
+}
+.test-panel-group {
+  margin-bottom: 10px;
+}
+.test-panel-group:last-child { margin-bottom: 0; }
+.test-panel-label {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 6px;
+}
+.test-panel-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.test-panel-tag {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: Menlo, Consolas, monospace;
+  color: #00A99D;
+  background: #E6F7F6;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.test-panel-tag:hover { background: #d3f0ee; }
+.test-panel-tag:active { background: #c9eeec; }
+
+/* 移动端(真实 PDA,无外侧留白):隐藏演示面板 */
+@media (max-width: 840px) {
+  .test-panel { display: none; }
+}
