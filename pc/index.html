@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CCOS PC 原型</title>
+  <link rel="stylesheet" href="./css/base.css" />
+  <link rel="stylesheet" href="./css/pages.css" />
+  <style>
+    .home-wrap {
+      flex: 1;
+      overflow: auto;
+      background: #F5F8FC;
+      padding: 18px 20px;
+    }
+    .home-section { margin-bottom: 18px; }
+    .home-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1F4E79;
+      padding: 4px 0 8px;
+      border-bottom: 2px solid #4472C4;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .home-section-title .count {
+      font-size: 11px;
+      color: #888;
+      font-weight: 400;
+    }
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+    }
+    .home-card {
+      background: #fff;
+      border: 1px solid #D6E2F0;
+      border-radius: 4px;
+      padding: 14px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .home-card:hover { border-color: #4472C4; box-shadow: 0 2px 8px rgba(68,114,196,.15); transform: translateY(-1px); }
+    .home-card .ic { font-size: 22px; display: block; margin-bottom: 4px; }
+    .home-card .t  { font-size: 12px; font-weight: 600; color: #333; }
+    .home-card--b2b { border-color: #4472C4; background: #E8F0FE; }
+    .home-card--b2b .t { color: #1F4E79; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="./js/layout.js"></script>
+  <script src="./js/helpers.js"></script>
+  <script>
+    /* 按一级菜单分组渲染 */
+    const card = (key, label, icon) => `
+      <div class="home-card ${key === 'b2b-order' ? 'home-card--b2b' : ''}"
+           onclick="Layout.goMenu('${key}')">
+        <span class="ic">${icon}</span>
+        <div class="t">${label}</div>
+      </div>
+    `;
+    const iconMap = {
+      'sync':  '🔄', 'wh-ops': '📦', 'order': '📋',
+      'inbound': '📥', 'base': '⚙',
+    };
+    const sections = Layout.MENU_GROUPS.map(g => `
+      <div class="home-section">
+        <div class="home-section-title">
+          <span>${iconMap[g.key] || '▸'}</span>
+          <span>${g.label}</span>
+          <span class="count">(${g.children.length} 项)</span>
+        </div>
+        <div class="home-grid">
+          ${g.children.map(c => card(c.key, c.label, '📄')).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('app').innerHTML = Layout.window({
+      title: 'Nebula YT-UAT',
+      activeLeft: '',         // 首页不高亮任何子项
+      activeTab: '',
+      tabs: [],
+      content: `<div class="home-wrap">${sections}</div>`,
+    });
+    Helpers.startClock();
+  </script>
+</body>
+</html>

@@ -7,7 +7,7 @@
 | 端 | 目录 | 在线预览 | 说明 |
 |----|------|----------|------|
 | PDA 手持终端 | [`pda/`](./pda) | [wsmssdswa.github.io/yt-demo/pda](https://wsmssdswa.github.io/yt-demo/pda/) | 仓库作业:PDA 工作台、退仓扫描、增值服务等 |
-| PC 端 | _待建_ | — | 未来放 `pc/` |
+| PC 桌面端 | [`pc/`](./pc) | — | 仓库作业后台:B2B 订单管理(WinForms 风格) |
 
 ## 本地预览
 
@@ -23,13 +23,19 @@ demo/
 │   ├── js/              # 脚本(layout.js / helpers.js / 各页逻辑)
 │   ├── docs/            # 设计文档与截图存档
 │   └── AGENTS.md        # PDA 开发规范(改 PDA 原型必读)
-└── pc/                  # PC 原型(未来)
+└── pc/                  # PC 桌面端原型
+    ├── *.html           # 页面入口(B2B 订单管理 …)
+    ├── css/             # 样式(base.css 共用 / pages.css 各页专属)
+    ├── js/              # 脚本(layout.js / helpers.js / 各页逻辑)
+    ├── docs/            # 设计文档存档
+    └── AGENTS.md        # PC 开发规范(改 PC 原型必读)
 ```
 
 ## 开发规范
 
 - 改 PDA 原型 → 先读 [`pda/AGENTS.md`](./pda/AGENTS.md)
-- 新增一端(如 PC)→ 在仓库根新建子目录(如 `pc/`),放该端的 `index.html` 与资源
+- 改 PC 原型 → 先读 [`pc/AGENTS.md`](./pc/AGENTS.md)
+- 新增一端 → 在仓库根新建子目录,放该端的 `index.html` 与资源
 
 ---
 

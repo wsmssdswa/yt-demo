@@ -153,7 +153,7 @@
 .record-no { font-size: 14px; font-weight: 600; color: #333; }
 .record-time { font-size: 11px; color: #bbb; flex-shrink: 0; }
 
-/* 扫描记录:来源标签 + 退件原因 */
+/* 扫描记录:来源标签 + 退仓原因 */
 .record-meta {
   margin-top: 6px;
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
@@ -164,18 +164,19 @@
   border-radius: 3px;
   line-height: 1.7;
 }
-.src-tag--cis        { background: #E6F7F6; color: #00A99D; }   /* 场景① 关务指令 */
-.src-tag--warehouse  { background: #FFF1F0; color: #F5222D; }   /* 场景③ 仓库登记(警示色,便于回溯) */
+.src-tag--cis  { background: #E6F7F6; color: #00A99D; }   /* 关务退仓(CIS,主色绿) */
+.src-tag--tms  { background: #E6F0FF; color: #3D6EFF; }   /* 运力退仓(TMS,蓝) */
+.src-tag--wh   { background: #FFF7E6; color: #D46B08; }   /* 仓库登记(其他原因,橙) */
 .record-reason {
   font-size: 12px; color: #888;
 }
 
 /* ============================================
-   退仓扫描 · 登记抽屉 + 滚轮 picker(场景③)
+   退仓扫描 · 登记抽屉 + 平铺原因列表(场景③)
    ============================================ */
 
 /* 抽屉容器:相对设备框定位(absolute,约束在设备屏幕内) */
-.drawer { position: absolute; inset: 0; z-index: 1000; }
+.drawer { position: absolute; inset: 0; z-index: 1000; overflow: hidden; }
 .drawer.hidden { display: none; }
 .drawer-mask {
   position: absolute; inset: 0;
@@ -208,7 +209,7 @@
 .drawer-title { font-size: 16px; font-weight: 600; color: #333; }
 .drawer-confirm { font-size: 15px; color: #00A99D; font-weight: 600; }
 
-/* 提示语:解释为什么要选退件原因(含单号) */
+/* 提示语:解释为什么要填退仓原因(含单号) */
 .drawer-tip {
   font-size: 12.5px;
   color: #8C6A00;
@@ -221,58 +222,89 @@
 }
 .drawer-tip b { color: #D48806; font-family: Menlo, Consolas, monospace; }
 
-/* 滚轮 picker:高度 = 项高×5,可见5项 */
-.picker {
-  position: relative;
-  height: 180px;            /* 可见约4.5项 × 40px */
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 36%, #000 64%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 36%, #000 64%, transparent 100%);
+/* 仓库登记原因输入框:备注框(多行),实体键盘可输入,回车确认 */
+.drawer-input {
+  display: block;
+  width: calc(100% - 32px);
+  min-height: 60px;
+  margin: 0 16px 12px;
+  padding: 8px 12px;
+  border: 1px solid #00A99D;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  color: #333;
+  outline: none;
+  box-sizing: border-box;
+  resize: none;
+  line-height: 1.5;
 }
-/* 中间高亮选择条(偏上:top 50px,让选项区整体上移贴近提示语)
-   透明背景 + 上下细线,不遮挡选项文字 */
-.picker-highlight {
-  position: absolute;
-  left: 16px; right: 16px;
-  top: 50px;                /* 偏上(非几何中心70),选项上提 */
-  height: 40px;
-  border-top: 1px solid #ddd;
-  border-bottom: 1px solid #ddd;
-  pointer-events: none;
-  z-index: 1;
+.drawer-input:focus { border-color: #00A99D; box-shadow: 0 0 0 2px rgba(0,169,157,.15); }
+.drawer-input::placeholder { color: #BBB; }
+
+/* 同票已登记原因:可点选填入,辅助减少重复输入 */
+.drawer-same-reasons { margin: 0 16px 10px; }
+.drawer-same-reasons.hidden { display: none; }
+.same-reasons-title { font-size: 12px; color: #888; margin-bottom: 6px; }
+.same-reasons-list { max-height: 120px; overflow-y: auto; }
+.same-reason-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  margin: 4px 0;
+  border-radius: 6px;
+  border: 1px solid #EEE;
+  background: #FAFAFA;
+  cursor: pointer;
 }
-.picker-wheel {
-  height: 100%;
-  overflow-y: auto;
-  scrollbar-width: none;
-  padding: 50px 0 90px;     /* top=选择条top;bottom 加大,让末项也能滚到选择条 */
-}
-.picker-wheel::-webkit-scrollbar { display: none; }
-.picker-item {
-  height: 40px;
-  line-height: 40px;
-  text-align: center;
-  font-size: 16px;
-  color: #999;
-  transition: color .15s;
-}
-/* 序号:对应实体数字键,青绿小圆 */
-.picker-num {
-  display: inline-block;
+.same-reason-item:active { background: #F0F0F0; }
+.same-reason-sub {
+  flex-shrink: 0;
   width: 18px;
   height: 18px;
   line-height: 18px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: #e0e0e0;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
   text-align: center;
-  vertical-align: 1px;
+  font-size: 12px;
+  color: #00A99D;
+  background: #E6F7F6;
+  border-radius: 50%;
 }
-.picker-item--active { color: #333; font-weight: 600; }
-.picker-item--active .picker-num { background: #00A99D; }
+.same-reason-text {
+  font-size: 13px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 勾选:本票后续子单按此原因直接入库(本次扫描有效) */
+.drawer-apply {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #F6FFED;
+  border: 1px solid #B7EB8F;
+  font-size: 12.5px;
+  color: #389E0D;
+}
+.drawer-apply input[type="checkbox"] { width: 16px; height: 16px; accent-color: #00A99D; flex-shrink: 0; }
+
+/* 记录里"勾选复用"标记 */
+.record-apply-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #389E0D;
+  background: #F6FFED;
+  border: 1px solid #B7EB8F;
+  padding: 0 4px;
+  border-radius: 3px;
+}
 
 /* ============================================
    B2B工作台页(b2b-workbench.html)
@@ -1094,3 +1126,1253 @@
 .task-tr--vas::before    { background: #00A99D; }        /* 增值 青·主色(本次新增) */
 /* 增值卡片式(单独的 vas-card):独立卡片,色条占满整个左边一列(参考盘点卡片 border-left) */
 .vas-card { border-left: 4px solid #00A99D; }      /* 增值 青·主色(本次新增) */
+
+/* ============================================
+   安检拦截页(security-check.html)
+   复刻系统截图:筛选 + 扫描 + 拦截记录卡片
+   ============================================ */
+
+/* 筛选行:标签 + 下拉选择器 */
+.sec-filter {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  padding: 10px 14px;
+  border-bottom: 1px solid #ececec;
+  flex-shrink: 0;
+}
+.sec-filter-label {
+  font-size: 14px;
+  color: #333;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.sec-select-wrap {
+  flex: 1;
+  position: relative;
+  margin-left: 4px;
+}
+.sec-select {
+  width: 100%;
+  height: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 28px 0 10px;
+  font-size: 14px;
+  color: #333;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #fff;
+  outline: none;
+}
+.sec-select:focus { border-color: #00A99D; }
+.sec-select-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #999;
+  font-size: 12px;
+}
+
+/* 扫描区域:居中图标 + 文字 */
+.sec-scan-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 0 24px;
+  background: #fff;
+  flex-shrink: 0;
+}
+.sec-scan-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #E6F7F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s;
+}
+.sec-scan-icon:active { background: #CDEEEB; }
+.sec-scan-text {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+/* 拦截记录列表区 */
+.sec-list-area {
+  padding: 0 12px 16px;
+}
+
+/* 拦截记录卡片 */
+.sec-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.sec-card:last-child { margin-bottom: 0; }
+/* 卡片头部:单号(左) + 状态(右) */
+.sec-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sec-card-no {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+/* 状态文字 */
+.sec-status {
+  font-size: 14px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.sec-status--success { color: #00A99D; }
+.sec-status--pending { color: #FA8C16; }
+.sec-status--failed  { color: #F5222D; }
+
+/* 时间戳 */
+.sec-card-time {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #999;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 字段明细区 */
+.sec-card-fields {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f2f2f2;
+}
+.sec-field-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  line-height: 2;
+  font-size: 13px;
+}
+.sec-field-label {
+  color: #666;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+.sec-field-value {
+  color: #333;
+  text-align: right;
+  word-break: break-all;
+}
+/* 占位提示(未填写时灰色) */
+.sec-field-placeholder {
+  color: #bbb;
+}
+
+/* ============================================
+   B2B关务查验页(customs-check.html)
+   复刻真实 PDA RN 页面 CustomsCheck.tsx
+   ============================================ */
+
+/* 页面整体:.screen 是 flex column,这里用 flex:1 占满状态栏以下剩余空间,
+   内部再纵向排布;让 .cc-body(flex:1) 承担滚动,底部按钮固定在末尾不被顶出 */
+.cc-page {
+  flex: 1;
+  min-height: 0;          /* 关键:允许 flex 子项收缩,内部 overflow 才生效 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 主单号条(扫到才显示) */
+.cc-waybill {
+  text-align: center;
+  padding: 8px 12px 4px;
+  background: #fff;
+  font-size: 14px;
+  color: #333;
+  flex-shrink: 0;
+}
+.cc-waybill.hide { display: none; }
+
+/* 扫码区:子单号输入框 + 撤销按钮 */
+.cc-scan-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  padding: 4px 12px 10px;
+  flex-shrink: 0;
+}
+.cc-scan-label {
+  font-size: 14px;
+  color: #333;
+  flex-shrink: 0;
+}
+.cc-scan-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #fff;
+}
+.cc-scan-input:focus { border-color: #00A99D; }
+.cc-scan-input::placeholder { color: #bbb; }
+.cc-cancel-btn {
+  flex-shrink: 0;
+  padding: 0 12px;
+  height: 36px;
+  line-height: 34px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #666;
+  font-size: 13px;
+}
+.cc-cancel-btn:active { background: #f7f7f7; }
+
+/* 圆形扫描图标入口 */
+.cc-scan-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0 12px;
+  background: #fff;
+  flex-shrink: 0;
+}
+.cc-scan-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #00A99D;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cc-scan-icon:active { background: #00918a; }
+.cc-scan-text {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #555;
+}
+
+/* 块状 Tab 栏(区别于 b2b-workbench 下划线 Tab) */
+.cc-tabs {
+  display: flex;
+  gap: 4px;
+  background: #F5F5F5;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+.cc-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 2px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #111;
+  background: #F2F2F2;
+  cursor: pointer;
+}
+.cc-tab--on {
+  background: #fff;
+  color: #00A99D;
+  font-weight: 600;
+}
+
+/* 内容容器(占满中间) */
+.cc-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+}
+
+/* —— Tab0 待提交 —— */
+.cc-form {
+  padding: 10px 12px 12px;
+}
+/* 表单字段:统一「标签在上、控件全宽在下」的上下布局,PDA 单手操作更顺手 */
+.cc-field { margin-top: 16px; }
+.cc-field:first-of-type { margin-top: 12px; }   /* 弹窗首个字段,贴近标题栏副标题 */
+.cc-field-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;   /* 标签与下方控件之间的统一间距 */
+}
+.cc-field-label {
+  font-size: 14px;
+  color: #333;
+}
+/* 右侧辅助信息:上传计数 / 选填 标记,推到最右 */
+.cc-field-optional,
+.cc-upload-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: #999;
+  font-weight: 400;
+}
+.cc-req {
+  color: #F5222D;
+  margin-right: 2px;
+}
+.cc-select {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 26px 0 10px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+.cc-select:focus { border-color: #00A99D; }
+.cc-select-wrap {
+  position: relative;
+  width: 100%;           /* 上下布局下撑满整行,与上传框/备注框左边界一致 */
+}
+.cc-select-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #999;
+  font-size: 11px;
+}
+/* 查验建议:可点击的显示框(替代原生 select,点击弹底部选择器) */
+.cc-select-display {
+  height: 36px;
+  line-height: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 26px 0 10px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-select-display--ph { color: #bbb; }
+.cc-select-wrap:active .cc-select-display { background: #f7f9f9; }
+/* 底部弹窗里的选择项 */
+.cc-pick-item {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid #f0f0f0;
+  line-height: 1.4 !important;   /* 覆盖 action-sheet-item 的 50px 行高,12项也能放下 */
+}
+.cc-pick-item:last-child { border-bottom: none; }
+.cc-pick-item:active { background: #f7f9f9; }
+/* 选择项列表:限高可滚动(12个枚举不撑满页面) */
+#ccSuggestList {
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* 备注多行:label 与 textarea 顶部对齐(去掉 margin-top,由 .cc-row 统一间距) */
+.cc-remark {
+  width: 100%;
+  min-height: 60px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  resize: none;
+  box-sizing: border-box;
+}
+.cc-remark:focus { border-color: #00A99D; }
+.cc-remark::placeholder { color: #bbb; }
+/* 拍照上传:标题对齐字段 label,上传框对齐标题(不再缩进控件列) */
+.cc-upload-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* 单张照片容器:相对定位,删除按钮定位到右上角 */
+.cc-upload-item {
+  position: relative;
+}
+.cc-upload-box {
+  width: 72px;
+  height: 72px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+  overflow: hidden;
+}
+.cc-upload-box:active { background: #f7f9f9; }
+.cc-upload-box--filled {
+  border-style: solid;
+  border-color: #00A99D;
+  background: #E6F7F5;
+  color: #00A99D;
+  font-size: 12px;
+}
+.cc-upload-sub { font-size: 10px; color: #bbb; margin-top: 3px; }
+.cc-upload-count { font-size: 12px; color: #999; font-weight: 400; }
+.cc-upload-done { font-size: 22px; line-height: 1; }
+/* 缩略图:铺满上传框 */
+.cc-upload-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* 删除按钮:右上角小红圈 */
+.cc-upload-del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 50%;
+  background: #F5222D;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.cc-upload-del:active { background: #c41e26; }
+/* 大图预览遮罩 */
+.cc-photo-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+}
+.cc-photo-full {
+  max-width: 90%;
+  max-height: 80%;
+  border-radius: 8px;
+}
+.cc-photo-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.25);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* 提示引导行(S0 空态 / S2 完成态) */
+.cc-hint {
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+  padding: 24px 0;
+}
+.cc-hint--done {
+  color: #00A99D;
+  font-weight: 500;
+}
+
+/* S1 处理态:当前查验子单号已上提到标题栏副标题(.cc-process-sub),此处样式保留备用 */
+.cc-cur-child-label {
+  font-size: 13px;
+  color: #00A99D;
+  flex-shrink: 0;
+}
+.cc-cur-child-no {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+/* 子单处理弹窗(底部抽屉) */
+/* 处理弹窗 z-index 1000(默认),其内触发的二级选择弹窗(建议/问题件)需更高层级 */
+#ccSuggestPicker, #ccIssuePicker { z-index: 1100; }
+.cc-process-panel {
+  max-height: 88%;
+  display: flex;
+  flex-direction: column;
+}
+.cc-process-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+.cc-process-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;            /* 允许超长单号省略,不挤掉关闭按钮 */
+}
+/* 主标题内拼接的子单号:等宽大字、超长省略 */
+.cc-process-no {
+  font-size: 15px;
+  font-weight: 500;
+  color: #333;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-process-close {
+  font-size: 18px;
+  color: #999;
+  line-height: 1;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.cc-process-body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+.cc-process-submit {
+  margin: 8px 16px calc(12px + env(safe-area-inset-bottom));
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: #00A99D;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.cc-process-submit:active { background: #00918a; }
+
+/* 国家/渠道信息行 */
+.cc-meta {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #333;
+  line-height: 1.9;
+}
+.cc-meta div { margin-left: 0; }
+
+/* 进度行:子单查验记录 + 共X箱 + 进度标签 */
+.cc-progress {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 6px;
+  font-size: 14px;
+  color: #333;
+}
+.cc-progress-tag {
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.cc-progress-tag--risk {     /* 风控:红底红字 */
+  color: #E74C3C;
+  background: #FFF0F0;
+}
+.cc-progress-tag--green {    /* 自主:绿底绿字 */
+  color: #27AE60;
+  background: #E8F8F0;
+}
+
+/* 子单查验列表 */
+.cc-child-list {
+  margin-top: 4px;
+}
+.cc-child-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f2f2f2;
+  font-size: 13px;
+  color: #333;
+}
+.cc-child-item:last-child { border-bottom: none; }
+.cc-child-no {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.cc-child-done {
+  width: 18px;
+  height: 18px;
+  margin: 0 10px 0 8px;
+  color: #00A99D;
+  font-size: 15px;
+  text-align: center;
+  line-height: 18px;
+  flex-shrink: 0;
+}
+.cc-child-done.cc-child-done--no { visibility: hidden; }
+.cc-child-suggest {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #888;
+  max-width: 90px;
+  text-align: right;
+}
+
+/* —— Tab1 申报信息 / Tab2 问题件类型:两列展示 —— */
+.cc-kv {
+  padding: 4px 14px 16px;
+}
+.cc-kv-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f2f2f2;
+  font-size: 13px;
+}
+.cc-kv-row:last-child { border-bottom: none; }
+.cc-kv-label {
+  flex: 0 0 90px;
+  color: #C0C0C0;
+  text-align: right;
+  padding-right: 10px;
+}
+.cc-kv-value {
+  flex: 1;
+  color: #333;
+  word-break: break-all;
+}
+
+/* —— 底部按钮区 —— */
+.cc-bottom {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  background: #fff;
+  border-top: 1px solid #ececec;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.cc-btn {
+  flex: 1;
+  height: 42px;
+  border: 1px solid #00A99D;
+  border-radius: 8px;
+  background: #fff;
+  color: #00A99D;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cc-btn:active { background: #E6F7F5; }
+.cc-btn--fill {                /* 提交关务/查验正常 用主色填充区分 */
+  background: #00A99D;
+  color: #fff;
+}
+.cc-btn--fill:active { background: #00918a; }
+.cc-btn--danger {              /* 退件 用红色描边 */
+  border-color: #F5222D;
+  color: #F5222D;
+}
+.cc-btn--danger:active { background: #FFF1F0; }
+
+/* —— 查验扣件弹窗(复用 .drawer 抽屉容器) —— */
+.cc-detain-row {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  margin: 0 16px;
+  border-bottom: 1px solid #d7d7d7;
+  font-size: 13px;
+}
+.cc-detain-row .cc-req { margin-right: 4px; }
+.cc-detain-label { color: #333; flex-shrink: 0; }
+.cc-detain-value {
+  flex: 1;
+  text-align: right;
+  color: #555;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-detain-value--ph { color: #999; }
+.cc-detain-value--on { color: #00A99D; font-weight: 500; }
+.cc-detain-submit {
+  margin: 14px 16px 8px;
+  height: 42px;
+  border: none;
+  border-radius: 8px;
+  background: #00A99D;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+.cc-detain-submit:active { background: #00918a; }
+
+/* —— 操作记录弹层 —— */
+.cc-log-list {
+  padding: 12px 16px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.cc-log-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #f2f2f2;
+  font-size: 13px;
+}
+.cc-log-item:last-child { border-bottom: none; }
+.cc-log-waybill {
+  font-weight: 600;
+  color: #222;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.cc-log-op { color: #00A99D; margin: 4px 0 2px; }
+.cc-log-time { color: #999; font-size: 11px; }
+
+/* === PDA签入页(check-in) === */
+.ci-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 计费网点状态徽标 */
+.ci-mode {
+  margin: 8px 12px 0;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e3f5f3;
+  color: #00A99D;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ci-mode-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #00A99D;
+}
+.ci-mode--plain { background: #f0f0f0; color: #888; }
+.ci-mode--plain .ci-mode-dot { background: #aaa; }
+
+/* 尺寸重量区(计费网点才显示) */
+.ci-dim {
+  margin: 8px 12px 0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+.ci-dim-label {
+  font-size: 13px;
+  color: #6c6c6c;
+  font-weight: 600;
+  margin: 4px 0 6px;
+}
+.ci-dim-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ci-dim-input, .ci-weight-input {
+  height: 32px;
+  border: 0.5px solid #868686;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 14px;
+  color: #333;
+  background: #fff;
+  width: 76px;
+  text-align: center;
+}
+.ci-dim-input:focus, .ci-weight-input:focus { outline: none; border-color: #00A99D; }
+.ci-dim-input--locked { background: #f2f2f2; color: #bbb; }
+.ci-weight-input { flex: 1; width: auto; }
+
+/* 锁定开关 */
+.ci-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.ci-switch input { display: none; }
+.ci-switch-slider {
+  width: 38px; height: 22px;
+  background: #ccc;
+  border-radius: 999px;
+  position: relative;
+  transition: background .2s;
+}
+.ci-switch-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left .2s;
+}
+.ci-switch input:checked + .ci-switch-slider { background: #00A99D; }
+.ci-switch input:checked + .ci-switch-slider::after { left: 18px; }
+.ci-lock-text { font-size: 12px; color: #6c6c6c; }
+
+/* 电子称按钮(对应代码 #00817f) */
+.ci-scale-btn {
+  height: 32px;
+  min-width: 92px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: #00817f;
+  color: #fff;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.ci-scale-btn--on { background: #e64e58; }
+.ci-scale-btn--busy { background: #aaa; }
+.ci-scale-btn:active { opacity: .85; }
+
+/* 双 Tab */
+.ci-tabs {
+  margin: 8px 12px 0;
+  background: #fff;
+  border-radius: 10px;
+  display: flex;
+  padding: 3px;
+  flex-shrink: 0;
+}
+.ci-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #666;
+  border-radius: 8px;
+}
+.ci-tab--on {
+  background: #00A99D;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 内容区(双 Tab 切换) */
+.ci-pane {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+  margin-top: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 扫描输入区 */
+.ci-scan-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.ci-scan-label { font-size: 13px; color: #333; font-weight: 600; flex-shrink: 0; }
+.ci-scan-input {
+  flex: 1;
+  height: 34px;
+  border: 0.5px solid #868686;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 14px;
+  color: #333;
+}
+.ci-scan-input:focus { outline: none; border-color: #00A99D; }
+
+/* 扫描记录列表头 */
+.ci-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 2px 4px;
+}
+.ci-list-title { font-size: 13px; color: #333; font-weight: 600; }
+.ci-rec-count { color: #999; font-weight: 400; }
+.ci-revoke-btn {
+  font-size: 12px;
+  color: #e64e58;
+  border: 1px solid #e64e58;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.ci-revoke-btn:active { background: #fdecec; }
+
+/* 空状态 */
+.ci-empty {
+  text-align: center;
+  padding: 48px 0 20px;
+  color: #999;
+}
+.ci-empty-icon { font-size: 30px; margin-bottom: 8px; }
+.ci-empty-text { font-size: 14px; color: #666; }
+.ci-empty-sub { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+/* 扫描记录条目 */
+.ci-record {
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.ci-rec-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ci-rec-no {
+  font-size: 14px;
+  font-weight: 600;
+  color: #353535;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.ci-rec-tag {
+  font-size: 11px;
+  color: #00A99D;
+  background: #e3f5f3;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ci-rec-meta {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #a5a5a5;
+}
+
+/* 问题件标记 */
+.ci-rec-abn {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  background: #fff5f5;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.ci-abn-icon {
+  width: 18px; height: 18px;
+  background: #e64e58;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.ci-abn-text {
+  font-size: 13px;
+  color: #e64e58;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+/* 拍照上传 */
+.ci-rec-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ci-photo {
+  width: 46px; height: 46px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+  background-color: #f0f0f0;
+  position: relative;
+  display: inline-block;
+}
+.ci-photo-del {
+  position: absolute;
+  top: -5px; right: -5px;
+  width: 16px; height: 16px;
+  background: #e64e58;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ci-photo-add {
+  width: 46px; height: 46px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  color: #999;
+  font-size: 11px;
+}
+
+/* 接收明细:统计 + 批次 */
+.ci-recv-stats {
+  display: flex;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #3b3b3b;
+}
+.ci-recv-stats b { font-size: 13px; }
+.ci-batch {
+  margin: 8px 2px 4px;
+  font-size: 12px;
+  color: #666;
+}
+.ci-batch-label { color: #999; }
+.ci-batch b { color: #333; }
+
+/* 主单分组列表 */
+.ci-main-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ci-main { background: #fff; border-radius: 10px; overflow: hidden; }
+.ci-main-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.ci-main-no {
+  flex: 1;
+  font-size: 13px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ci-main-count { font-size: 13px; font-weight: 600; }
+.ci-main-arrow { color: #999; font-size: 12px; }
+.ci-main-abn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 10px;
+  cursor: pointer;
+}
+.ci-abn-entry { font-size: 13px; color: #e64e58; }
+
+/* 子单明细 */
+.ci-child-list {
+  border-top: 1px solid #f2f2f2;
+  background: #fafafa;
+}
+.ci-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f2f2f2;
+  flex-wrap: wrap;
+}
+.ci-child:last-child { border-bottom: none; }
+.ci-child-no {
+  font-size: 13px;
+  color: #353535;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ci-child-kv {
+  width: 100%;
+  font-size: 11px;
+  color: #a5a5a5;
+  margin-top: 2px;
+}
+.ci-child-state {
+  font-size: 12px;
+  color: #999;
+  flex-shrink: 0;
+}
+.ci-child-state--ok { color: #00A99D; }
+
+/* 完成签入按钮(无批次时置灰,对应代码 #aaa/#008081) */
+.ci-finish {
+  flex-shrink: 0;
+  margin: 4px 12px 12px;
+  height: 44px;
+  border-radius: 10px;
+  background: #aaa;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ci-finish--on { background: #008081; }
+.ci-finish--on:active { background: #00696a; }
+
+/* 弹层 */
+.ci-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ci-dialo
+g {
+  width: 320px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+}
+.ci-dialog-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+  text-align: center;
+}
+.ci-dialog-tip {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  margin: 8px 0 12px;
+}
+.ci-dialog-input {
+  width: 100%;
+  height: 38px;
+  border: 0.5px solid #868686;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+.ci-dialog-input:focus { outline: none; border-color: #00A99D; }
+.ci-dialog-btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.ci-dialog-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ci-dialog-btn--cancel { background: #f2f2f2; color: #666; }
+.ci-dialog-btn--ok { background: #00A99D; color: #fff; }
+.ci-dialog-btn--full { flex: 1; }
+.ci-dialog-btn--ok:active, .ci-dialog-btn--cancel:active { opacity: .85; }
+
+/* 异常件列表(弹层内) */
+.ci-abn-list { max-height: 240px; overflow-y: auto; }
+.ci-abn-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #f2f2f2;
+}
+.ci-abn-item:last-child { border-bottom: none; }
+.ci-abn-item-no {
+  font-size: 13px;
+  color: #353535;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.ci-abn-item-text {
+  font-size: 13px;
+  color: #e64e58;
+  margin-top: 2px;
+  white-space: pre-line;
+}
+
+/* 演示面板按钮 */
+.test-panel-btn {
+  font-size: 12px;
+  color: #00A99D;
+  border: 1px solid #00A99D;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fff;
+}
+.test-panel-btn:active { background: #e3f5f3; }
+
+/* 图片录入(超尺寸必填):标题"图片*" + 拍照框(样式同扫描记录) */
+.ci-oversize-panel {
+  margin-top: 10px;
+}
+.ci-oversize-label {
+  font-size: 13px;
+  color: #6c6c6c;
+  font-weight: 600;
+}
+.ci-required { color: #e64e58; margin-right: 2px; }
+.ci-oversize-hint {
+  font-size: 12px;
+  color: #e64e58;
+  font-weight: 500;
+  margin-left: 6px;
+}
+.ci-oversize-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ci-oversize-del {
+  position: absolute;
+  top: -5px; right: -5px;
+  width: 16px; height: 16px;
+  background: #e64e58;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

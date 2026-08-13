@@ -1,0 +1,703 @@
+/* ============================================
+   pages.css — PC 端各页面专属样式
+   ============================================ */
+
+/* === B2B 订单管理页 === */
+
+/* 工具栏按钮之间的"竖线分隔" */
+.grid-toolbar .sep {
+  width: 1px;
+  height: 18px;
+  background: #C0C0C0;
+  margin: 0 4px;
+}
+
+/* 表格内"订单类型"用 tag 样式,直观区分空运/海运/卡航 */
+.tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.tag--air   { background: #E3F2FD; color: #1565C0; border: 1px solid #BBDEFB; }
+.tag--sea   { background: #E0F7FA; color: #00695C; border: 1px solid #B2EBF2; }
+.tag--truck { background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2; }
+
+/* "已换单" / "未调拨" 文字徽标 */
+.badge {
+  display: inline-block;
+  padding: 0 5px;
+  font-size: 11px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+.badge--ok    { color: #2E7D32; }
+.badge--warn  { color: #E65100; }
+.badge--err   { color: #C62828; }
+.badge--muted { color: #888; font-weight: 400; }
+
+/* 已发货/已确认 文字色 */
+.txt-shipped   { color: #2E7D32; font-weight: 600; }
+.txt-confirmed { color: #1F4E79; font-weight: 600; }
+
+/* 表格"链接型"运单号(可点击查看详情) */
+.cell-link {
+  color: #1F4E79;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.cell-link:hover { color: #C62828; }
+
+/* 表格 footer 行(总件数汇总等) */
+.grid tfoot td {
+  background: #F5F5F5 !important;
+  font-weight: 700;
+  border-top: 2px solid #B0B0B0;
+}
+
+/* 复选框列 */
+.grid td.col-chk { padding: 2px 4px; }
+.grid th.col-chk { padding: 2px 4px; }
+
+/* 链接型按钮(工具栏里的"列表配置""修改材料重量"等次要按钮) */
+.btn--text {
+  background: transparent;
+  border: none;
+  color: #1F4E79;
+  padding: 0 6px;
+  text-decoration: none;
+}
+.btn--text:hover { background: #E8F0FE; color: #C62828; text-decoration: underline; }
+
+
+/* ============================================================
+   异常订单管理页(abnormal-order)
+   ============================================================ */
+
+/* 表格区:异常页列多(30 列),允许横向滚动 */
+.abn-grid-wrap { overflow-x: auto; }
+.abn-grid { min-width: 2600px; }
+.abn-grid th, .abn-grid td {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* —— 异常状态标签(对应 AbnormalHandleStatus) —— */
+.abn-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.abn-status--pending   { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 待处理-红 */
+.abn-status--processing{ background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 处理中-橙 */
+.abn-status--done      { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 已完结-绿 */
+.abn-status--cancel    { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 已取消-灰 */
+
+/* —— 处理方式标签(对应 AbnormalHandleType + 代码 Color 标注) —— */
+.abn-handle {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 3px;
+}
+.abn-handle--none   { color: #888; }                              /* 待处理 */
+.abn-handle--clear  { color: #389E0D; }                            /* 放行-绿 */
+.abn-handle--vas    { background: #FFD966; color: #6B4C00; }       /* 放行需增值-黄(代码标注色) */
+.abn-handle--return { background: #FF4D4F; color: #fff; }          /* 退件-红(代码标注色) */
+.abn-handle--drop   { background: #888; color: #fff; }             /* 弃件-灰 */
+
+/* 异常件数高亮(警示) */
+.abn--alert { color: #CF1322; font-weight: 700; }
+
+/* 异常分类/类型列 */
+.abn--category { color: #1F4E79; font-weight: 600; }
+.abn--type { color: #C62828; }
+
+/* 增值状态 */
+.abn-vas--done { color: #389E0D; }
+.abn-vas--todo { color: #D46B08; font-weight: 600; }
+
+
+/* ============================================================
+   B2B 订单管理页(b2b-order)— 查询区交互优化 + 状态色标
+   ============================================================ */
+
+/* ============================================================
+   查询区公共样式(.qp / .qf)— B2B订单页 & 异常订单页共用
+   结构:每个字段 label 在上、控件在下(纵向),主行+更多条件两行
+   ============================================================ */
+
+/* 查询行:横向排列、允许换行、顶对齐(label 固定高保证控件对齐) */
+.qp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 14px;
+}
+/* 主行 */
+.qp-row--main { /* 同 .qp-row,占位便于语义识别 */ }
+/* 更多条件行:加顶部分隔线 */
+.qp-more {
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px dashed #D6E2F0;
+}
+
+/* 单个查询字段:纵向(label 上、控件下) */
+.qf {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.qf > label {
+  font-size: 12px;
+  color: #555;
+  white-space: nowrap;
+  align-self: flex-start;   /* label 不撑满,按文字宽度 */
+  height: 18px;             /* label 行固定高,保证下方控件起点对齐 */
+  line-height: 18px;
+}
+/* 控件统一宽度 + 统一高度,保证横向对齐 */
+.qf .ipt,
+.qf .sel {
+  width: 150px;
+  height: 26px;
+  box-sizing: border-box;
+}
+/* 单号批量框更宽(textarea 同高,可纵向拉伸) */
+.qf--waybill .ipt--waybill {
+  width: 240px;
+  height: 26px;
+  min-height: 26px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+/* 时间范围:两个日期框 + ~ */
+.qf-range { display: inline-flex; align-items: center; gap: 4px; }
+.qf-range .ipt--date { width: 120px; }
+.qf-sep { color: #888; }
+/* 复合时间字段:日期类型下拉 + 时间范围,横向排列 */
+.qf-time { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.qf-time .sel--inline { width: auto; min-width: 110px; }
+
+/* 操作按钮区:靠右,与字段底对齐 */
+.qp-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+/* 查询区内的复选框 */
+.qp-cb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #555;
+  white-space: nowrap;
+  height: 26px;
+}
+
+/* —— 表格区 —— */
+.ord-grid-wrap { overflow-x: auto; }
+.ord-grid { min-width: 2100px; }
+.ord-grid th, .ord-grid td { white-space: nowrap; font-size: 12px; }
+
+/* —— 订单状态 OrderStatus —— */
+.ord-o--forecast { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 已预报-蓝 */
+.ord-o--confirm  { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 已确认-绿 */
+.ord-o--cancel   { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 已取消-灰 */
+.ord-o--return   { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 已退件-红 */
+
+/* —— 库内操作状态 OrderOperateStatus(渐进色:灰→蓝→绿) —— */
+.ord-op--wait   { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 待入库-灰 */
+.ord-op--in     { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 已入库-蓝 */
+.ord-op--shelf  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }   /* 已上架-浅绿 */
+.ord-op--pick   { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 已拣货-橙 */
+.ord-op--ship   { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 已发货-绿 */
+.ord-op--return { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 已退件-红 */
+
+/* —— 换单状态 OrderChangeMarkType —— */
+.ord-swap--none { color: #888; }
+.ord-swap--todo { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 待换单-橙(需关注) */
+.ord-swap--done { color: #389E0D; }
+
+/* —— 调拨状态 OrderTransferStatus —— */
+.ord-tf--none { color: #888; }
+.ord-tf--part { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }     /* 部分调拨中-橙 */
+.ord-tf--all  { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }     /* 全部调拨中-蓝 */
+
+/* —— 共用 tag 基类(订单页复用异常页的 .abn-tag 样式定义,这里给 .ord-tag 同款) —— */
+.ord-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+/* ============================================================
+   退仓管理页(return-warehouse)
+   ============================================================ */
+
+/* 退仓状态标签 */
+.rw-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.rw-st--wait    { background: #F5F5F5; color: #888; border: 1px solid #D9D9D9; }      /* 待到货-灰 */
+.rw-st--scanned { background: #E6F7F6; color: #00A99D; border: 1px solid #87E8DE; }    /* 已退仓-主色绿 */
+
+/* 来源标签:关务=绿 运力=蓝 仓库登记=橙(仓库主动建,需关注) */
+.rw-src--cis { background: #E6F7F6; color: #00A99D; border: 1px solid #87E8DE; }
+.rw-src--tms { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
+.rw-src--wh  { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }
+
+/* —— 登记退仓弹窗 —— */
+.rw-modal { position: fixed; inset: 0; z-index: 2000; }
+.rw-modal.hidden { display: none; }
+.rw-modal-mask { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+.rw-modal-panel {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 460px; background: #fff; border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2); overflow: hidden;
+}
+.rw-modal-header {
+  height: 38px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(to bottom, #F8F8F8, #ECECEC); border-bottom: 1px solid #D6D6D6;
+}
+.rw-modal-title { font-size: 13px; font-weight: 600; color: #333; }
+.rw-modal-close { cursor: pointer; color: #888; font-size: 14px; }
+.rw-modal-close:hover { color: #E81123; }
+.rw-modal-body { padding: 16px 18px 8px; }
+.rw-modal-tip {
+  font-size: 12px; color: #888; padding: 8px 18px 12px; line-height: 1.6;
+  border-top: 1px dashed #EEE; margin: 0 0 0;
+}
+.rw-modal-footer {
+  padding: 10px 18px; display: flex; justify-content: flex-end; gap: 8px;
+  border-top: 1px solid #EEE; background: #FAFAFA;
+}
+/* 表单行:label 固定宽左对齐 + 控件右铺 */
+.rw-form-row { display: flex; align-items: flex-start; margin-bottom: 12px; }
+.rw-form-label {
+  width: 72px; flex-shrink: 0; font-size: 12px; color: #555;
+  line-height: 26px; padding-right: 8px; box-sizing: border-box;
+}
+.rw-req { color: #E81123; margin-right: 2px; }
+.rw-form-ipt { flex: 1; height: 26px; box-sizing: border-box; }
+.rw-form-ipt--multi { flex: 1; height: 50px; resize: vertical; font-family: inherit; resize: vertical; }
+/* 只读输入(退回网点等):灰底+浅边框+光标默认,一眼看出不可编辑 */
+.rw-form-ipt--readonly {
+  background: #F5F5F5;
+  border: 1px solid #D9D9D9;
+  color: #888;
+  cursor: default;
+  padding: 0 6px;
+}
+
+/* —— 弹窗:单号类型切换 + 输入框容器 —— */
+.rw-input-wrap { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.rw-no-type { display: flex; gap: 16px; font-size: 12px; color: #555; }
+.rw-no-type label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.rw-no-type input[type="radio"] { cursor: pointer; }
+
+/* —— 校验结果分组(失焦校验后,按可登记/已存在/不可登记三组展示) —— */
+.rw-check-result { margin: -4px 0 12px 72px; max-height: 180px; overflow-y: auto; }
+.rw-check-result:empty { display: none; }
+.rw-cr-expand { font-size: 11px; color: #4472C4; background: #F0F5FB; padding: 3px 8px; border-radius: 3px; margin-bottom: 6px; }
+.rw-cr-group { margin-bottom: 6px; font-size: 12px; }
+.rw-cr-head { font-weight: 600; padding: 2px 0 4px; }
+.rw-cr--ok   .rw-cr-head { color: #389E0D; }
+.rw-cr--skip .rw-cr-head { color: #D46B08; }
+.rw-cr--bad  .rw-cr-head { color: #CF1322; }
+.rw-cr-list { padding-left: 4px; }
+.rw-cr-item {
+  font-family: Consolas, "Courier New", monospace; color: #555;
+  padding: 2px 0; display: flex; justify-content: space-between; gap: 8px;
+  border-bottom: 1px dashed #F0F0F0;
+}
+.rw-cr-reason { font-family: inherit; color: #999; font-size: 11px; flex-shrink: 0; }
+.rw-cr--ok   .rw-cr-item { color: #389E0D; }
+.rw-cr--skip .rw-cr-item { color: #999; text-decoration: line-through; }
+
+/* —— 登记结果弹窗(确认登记后,有跳过/失败时展示) —— */
+.rw-modal-panel--result { width: 520px; }
+.rw-modal-panel--result .rw-modal-body { max-height: 420px; overflow-y: auto; }
+.rw-res-expand {
+  font-size: 11px; color: #4472C4; background: #F0F5FB;
+  padding: 3px 8px; border-radius: 3px; margin-bottom: 8px;
+}
+.rw-res-summary {
+  display: flex; gap: 18px; font-size: 14px; font-weight: 600;
+  padding: 8px 0 12px; border-bottom: 1px dashed #EEE; margin-bottom: 10px;
+}
+.rw-res-ok  { color: #389E0D; }
+.rw-res-bad { color: #CF1322; }
+
+
+/* ============================================================
+   B2B安检记录查询(b2b-security)
+   ============================================================ */
+
+/* 表格区横向滚动 */
+.sec-grid-wrap { overflow-x: auto; }
+.sec-grid { min-width: 1280px; }
+.sec-grid th, .sec-grid td { white-space: nowrap; font-size: 12px; }
+
+/* W200 拦截原因分组配色(复用 .abn-tag 基类) */
+.sec-reason--over   { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* A 超/不符-危险红 */
+.sec-reason--comply { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* B 资质/合规-警告橙 */
+.sec-reason--ip     { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* C 知产/禁运-危险红 */
+.sec-reason--review { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* D 复核/备案-信息蓝 */
+
+
+/* ============================================================
+   B2B重量勘误(b2b-weight)
+   ============================================================ */
+
+/* 表格区横向滚动(勘误前后对比列多) */
+.wt-grid-wrap { overflow-x: auto; }
+.wt-grid { min-width: 2400px; }
+.wt-grid th, .wt-grid td { white-space: nowrap; font-size: 12px; }
+
+/* WeightFixStatus 状态标签 */
+.wt-status--pending   { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 待生效-危险红(需操作) */
+.wt-status--processing{ background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 勘误中-警告橙 */
+.wt-status--done      { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 已完结-正常绿 */
+
+/* 勘误后值:有变化用强调色 + 灰显原值 */
+.wt-changed { color: #C62828; font-weight: 700; }
+.wt-from { color: #B0B0B0; font-size: 11px; font-weight: 400; }
+
+/* 勘误备注列 */
+.wt-remark { color: #555; }
+
+
+/* ============================================================
+   B2B查验记录(b2b-inspect)
+   ============================================================ */
+
+/* 表格区横向滚动 */
+.insp-grid-wrap { overflow-x: auto; }
+.insp-grid { min-width: 1200px; }
+.insp-grid th, .insp-grid td { white-space: nowrap; font-size: 12px; }
+
+/* InspectionBizType 查验类型配色(复用 .abn-tag 基类) */
+.insp-biz--risk { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 风控拦截查验-危险红 */
+.insp-biz--self { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 库内自主查验-信息蓝 */
+
+/* 问题件类型:含代码,红色强调 */
+.insp-issue { color: #C62828; }
+
+
+/* ============================================================
+   库内操作组(wh-shelf-q / wh-mv / wh-stock / wh-pick /
+   wh-stk-task / wh-print / wh-box-rep)
+   状态标签统一复用 .abn-tag 基类(已定义于上方异常页区块),
+   下面只追加各业务枚举的颜色映射(前缀按业务区分,避免互相覆盖)。
+   ============================================================ */
+
+/* —— 拣货状态 QueryPickingTaskStatus(待拣货橙 / 拣货中蓝 / 已完成绿 / 已作废灰 / 已迁移紫) —— */
+.pick-status--todo    { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 待拣货-橙 */
+.pick-status--doing   { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 拣货中-蓝 */
+.pick-status--done    { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 已完成-绿 */
+.pick-status--void    { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 已作废-灰 */
+.pick-status--moved   { background: #F3E5F5; color: #7B1FA2; border: 1px solid #CE93D8; }   /* 已迁移-紫 */
+
+/* 拣货优先级 A-E 标签(A 高 → E 低,渐变色阶) */
+.pick-pri--a { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* A-红 */
+.pick-pri--b { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* B-橙 */
+.pick-pri--c { background: #FFFBE6; color: #AD6800; border: 1px solid #FFE58F; }   /* C-黄 */
+.pick-pri--d { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* D-蓝 */
+.pick-pri--e { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* E-灰 */
+
+/* —— 盘点状态 InventoryCheckTaskStatus(未开始橙 / 进行中蓝 / 已完成绿 / 已取消灰) —— */
+.stk-status--todo    { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 未开始-橙 */
+.stk-status--doing   { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 进行中-蓝 */
+.stk-status--done    { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 已完成-绿 */
+.stk-status--cancel  { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 已取消-灰 */
+
+/* 盘点差异数 >0 红色加粗(高亮警示) */
+.stk-diff { color: #CF1322; font-weight: 700; }
+
+/* —— 打印状态 PrintStatus(打印中蓝 / 成功绿 / 失败红) —— */
+.print-status--doing { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 打印中-蓝 */
+.print-status--ok    { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 成功-绿 */
+.print-status--fail  { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 失败-红 */
+
+/* 打印错误信息列:红色 */
+.print-err { color: #CF1322; }
+
+/* —— 移库类型 ChangeTypes(整箱移库蓝 / 单箱移库青 / 整库紫) —— */
+.mv-type--box    { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 整箱移库-蓝 */
+.mv-type--single { background: #E0F7FA; color: #00695C; border: 1px solid #B2EBF2; }   /* 单箱移库-青 */
+.mv-type--zone   { background: #F3E5F5; color: #7B1FA2; border: 1px solid #CE93D8; }   /* 整库-紫 */
+
+/* —— 库内操作组各表横向滚动(列较多) —— */
+.wh-grid-wrap { overflow-x: auto; }
+.wh-grid th, .wh-grid td { white-space: nowrap; font-size: 12px; }
+
+/* —— 箱标补打:操作区 + 扫描结果 —— */
+.rep-op-panel {
+  background: #F5F8FC;
+  border-bottom: 1px solid #D6E2F0;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 18px;
+}
+/* 操作区单字段(沿用 .qf 纵向布局语义,但给单独类以便微调) */
+.rep-op-field { display: flex; flex-direction: column; gap: 2px; }
+.rep-op-field > label {
+  font-size: 12px; color: #555; height: 18px; line-height: 18px; white-space: nowrap;
+}
+.rep-op-field .ipt, .rep-op-field .sel {
+  width: 220px; height: 26px; box-sizing: border-box;
+}
+/* 打印类型单选(横排) */
+.rep-print-type { display: flex; align-items: center; gap: 14px; font-size: 12px; color: #333; height: 26px; }
+.rep-print-type label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.rep-print-type input[type="radio"] { cursor: pointer; }
+.rep-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+/* 扫描输入框:加粗边框,提示是主操作控件 */
+.rep-scan { border: 2px solid #4472C4 !important; font-family: Consolas, "Courier New", monospace; }
+
+/* —— 箱标补打:页内双 Tab(尾程面单打印 | 头程YT面单打印,对齐线上 frmLabelPrint) —— */
+.rep-page-tabs {
+  display: flex; gap: 2px; background: #EAF0F7; padding: 6px 8px 0;
+  border-bottom: 1px solid #C9D6E8;
+}
+.rep-page-tab {
+  padding: 6px 18px; font-size: 12px; color: #445;
+  cursor: pointer; user-select: none;
+  border: 1px solid transparent; border-bottom: none;
+  border-radius: 4px 4px 0 0; background: transparent;
+}
+.rep-page-tab:hover { background: #DEE8F4; }
+.rep-page-tab.is-active {
+  background: #fff; border-color: #C9D6E8; color: #1F4E79; font-weight: 600;
+  position: relative; top: 1px;
+}
+.rep-page-section { display: none; }
+.rep-page-section.is-active { display: block; }
+
+/* —— 箱标补打:打印设置页签(Tab3,全渠道直改,对齐需求 0811 打印份数配置) —— */
+.rep-setting-tip {
+  background: #FFFBE6; border: 1px solid #FFE58F; color: #874D00;
+  font-size: 12px; padding: 6px 12px; line-height: 20px;
+}
+.rep-setting-tip b { color: #D46B08; }
+/* 配置工具栏:默认份数 + 筛选 + 搜索 */
+.rep-setting-bar {
+  display: flex; align-items: center; gap: 14px;
+  background: #F5F8FC; border-bottom: 1px solid #D6E2F0;
+  padding: 8px 14px; font-size: 12px; color: #555;
+}
+.rep-setting-default { display: inline-flex; align-items: center; gap: 6px; }
+.rep-setting-filter { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+/* 行内份数输入:跟随默认灰底 / 已覆盖高亮 */
+.rep-copies-input {
+  width: 64px; height: 24px; text-align: center;
+  border: 1px solid #D9D9D9; border-radius: 3px; font-size: 12px;
+  background: #FAFAFA; color: #888;
+}
+.rep-copies-input.is-covered { background: #fff; color: #1F4E79; border-color: #4472C4; font-weight: 600; }
+.rep-copies-input:focus { outline: none; border-color: #00A99D; box-shadow: 0 0 0 2px rgba(0,169,157,.15); }
+/* 覆盖/默认标记 */
+.rep-covered-tag {
+  display: inline-block; background: #E6F4FF; color: #0958D9;
+  border: 1px solid #91CAFF; border-radius: 3px;
+  font-size: 11px; padding: 0 6px; margin-left: 8px;
+}
+.rep-default-tag {
+  display: inline-block; color: #999; font-size: 11px; margin-left: 8px;
+}
+.rep-reset {
+  display: inline-block; margin-left: 4px; color: #bbb; cursor: pointer;
+  font-size: 12px; padding: 0 3px;
+}
+.rep-reset:hover { color: #E81123; }
+/* 状态色阶(复用 .abn-tag 基类):启用绿 / 停用灰 */
+.rule-status--on  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+.rule-status--off { background: #F5F5F5; color: #757575; border: 1px solid #D9D9D9; }
+
+
+/* ============================================================
+   基础信息组(b-charge-net / b-wt-adj / b-prod-ccos / b-push)
+   复用 .abn-tag 状态基类,新色追加前缀 .prod-status--xxx / .push-status--xxx
+   启用-绿 / 禁用-灰;推送 已推-绿 失败-红 未推-灰 无需-浅灰
+   ============================================================ */
+
+/* —— 启用/禁用(重量调整 / 销售产品 共用)—— */
+.prod-status--on  { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 启用-绿 */
+.prod-status--off { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 未启用/禁用-灰 */
+
+/* —— 推送状态 PushStatus —— */
+.push-status--done { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }  /* 已推-绿 */
+.push-status--fail { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }  /* 失败-红 */
+.push-status--wait { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }  /* 未推-灰 */
+.push-status--skip { background: #FAFAFA; color: #BFBFBF; border: 1px solid #E8E8E8; }  /* 无需-浅灰 */
+
+/* 重量调整% 数值强调 */
+.wt-grid .wt-pct { color: #C62828; font-weight: 700; }
+
+/* 推送错误信息列(红色文案) */
+.push-err { color: #CF1322; font-size: 11px; }
+
+/* —— 平台用户标签(YT 纵腾 / WT 其他) —— */
+.pc-plat {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.pc-plat--yt { background: #E6F7F6; color: #00A99D; border: 1px solid #87E8DE; }   /* YT-主色绿 */
+.pc-plat--wt { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* WT-蓝 */
+
+/* —— 通用弹窗(复用退仓弹窗的 .rw-modal-* 结构)
+   本组新增/编辑/推送配置弹窗共享 .cn-modal,结构与 .rw-modal 一致 —— */
+.cn-modal { position: fixed; inset: 0; z-index: 2000; }
+.cn-modal.hidden { display: none; }
+/* 宽版弹窗(推送配置内容多,需要更宽) */
+.rw-modal-panel--wide { width: 720px; }
+
+/* —— 计费网点新增弹窗:组织树候选(网格勾选) —— */
+.cn-org-tree {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #E0E0E0;
+  border-radius: 3px;
+  padding: 8px;
+  background: #FAFAFA;
+}
+.cn-org-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.cn-org-item:hover { background: #E8F0FE; border-radius: 2px; }
+
+/* —— 推送配置弹窗内的表单块 —— */
+.push-cfg-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.push-cfg-label {
+  width: 80px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #555;
+  line-height: 26px;
+  padding-right: 8px;
+  box-sizing: border-box;
+}
+.push-cfg-events { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.push-cfg-grid { flex: 1; }
+.push-cfg-grid .grid { width: 100%; }
+.push-cfg-templates { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.push-tpl-item { border: 1px solid #E0E0E0; border-radius: 3px; overflow: hidden; }
+.push-tpl-head {
+  background: #F5F5F5;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1F4E79;
+  border-bottom: 1px solid #E0E0E0;
+}
+.push-tpl-body {
+  width: 100%;
+  border: none;
+  padding: 6px 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  color: #333;
+  resize: vertical;
+  outline: none;
+}
+
+
+/* ============================================================
+   入库操作组 — 公共状态色 & 各页表格横向滚动
+   前缀 .check-*(签入/复核/照片等通用) / .review-* / .inbatch-* / .photo-* / .receipt-*
+   不改动既有样式,仅追加
+   ============================================================ */
+
+/* —— 通用状态标签 .check-tag(签入/复核/照片等页复用,胶囊款) —— */
+.check-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.check-status--ok         { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }   /* 成功/已完成-绿 */
+.check-status--fail       { background: #FFF1F0; color: #CF1322; border: 1px solid #FFA39E; }   /* 失败/异常-红 */
+.check-status--pending    { background: #F5F5F5; color: #888;    border: 1px solid #D9D9D9; }   /* 待执行/未传-灰 */
+.check-status--processing { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }   /* 执行中-橙 */
+
+/* —— 通用一致性标签(入仓单实到件数是否一致) —— */
+.check-match {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 3px;
+}
+.check-match--ok   { color: #389E0D; }                      /* 一致-绿 */
+.check-match--fail { color: #CF1322; font-weight: 600; }    /* 不一致-红 */
+
+/* —— 数值高亮:差异/错误/成功/未到/备注 —— */
+.check-diff--up   { color: #CF1322; font-weight: 600; }   /* 差异为正(变大/变重)-红,需关注 */
+.check-diff--down { color: #1565C0; font-weight: 600; }   /* 差异为负(变小/变轻)-蓝 */
+.check-err     { color: #CF1322; }                         /* 错误信息/异常数/不一致实到-红 */
+.check-ok      { color: #389E0D; }                         /* 成功数-绿 */
+.check-miss    { color: #D46B08; font-weight: 600; }       /* 未到件量>0-橙 */
+.check-remark  { color: #D46B08; }                         /* 备注有内容-橙 */
+
+/* —— 各页表格区:允许横向滚动(列多时) —— */
+.check-grid-wrap   { overflow-x: auto; }
+.check-grid        { min-width: 2400px; }
+.check-grid th, .check-grid td { white-space: nowrap; font-size: 12px; }
+
+.bat-grid-wrap     { overflow-x: auto; }
+.bat-grid th, .bat-grid td { white-space: nowrap; font-size: 12px; }
+
+.review-grid-wrap  { overflow-x: auto; }
+.review-grid       { min-width: 2100px; }
+.review-grid th, .review-grid td { white-space: nowrap; font-size: 12px; }
+
+.inbatch-grid-wrap { overflow-x: auto; }
+.inbatch-grid th, .inbatch-grid td { white-space: nowrap; font-size: 12px; }
+
+.photo-grid-wrap   { overflow-x: auto; }
+.photo-grid th, .photo-grid td { white-space: nowrap; font-size: 12px; }
+
+.receipt-grid-wrap { overflow-x: auto; }
+.receipt-grid      { min-width: 2200px; }
+.receipt-grid th, .receipt-grid td { white-space: nowrap; font-size: 12px; }

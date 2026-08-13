@@ -1,31 +1,48 @@
 /* ============================================
    outbound-scan.js — 退仓扫描页逻辑
-   三态分流:场景①直接放行 / 场景③无指令登记 / 其他拒绝
+   三态分流:场景①关务/TMS 已登记 → 直接放行
+            场景③货到仓无指令 → 仓库登记(填原因文本,只登记"其他原因")
+            其他 → 拒绝
+   兜底口径(2026-08-12):CIS/TMS 原因退仓必先登记(OFP 下发),仓库不代登记;
+     没登记的线下沟通补登记;仓库登记只登记"其他原因",填原因文本,纯本地登记。
+   原因复用(2026-08-12):抽屉列出同主单已登记原因可点选;勾选「后续子单按此原因
+     直接入库」后,本次扫描会话内同票无指令子单直接入库,退出页面清缓存。
    ============================================ */
 
 /* ---- 模拟数据(演示用,真实环境改为调接口) ----
-   RETURNABLE_ORDERS   : 在「退件到仓指令」本地清单(场景①,直接放行)
-   SHIPPED_NO_INSTRUCT : 「已发货」但无指令(场景③,触发仓库主动登记旁路)
+   RETURNABLE_ORDERS   : 已登记退仓单(场景①,直接放行;含关务CIS / TMS运力两种来源)
+   SHIPPED_NO_INSTRUCT : 「已发货」但无任何指令(场景③,触发仓库登记)
+   SAME_BILL_REASONS   : 演示"同主单已登记原因"(真实环境弹窗时按主单查后端)
    其他                : 非「已发货」状态,拒绝(不属于已发货退仓订单)
 
    单号格式(B2B 大货):
    - 主单号 = YT + 16位数字(年份2/当年序数3/目的国3/流水7/校验1)
    - 子单号 = 主单号 + U + 3位序号(从 U001 起,多子单累加,无 U000) */
+
+// 场景① 已登记单(真实环境后端返回来源;演示用前缀区分:不标=关务CIS,*=TMS运力)
 const RETURNABLE_ORDERS = [
   'YT2621000070480962U001',
   'YT2621000070480962U002',
   'YT2621000070480962U003',
 ];
-const SHIPPED_NO_INSTRUCT = [
+// 同一主单下另一箱,演示「TMS 运力退仓」来源(用 |TMS 后缀标记来源,仅演示用)
+const RETURNABLE_ORDERS_TMS = [
   'YT2621000070480963U001',
-  'YT2621000070480963U002',
+];
+const SHIPPED_NO_INSTRUCT = [
+  'YT2621000070480964U001',
+  'YT2621000070480964U002',
+  'YT2621000070480964U004',
 ];
 
-// 退件原因枚举(头程发出后、尾程前的退回;仓库主动登记时必选)
-const REASONS = [
-  '客户取消', '货物破损', '包装异常',
-  '违禁/敏感品', '仓库错发', '其他',
-];
+// 演示"同主单已登记原因"(真实环境弹窗时按主单号查后端返回)
+// key=主单号, value=已登记子单的原因列表(展示"U001:原因A"供点选)
+const SAME_BILL_REASONS = {
+  'YT2621000070480964': [
+    { subNo: 'YT2621000070480964U001', reason: '客户要求退回' },
+    { subNo: 'YT2621000070480964U003', reason: '尾程派送失败退回' },
+  ],
+};
 
 // 渲染页面结构
 document.getElementById('app').innerHTML = Layout.shell(`
@@ -69,15 +86,21 @@ const recordsTitle = document.getElementById('recordsTitle');
 
 let records = [];          // 已扫描记录 { subNo, time, source, reason? }
 let pendingSubNo = null;   // 当前待登记的子单号
-let chosenReason = null;   // 当前选中的退件原因
 
 /* ---- 渲染 ---- */
+// 标签按来源区分:关务CIS / 运力TMS / 仓库登记(其他原因)
+function srcTagHTML(r) {
+  // 场景① 已登记(后端返回来源)
+  if (r.from === 'registered') {
+    if (r.source === 'TMS') return '<span class="src-tag src-tag--tms">运力退仓</span>';
+    return '<span class="src-tag src-tag--cis">关务指令</span>';
+  }
+  // 场景③ 仓库登记(其他原因,纯本地登记)
+  return '<span class="src-tag src-tag--wh">仓库登记</span>';
+}
 function recordHTML(r) {
-  const tag = r.source === 'warehouse'
-    ? '<span class="src-tag src-tag--warehouse">仓库登记</span>'
-    : '<span class="src-tag src-tag--cis">关务指令</span>';
   const reasonLine = r.reason
-    ? `<div class="record-reason">原因：${r.reason}</div>`
+    ? `<div class="record-reason">原因：${r.reason}${r.viaApply ? '<span class="record-apply-tag">勾选复用</span>' : ''}</div>`
     : '';
   return `
     <div class="record-item">
@@ -86,7 +109,7 @@ function recordHTML(r) {
         <span class="record-time">${r.time}</span>
       </div>
       <div class="record-meta">
-        ${tag}
+        ${srcTagHTML(r)}
         ${reasonLine}
       </div>
     </div>
@@ -105,10 +128,11 @@ function render() {
   }
 }
 
-/* ---- 登记态:底部抽屉 + 滚轮 picker(场景③) ----
-   扫到「已发货无指令」单号 → 从底部弹出抽屉,滚轮选择退件原因 → 确认收货。
-   抽屉 append 到 body,不进入设备屏幕结构。 */
-const ITEM_H = 40;   // picker 每项高度(px,需与 CSS .picker-item height 一致)
+/* ---- 登记态:底部抽屉 + 原因文本输入(场景③) ----
+   扫到「已发货无指令」单号 → 弹抽屉,填退仓原因文本 → 确认收货。
+   抽屉内:①列出同主单已登记原因(可点选填入) ②勾选「后续子单按此原因直接入库」。
+   仓库登记只登记"其他原因"(不选 CIS/TMS 原因列表),纯本地登记。
+   抽屉 append 到 .device,不进入设备屏幕结构。 */
 
 // 构建抽屉 DOM(一次构建,反复显隐)
 const drawer = document.createElement('div');
@@ -118,81 +142,81 @@ drawer.innerHTML = `
   <div class="drawer-panel">
     <div class="drawer-header">
       <span class="drawer-cancel" data-action="cancel">取消</span>
-      <span class="drawer-title">选择退件原因</span>
+      <span class="drawer-title">仓库登记退仓</span>
       <span class="drawer-confirm" data-action="confirm">确认</span>
     </div>
-    <div class="drawer-tip" id="drawerTip">该子单无退件到仓指令,请选择退件原因后登记收货</div>
-    <div class="picker" id="picker">
-      <div class="picker-highlight"></div>
-      <div class="picker-wheel" id="pickerWheel"></div>
+    <div class="drawer-tip" id="drawerTip">该子单无退件到仓指令,请填写退仓原因后登记收货</div>
+    <textarea id="reasonInput" class="drawer-input" rows="2"
+              placeholder="填写退仓原因(其他原因)" autocomplete="off"></textarea>
+    <div class="drawer-same-reasons" id="sameReasons">
+      <div class="same-reasons-title">同票已登记原因(可点选)</div>
+      <div class="same-reasons-list" id="sameReasonsList"></div>
     </div>
+    <label class="drawer-apply">
+      <input type="checkbox" id="applyReason" />
+      <span>本票后续子单按此原因直接入库(本次扫描有效)</span>
+    </label>
   </div>
 `;
 document.querySelector('.device').appendChild(drawer);
 
-const drawerTip    = drawer.querySelector('#drawerTip');
-const pickerEl     = drawer.querySelector('#picker');
-const pickerWheel  = drawer.querySelector('#pickerWheel');
-let pickerIdx = 0;       // 当前选中索引
-let wheelTimer = null;   // 滚动结束判定计时器
+const drawerTip     = drawer.querySelector('#drawerTip');
+const reasonInput   = drawer.querySelector('#reasonInput');
+const sameReasons   = drawer.querySelector('#sameReasons');
+const sameList      = drawer.querySelector('#sameReasonsList');
+const applyCheckbox = drawer.querySelector('#applyReason');
 
-// 渲染滚轮项(带序号,对应实体数字键 1-N)
-function renderPicker() {
-  pickerWheel.innerHTML = REASONS.map((r, i) =>
-    `<div class="picker-item"><span class="picker-num">${i + 1}</span>${r}</div>`
-  ).join('');
-}
-renderPicker();
+// 勾选生效的会话内复用:key=主单号, value=原因文本(仅本次扫描,退出页面即失效)
+let applyReasonMap = {};
 
-// 滚动到指定索引(居中)
-function scrollToIdx(idx, smooth = true) {
-  pickerIdx = Math.max(0, Math.min(REASONS.length - 1, idx));
-  pickerWheel.scrollTo({ top: pickerIdx * ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
-  updatePickerHighlight();
-}
-
-// 根据 scrollTop 实时高亮中间项(scrollTop / ITEM_H = 当前居中项索引)
-function updatePickerHighlight() {
-  const idx = Math.round(pickerWheel.scrollTop / ITEM_H);
-  [...pickerWheel.children].forEach((el, i) => {
-    el.classList.toggle('picker-item--active', i === idx);
-  });
-}
-
-// 滚动结束 → 吸附到最近项
-pickerWheel.addEventListener('scroll', () => {
-  updatePickerHighlight();
-  clearTimeout(wheelTimer);
-  wheelTimer = setTimeout(() => {
-    const idx = Math.round(pickerWheel.scrollTop / ITEM_H);
-    if (idx * ITEM_H !== pickerWheel.scrollTop) scrollToIdx(idx);
-    pickerIdx = idx;
-  }, 120);
-});
-
-// 点击某项 → 滚到该项
-pickerWheel.addEventListener('click', e => {
-  const item = e.target.closest('.picker-item');
-  if (!item) return;
-  const idx = [...pickerWheel.children].indexOf(item);
-  scrollToIdx(idx);
-});
-
-// 打开/关闭抽屉
+// 打开抽屉:查同主单已登记原因并渲染
 function openDrawer(subNo) {
   pendingSubNo = subNo;
-  chosenReason = null;
-  drawerTip.innerHTML = `<b>${subNo}</b>无退件到仓指令,请选择退件原因后登记收货`;
+  reasonInput.value = '';
+  applyCheckbox.checked = false;
+  /* 按主单号查同票已登记原因(演示用映射;真实环境调后端) */
+  const waybill = subNo.replace(/U\d+$/, '');
+  const reasons = SAME_BILL_REASONS[waybill] || [];
+  if (reasons.length === 0) {
+    sameReasons.classList.add('hidden');
+    sameList.innerHTML = '';
+  } else {
+    sameReasons.classList.remove('hidden');
+    sameList.innerHTML = reasons.map((r, i) =>
+      `<div class="same-reason-item" data-idx="${i}">
+         <span class="same-reason-sub">${i + 1}</span>
+         <span class="same-reason-text">${r.reason}</span>
+       </div>`).join('');
+  }
+  drawerTip.innerHTML = `<b>${subNo}</b>无退件到仓指令,请填写退仓原因后登记收货`;
   drawer.classList.remove('hidden');
-  // 默认选中第一个
-  setTimeout(() => scrollToIdx(0, false), 0);
+  /* 延后聚焦:等 slide-up 动画(.25s)结束后再 focus,避免动画期间聚焦引发背景滚动跳动 */
+  setTimeout(() => reasonInput.focus(), 260);
 }
+
+// 点选已有原因 → 填入输入框
+sameList.addEventListener('click', e => {
+  const item = e.target.closest('.same-reason-item');
+  if (!item) return;
+  const waybill = pendingSubNo.replace(/U\d+$/, '');
+  const reasons = SAME_BILL_REASONS[waybill] || [];
+  const r = reasons[Number(item.dataset.idx)];
+  if (r) { reasonInput.value = r.reason; reasonInput.focus(); }
+});
 
 function closeDrawer(focusInput = true) {
   drawer.classList.add('hidden');
   if (focusInput) { orderInput.value = ''; orderInput.focus(); }
   pendingSubNo = null;
-  chosenReason = null;
+}
+
+// 登记一条仓库登记记录(共用)
+function addFallbackRecord(subNo, reason, viaApply = false) {
+  records.unshift({
+    subNo, time: Helpers.nowTime(), source: 'WH', reason,
+    viaApply,   // 是否勾选复用直接入库
+  });
+  render();
 }
 
 // 抽屉按钮(取消/确认) + 遮罩点击
@@ -201,17 +225,16 @@ drawer.addEventListener('click', e => {
   if (action === 'cancel') { closeDrawer(true); return; }
   if (action === 'confirm') {
     if (!pendingSubNo) return;
-    chosenReason = REASONS[pickerIdx];
-    records.unshift({
-      subNo: pendingSubNo,
-      time: Helpers.nowTime(),
-      source: 'warehouse',
-      reason: chosenReason,
-    });
+    const reason = reasonInput.value.trim();
+    if (!reason) { Helpers.toast('请填写退仓原因'); return; }
+    addFallbackRecord(pendingSubNo, reason);
+    /* 勾选:本次扫描会话内,同票后续无指令子单直接入库 */
+    if (applyCheckbox.checked) {
+      const waybill = pendingSubNo.replace(/U\d+$/, '');
+      applyReasonMap[waybill] = reason;
+    }
     closeDrawer(false);
-    render();
-    orderInput.value = ''; orderInput.focus();
-    Helpers.toast('已登记退件并收货');
+    Helpers.toast('已登记退仓并收货(仓库登记,纯本地)');
   }
 });
 
@@ -227,17 +250,35 @@ function handleScan() {
     orderInput.focus();
     return;
   }
-  // 场景①:在本地清单 → 直接放行
+  // 场景①:已登记 → 直接放行(区分来源 CIS/TMS)
   if (RETURNABLE_ORDERS.includes(subNo)) {
-    records.unshift({ subNo, time: Helpers.nowTime(), source: 'cis' });
+    records.unshift({ subNo, time: Helpers.nowTime(), from: 'registered', source: 'CIS' });
     render();
     orderInput.value = '';
     orderInput.focus();
     return;
   }
-  // 场景③:已发货但无指令 → 弹出底部抽屉选退件原因
+  if (RETURNABLE_ORDERS_TMS.includes(subNo)) {
+    records.unshift({ subNo, time: Helpers.nowTime(), from: 'registered', source: 'TMS' });
+    render();
+    orderInput.value = '';
+    orderInput.focus();
+    return;
+  }
+  // 场景③:已发货但无任何指令 → 仓库登记
   if (SHIPPED_NO_INSTRUCT.includes(subNo)) {
+    /* 勾选复用:同票已有原因 → 直接入库,不弹窗 */
+    const waybill = subNo.replace(/U\d+$/, '');
+    const saved = applyReasonMap[waybill];
+    if (saved) {
+      addFallbackRecord(subNo, saved, true);
+      orderInput.value = '';
+      orderInput.focus();
+      Helpers.toast('已按原因"' + saved + '"直接入库(勾选复用)');
+      return;
+    }
     openDrawer(subNo);
+    orderInput.blur();   // 先失焦背景输入框,避免抽屉弹出时焦点滚动
     orderInput.value = '';
     return;
   }
@@ -248,20 +289,10 @@ function handleScan() {
 
 /* ---- 全局键盘:适配实体键PDA ---- */
 document.addEventListener('keydown', e => {
-  // 抽屉打开时:数字键1-6/↑↓选原因,Enter确认,Esc取消
+  // 抽屉打开时:Enter在原因备注框内为换行,Esc取消
   if (!drawer.classList.contains('hidden')) {
-    const num = Number(e.key);
-    if (num >= 1 && num <= REASONS.length) {
-      // 数字键 1-N 直接选中第 N 个原因
-      e.preventDefault();
-      scrollToIdx(num - 1);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      scrollToIdx(pickerIdx - 1);
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      scrollToIdx(pickerIdx + 1);
-    } else if (e.key === 'Enter') {
+    if (e.key === 'Enter' && document.activeElement !== reasonInput) {
+      // 焦点不在原因框(如刚扫完未聚焦)时,Enter 走确认
       e.preventDefault();
       drawer.querySelector('.drawer-confirm').click();
     } else if (e.key === 'Escape') {
@@ -286,16 +317,22 @@ testPanel.className = 'test-panel';
 testPanel.innerHTML = `
   <div class="test-panel-title">
     <span>演示单号</span>
-    <span class="test-panel-tip">点击复制</span>
+    <span class="test-panel-tip">点击演示</span>
   </div>
   <div class="test-panel-group">
-    <div class="test-panel-label">直接放行</div>
+    <div class="test-panel-label">关务退仓 · 放行</div>
     <div class="test-panel-tags">
       ${RETURNABLE_ORDERS.map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
     </div>
   </div>
   <div class="test-panel-group">
-    <div class="test-panel-label">触发登记</div>
+    <div class="test-panel-label">运力退仓 · 放行</div>
+    <div class="test-panel-tags">
+      ${RETURNABLE_ORDERS_TMS.map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
+    </div>
+  </div>
+  <div class="test-panel-group">
+    <div class="test-panel-label">未登记 · 仓库登记</div>
     <div class="test-panel-tags">
       ${SHIPPED_NO_INSTRUCT.map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
     </div>
@@ -309,17 +346,10 @@ testPanel.innerHTML = `
 `;
 document.body.appendChild(testPanel);
 
-testPanel.addEventListener('click', async e => {
+// 点击演示单号 → 填入并直接触发查询(评审演示一步到位)
+testPanel.addEventListener('click', e => {
   const tag = e.target.closest('.test-panel-tag');
   if (!tag) return;
-  const no = tag.dataset.no;
-  try {
-    await navigator.clipboard.writeText(no);
-    Helpers.toast('已复制:' + no);
-  } catch (err) {
-    orderInput.value = no;
-    orderInput.focus();
-    orderInput.select();
-    Helpers.toast('复制失败,已填入输入框');
-  }
+  orderInput.value = tag.dataset.no;
+  handleScan();
 });

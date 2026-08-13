@@ -41,6 +41,17 @@ const Layout = {
     `;
   },
 
+  /* 带返回 + 右侧菜单按钮的标题栏(安检拦截等页用) */
+  navBarWithMenu(title, backHref = './index.html') {
+    return `
+      <div class="nav-bar">
+        <div class="nav-back" onclick="history.length>1?history.back():(location.href='${backHref}')">‹</div>
+        <div class="nav-title">${title}</div>
+        <div class="nav-menu-btn" id="navMenuBtn">☰</div>
+      </div>
+    `;
+  },
+
   /* 底部 Tab 栏(主页用)
      active: 'task' | 'workbench' | 'me',指定哪个高亮 */
   tabBar(active = 'workbench') {

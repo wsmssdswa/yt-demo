@@ -2,17 +2,17 @@
    workbench.js — 工作台页逻辑
    ============================================ */
 
-// 功能菜单:图标 + 文字 + 跳转目标(仅 outbound-scan 有页面,其余占位)
+// 功能菜单:图标 + 文字 + 跳转目标(有页面的已接,其余占位)
 const MENUS = [
-  { icon: '📥', text: 'PDA签入',       go: '' },
+  { icon: '📥', text: 'PDA签入',       go: './check-in.html' },
   { icon: '🗂️', text: '操作上架',      go: '' },
   { icon: '🔄', text: '移库操作',      go: '' },
   { icon: '🧺', text: 'B2B拣货',       go: '' },
   { icon: '➕', text: '增值服务',      go: '' },
   { icon: '⚠️', text: '异常件登记',    go: '' },
-  { icon: '🔍', text: '关务查验',      go: '' },
+  { icon: '🔍', text: '关务查验',      go: './customs-check.html' },
   { icon: '↩️', text: '还货上架',      go: '' },
-  { icon: '🚫', text: '安检拦截',      go: '' },
+  { icon: '🚫', text: '安检拦截',      go: './security-check.html' },
   { icon: '📦', text: '退仓扫描',      go: './outbound-scan.html' },
   { icon: '🏷️', text: '箱标补打',      go: '' },
   { icon: '🔎', text: '大货快查',      go: '' },
