@@ -425,6 +425,7 @@ a { color: #1F4E79; text-decoration: none; }
 .grid td.col--num { color: #888; }
 .grid td.col--code { color: #1F4E79; font-family: Consolas, "Courier New", monospace; }
 .grid td.col--center { text-align: center; }
+.grid th.col--center { text-align: center; } /* 表头居中列(如勾选/数值列),与 td.col--center 对齐 */
 .grid .col-chk { width: 28px; text-align: center; }
 .grid input[type="checkbox"] { cursor: pointer; }
 

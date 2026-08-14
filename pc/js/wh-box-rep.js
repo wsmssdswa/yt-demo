@@ -55,35 +55,55 @@ function mockPrintResult() {
   return { status:2, statusLabel:'成功', err:'', cost:80 + Math.floor(Math.random() * 200) };
 }
 
+/* 按渠道从打印设置带出份数:命中启用的渠道规则→规则份数;未命中→默认份数 */
+function copiesFromConfig(channel) {
+  const rule = repSettings.rules.find(r => r.status === 1 && r.channels.includes(channel));
+  return rule ? rule.copies : repSettings.defaultCopies;
+}
+
 /* ============================================
-   打印设置(Tab3):全渠道直改表(打印份数配置)
-   · 顶部全局默认份数:未单独设置的渠道按此份数带出
-   · 渠道列表:每个渠道一行,份数可直接改(≠默认 = 该渠道覆盖值)
-   · 命中逻辑:打印时按订单渠道取行份数,未覆盖取默认份数
-   · 仅运营/系统管理员可见可配置;渠道状态来自渠道主数据(只读展示)
-   对齐需求 0811_箱标补打打印设置(2026-08-11 评审确认;形态=全渠道直改)
+   打印设置(Tab3):打印份数规则列表(V1.2 式,纯列表)
+   · 默认规则:系统内置固定一条,未命中任何渠道规则时适用;仅可改份数,不可删/停用
+   · 渠道规则:一条 = 勾选若干渠道 + 打印份数;可新增/编辑/删除/启停;渠道不可重叠
+   · 命中逻辑:打印时按订单渠道命中渠道规则带出份数,未命中按默认份数
+   · 仅运营/系统管理员可见可配置
+   对齐需求 0811_箱标补打打印设置(2026-08-13 确认:形态=纯列表 V1.2 式)
    ============================================ */
 
-/* 渠道池(来自渠道主数据 svr_server_channel 示例;停用渠道默认不展示,可切换) */
+/* 渠道池(来自渠道主数据 svr_server_channel 示例;弹窗多选来源)
+   server=服务商简称(来自 sp_server.server_shortname),列表辅助展示+搜索匹配;status 来自主数据 */
 const REP_CHANNELS = [
-  { code:'MEIXUN_ZHENGBAN', name:'美森正班',    status:1 },
-  { code:'MEIXUN_JIABAN',   name:'美森加班',    status:1 },
-  { code:'B2B_AIR',         name:'B2B空运直飞', status:1 },
-  { code:'EXX',             name:'以星EXX',     status:1 },
-  { code:'EVERGREEN',       name:'长荣海运',    status:1 },
-  { code:'YUNTU_EXPRESS',   name:'云途快线',    status:0 },
+  { code:'MEIXUN_ZHENGBAN', name:'美森正班',    server:'美森', status:1 },
+  { code:'MEIXUN_JIABAN',   name:'美森加班',    server:'美森', status:1 },
+  { code:'MEIXUN_HAIPI',    name:'美森海派',    server:'美森', status:1 },
+  { code:'B2B_AIR',         name:'B2B空运直飞', server:'云途', status:1 },
+  { code:'B2B_AIR_TRANSFER',name:'B2B空运转飞', server:'云途', status:1 },
+  { code:'EXX',             name:'以星EXX',     server:'以星', status:1 },
+  { code:'EVERGREEN',       name:'长荣海运',    server:'长荣', status:1 },
+  { code:'YUNTU_EXPRESS',   name:'云途快线',    server:'云途', status:0 },
+  { code:'MATSON_EXX',      name:'美森EXX',     server:'美森', status:0 },
 ];
 
-/* 运行态:全局默认份数 + 每渠道份数(copies=null 表示跟随默认) */
+/* 运行态:默认份数 + 渠道规则列表 */
 let repSettings = {
   defaultCopies: 2,
-  channels: REP_CHANNELS.map(c => ({
-    ...c,
-    copies: c.code === 'MEIXUN_ZHENGBAN' ? 3 : null, /* 示例:美森正班已覆盖为 3 份 */
-  })),
+  rules: [
+    { key:'r1', channels:['美森正班', '美森加班'], copies:3, status:1 },
+    { key:'r2', channels:['B2B空运直飞'],         copies:1, status:0 },
+    { key:'r3', channels:['以星EXX'],             copies:2, status:1 },
+  ],
 };
-/* 筛选态:仅显示可用渠道 / 搜索关键字 */
-let repSettingFilter = { onlyActive: true, keyword: '' };
+let repSettingKey = 4; /* 渠道规则 key 自增 */
+
+/* 弹窗态:已选渠道 + 搜索词(新增/编辑规则弹窗内使用) */
+let ruleModalSelected = new Set();
+let ruleModalKeyword = '';
+
+/* 规则状态枚举 */
+const REP_RULE_STATUS = {
+  1: { label:'启用', cls:'rule-status--on' },
+  0: { label:'停用', cls:'rule-status--off' },
+};
 
 /* ============================================
    数据:每个 Tab 独立累积列表
@@ -138,14 +158,15 @@ function repTabs() {
   `;
 }
 
-/* 操作区(替代标准查询区;tail=false 时多一个下载PDF按钮,仅整单模式显示) */
+/* 操作区(替代标准查询区;尾程/头程都有「下载PDF」按钮,仅整单模式显示)
+   注:尾程下载PDF 对齐需求(与头程一致):整单模式逐子单获取标签、按子单号排序合并为一个PDF */
 function opPanel(tail) {
   const p = tail ? 'rep' : 'head';
   const radio = (name, val, label, checked) => `
     <label><input type="radio" name="${name}" value="${val}" ${checked ? 'checked' : ''}
-       ${tail ? '' : `onchange="RepPage.onTypeChange(this.value)"`} /> ${label}</label>`;
-  const downloadBtn = tail ? '' : `
-    <button id="headDownloadPdf" class="btn" onclick="RepPage.downloadPdf()" style="display:none;">⬇ 下载PDF</button>`;
+       onchange="RepPage.onTypeChange('${p}', this.value)" /> ${label}</label>`;
+  const downloadBtn = `
+    <button id="${p}DownloadPdf" class="btn" onclick="RepPage.downloadPdf()" style="display:none;">⬇ 下载PDF</button>`;
   return `
     <div class="rep-op-panel">
       <div class="rep-op-field">
@@ -162,7 +183,13 @@ function opPanel(tail) {
       </div>
       <div class="rep-op-field">
         <label>打印份数</label>
-        <input id="${p}Copies" class="ipt" type="number" min="1" value="1" style="width:90px;" />
+        ${tail ? `
+        <div class="rep-copies-mode">
+          <label class="rep-copies-opt"><input type="radio" name="repCopiesMode" value="config" checked onchange="RepPage.onCopiesModeChange('config')" /> 根据配置</label>
+          <label class="rep-copies-opt"><input type="radio" name="repCopiesMode" value="manual" onchange="RepPage.onCopiesModeChange('manual')" /> 手动输入</label>
+          <input id="repCopies" class="ipt" type="number" min="1" max="9" value="${repSettings.defaultCopies}" style="width:70px;display:none;" />
+        </div>` : `
+        <input id="${p}Copies" class="ipt" type="number" min="1" value="1" style="width:90px;" />`}
       </div>
       <div class="rep-actions">
         <button class="btn btn--primary" onclick="RepPage.doPrint()">🖨 打印</button>
@@ -264,81 +291,152 @@ function repSection(tail) {
   `;
 }
 
-/* ---- Tab3 打印设置:全渠道直改表(顶部默认份数 + 每渠道一行) ---- */
-/* 规则表格:渠道 | 打印份数(行内直改) | 状态 */
+/* ---- Tab3 打印设置:规则列表(默认规则 + 渠道规则,V1.2 式) ---- */
+/* 规则表格:勾选 | 规则(渠道) | 打印份数 | 状态(行内开关) */
 function settingsTable() {
-  const statusTag = s =>
-    `<span class="abn-tag ${s === 1 ? 'rule-status--on' : 'rule-status--off'}">${s === 1 ? '启用' : '停用'}</span>`;
-
-  const list = repSettings.channels.filter(c => {
-    if (repSettingFilter.onlyActive && c.status !== 1) return false;
-    if (repSettingFilter.keyword && !c.name.includes(repSettingFilter.keyword)) return false;
-    return true;
-  });
-
-  const rows = list.map(c => {
-    const covered = c.copies !== null && c.copies !== undefined;
-    const val = covered ? c.copies : repSettings.defaultCopies;
-    return `
-    <tr data-code="${c.code}">
+  const statusTag = s => {
+    const e = REP_RULE_STATUS[s] || REP_RULE_STATUS[0];
+    return `<span class="abn-tag ${e.cls}">${e.label}</span>`;
+  };
+  /* 渠道规则行 */
+  const rows = repSettings.rules.map(r => `
+    <tr data-key="${r.key}">
+      <td class="col--center"><input type="checkbox" class="rep-rule-chk" data-key="${r.key}" /></td>
+      <td>${r.channels.map(c => {
+        const ch = REP_CHANNELS.find(x => x.name === c);
+        return `<span class="rep-rule-channel ${ch && ch.status === 0 ? 'rep-rule-channel--off' : ''}">${c}</span>`;
+      }).join('')}</td>
+      <td class="col--num">${r.copies}</td>
       <td>
-        <span class="rep-rule-channel">${c.name}</span>
-        <span style="color:#bbb;font-size:11px;margin-left:6px;">${c.code}</span>
+        ${statusTag(r.status)}
+        <label class="rep-switch" title="启用/停用规则">
+          <input type="checkbox" ${r.status === 1 ? 'checked' : ''}
+                 onchange="RepPage.toggleRule('${r.key}', this.checked)" />
+          <span class="rep-switch-slider"></span>
+        </label>
       </td>
-      <td class="col--num">
-        <input type="number" min="1" max="9" class="rep-copies-input ${covered ? 'is-covered' : ''}"
-               value="${val}" onchange="RepPage.setChannelCopies('${c.code}', this.value)" />
-        ${covered
-          ? `<span class="rep-covered-tag">已自定义</span><span class="rep-reset" title="恢复为默认份数" onclick="RepPage.resetChannelCopies('${c.code}')">✕</span>`
-          : `<span class="rep-default-tag">跟随默认</span>`}
-      </td>
-      <td>${statusTag(c.status)}</td>
-    </tr>`;
-  }).join('');
+    </tr>
+  `).join('');
 
   return `
     <div class="grid-wrap wh-grid-wrap">
       <table class="grid wh-grid" id="settingGrid">
         <colgroup>
-          <col style="width:280px" />  <!-- 渠道 -->
-          <col style="width:220px" />  <!-- 打印份数 -->
-          <col style="width:100px" />  <!-- 状态 -->
+          <col style="width:46px" />   <!-- 勾选 -->
+          <col style="width:340px" />  <!-- 规则(渠道) -->
+          <col style="width:110px" />  <!-- 打印份数 -->
+          <col style="width:150px" />  <!-- 状态 -->
         </colgroup>
         <thead>
           <tr>
-            <th>渠道</th>
+            <th class="col--center"><input type="checkbox" id="settingChkAll" onclick="RepPage.onChkAll(this)" /></th>
+            <th>规则(渠道)</th>
             <th class="col--center">打印份数</th>
             <th>状态</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>
+          <!-- 默认规则:首行固定,仅可改份数,不可删/停用 -->
+          <tr class="rep-rule-default" data-key="default">
+            <td class="col--center"><input type="checkbox" class="rep-rule-chk" data-key="default" /></td>
+            <td><span class="rep-rule-default-tag">默认</span>
+                <span style="color:#888;font-size:11px;">未命中任何渠道规则时适用</span></td>
+            <td class="col--num">${repSettings.defaultCopies}</td>
+            <td>${statusTag(1)}<span style="color:#aaa;font-size:11px;margin-left:8px;">固定启用</span></td>
+          </tr>
+          ${rows}
+        </tbody>
       </table>
     </div>
   `;
 }
 
-/* 打印设置内容块:说明 + 配置工具栏(默认份数/筛选/搜索) + 渠道表 */
+/* 打印设置内容块:说明 + 工具栏(新增/编辑/删除) + 规则列表 */
 function settingsSection() {
   return `
     <div class="rep-page-section ${activeRepTab === 'setting' ? 'is-active' : ''}" data-section="setting">
       <div class="rep-setting-tip">
-        仅作用于<b>尾程面单</b>:打印时按订单渠道取份数带出,未单独设置的渠道按默认份数;带出后支持手动修改。
+        仅作用于<b>尾程面单</b>:打印时按订单渠道命中渠道规则带出份数,未命中按默认份数;带出后支持手动修改。
       </div>
-      <div class="rep-setting-bar">
-        <label class="rep-setting-default">默认份数
-          <input id="repDefaultCopies" class="ipt" type="number" min="1" max="9" value="${repSettings.defaultCopies}"
-                 style="width:70px;" onchange="RepPage.setDefaultCopies(this.value)" />
-        </label>
-        <label class="rep-setting-filter">
-          <input type="checkbox" id="repOnlyActive" ${repSettingFilter.onlyActive ? 'checked' : ''}
-                 onchange="RepPage.setOnlyActive(this.checked)" /> 仅显示可用渠道
-        </label>
-        <input id="repChannelSearch" class="ipt" placeholder="搜索渠道名称" style="width:160px;"
-               value="${repSettingFilter.keyword}" oninput="RepPage.setKeyword(this.value)" />
+      <div class="grid-toolbar">
+        <button class="btn btn--primary" onclick="RepPage.openRuleModal('new')">＋ 新增渠道配置</button>
+        <button class="btn" onclick="RepPage.editChecked()">✎ 编辑</button>
+        <button class="btn" onclick="RepPage.deleteChecked()">🗑 删除</button>
         <span class="sep"></span>
-        <span style="color:#888;line-height:26px;font-size:11px;">已覆盖 ${repSettings.channels.filter(c => c.copies !== null).length} 个渠道,其余跟随默认</span>
+        <span style="color:#888;line-height:24px;font-size:11px;">默认规则固定启用不可删除;渠道规则可启停</span>
       </div>
-      <div id="settingTableWrap">${settingsTable()}</div>
+      ${settingsTable()}
+    </div>
+  `;
+}
+
+/* 渠道列表渲染(按搜索词过滤;checkbox 根据 ruleModalSelected 勾选) */
+function ruleChannelListHTML() {
+  const kw = ruleModalKeyword.toLowerCase();
+  const list = REP_CHANNELS.filter(c =>
+    !kw || c.name.toLowerCase().includes(kw) || (c.server || '').toLowerCase().includes(kw));
+  if (list.length === 0) return '<div style="color:#999;padding:10px;font-size:12px;">无匹配渠道</div>';
+  return list.map(c => `
+    <label class="rep-channel-item">
+      <input type="checkbox" value="${c.name}" ${ruleModalSelected.has(c.name) ? 'checked' : ''}
+             onchange="RepPage.toggleChannel('${c.name}', this.checked)" />
+      <span class="rep-channel-name">${c.name}</span>
+      <em class="rep-channel-server">${c.server || ''}</em>${c.status === 0 ? '<em class="rep-channel-off">(停用)</em>' : ''}
+    </label>`).join('');
+}
+
+/* 已选渠道回显(tag,可删) */
+function ruleSelectedHTML() {
+  if (ruleModalSelected.size === 0) return '<span style="color:#bbb;font-size:12px;">未选择</span>';
+  return [...ruleModalSelected].map(name => `
+    <span class="rep-channel-selected-tag">${name}<i onclick="RepPage.removeSelectedChannel('${name}')">✕</i></span>
+  `).join('');
+}
+
+/* 新增/编辑规则弹窗(默认规则只编辑份数;渠道规则 = 搜索列表多选 + 已选回显 + 份数) */
+function ruleModal(mode, key) {
+  const isDefault = key === 'default';
+  const editRule = isDefault ? null : repSettings.rules.find(r => r.key === key) || null;
+  const title = isDefault ? '编辑默认规则' : (editRule ? '编辑渠道配置' : '新增渠道配置');
+  const copies = isDefault ? repSettings.defaultCopies : (editRule ? editRule.copies : 1);
+
+  return `
+    <div class="cn-modal hidden" id="ruleModal">
+      <div class="rw-modal-mask" onclick="RepPage.closeRuleModal()"></div>
+      <div class="rw-modal-panel" style="width:560px;">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title">${title}</span>
+          <span class="rw-modal-close" onclick="RepPage.closeRuleModal()">✕</span>
+        </div>
+        <div class="rw-modal-body">
+          ${isDefault ? `
+            <div class="rep-rule-form-row">
+              <label class="rep-rule-form-label">默认打印份数</label>
+              <input id="ruleCopies" class="ipt" type="number" min="1" max="9" value="${copies}" style="width:120px;" />
+              <span class="rep-rule-form-tip">正整数 1~9,未命中渠道规则的订单按此份数带出</span>
+            </div>` : `
+            <div class="rep-rule-form-row">
+              <label class="rep-rule-form-label">选择渠道</label>
+              <input id="ruleChannelSearch" class="ipt rep-channel-search" placeholder="搜索渠道名称 / 服务商"
+                     value="${ruleModalKeyword}" oninput="RepPage.filterRuleChannel(this.value)" />
+              <div id="ruleChannelList" class="rep-channel-list">${ruleChannelListHTML()}</div>
+              <div class="rep-rule-form-tip">搜索定位 → 勾选加入已选;同一渠道不允许出现在多条规则中</div>
+            </div>
+            <div class="rep-rule-form-row">
+              <label class="rep-rule-form-label">已选渠道(<span id="ruleSelectedCount">${ruleModalSelected.size}</span>)</label>
+              <div id="ruleChannelSelected" class="rep-channel-selected">${ruleSelectedHTML()}</div>
+            </div>
+            <div class="rep-rule-form-row">
+              <label class="rep-rule-form-label">打印份数</label>
+              <input id="ruleCopies" class="ipt" type="number" min="1" max="9" value="${copies}" style="width:120px;" />
+              <span class="rep-rule-form-tip">正整数 1~9,超过上限(&gt;9)校验提示</span>
+            </div>`}
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn" onclick="RepPage.closeRuleModal()">取消</button>
+          <button class="btn btn--primary" onclick="RepPage.saveRule('${key}')">保存</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -374,9 +472,9 @@ const RepPage = {
     return el ? el.value : '1';
   },
   typeLabel(v) { return v === '2' ? '整单打印' : '子单打印'; },
-  /* 头程打印类型切换:下载PDF 仅整单模式显示(对齐代码 btnDownloadPdf.Visible = rdoOrderPrint.Checked) */
-  onTypeChange(v) {
-    const btn = document.getElementById('headDownloadPdf');
+  /* 打印类型切换:下载PDF 仅整单模式显示(尾程/头程都适用) */
+  onTypeChange(p, v) {
+    const btn = document.getElementById(`${p}DownloadPdf`);
     if (btn) btn.style.display = v === '2' ? '' : 'none';
   },
   /* 扫描框回车 → 触发打印 */
@@ -392,8 +490,23 @@ const RepPage = {
     const ipt = document.getElementById(c.scanId);
     const no = (ipt.value || '').trim();
     if (!no) { Helpers.toast('请扫描或输入单号！'); ipt.focus(); return; }
-    const copies = parseInt(document.getElementById(c.copiesId).value, 10) || 1;
     const typeV = this.getType();
+    /* 份数来源:尾程选「根据配置」→ 按渠道命中打印设置带出(只读);选「手动输入」/头程 → 取输入框值 */
+    let copies;
+    let autoBrought = false;
+    if (c.tail) {
+      const modeEl = document.querySelector('input[name="repCopiesMode"]:checked');
+      const autoOn = modeEl ? modeEl.value === 'config' : true;
+      if (autoOn) {
+        copies = copiesFromConfig('美森正班'); /* 演示:扫描单号渠道=美森正班,命中 r1 规则;后台带出不展示 */
+        document.getElementById('repCopies').value = copies;
+        autoBrought = true;
+      } else {
+        copies = parseInt(document.getElementById(c.copiesId).value, 10) || 1;
+      }
+    } else {
+      copies = parseInt(document.getElementById(c.copiesId).value, 10) || 1;
+    }
     /* 整单打印:按主单取全部子单标签批量打印,张数 = 箱数 × 份数(p967_1728) */
     const boxes = typeV === '2' ? demoBoxCount(no) : 1;
     const totalCopies = copies * boxes;
@@ -417,16 +530,30 @@ const RepPage = {
     ipt.focus();
 
     let tip;
+    const bring = autoBrought ? `(按配置带出${copies}份)` : '';
     if (typeV === '2') {
       tip = c.tail
-        ? `整单打印:${no} 共${boxes}箱,批量打印${totalCopies}张 → ${r.statusLabel}(演示)`
+        ? `整单打印:${no} 共${boxes}箱,批量打印${totalCopies}张${bring} → ${r.statusLabel}(演示)`
         : `头程整单:${no} 先查子单列表(共${boxes}箱),逐箱打印${totalCopies}张 → ${r.statusLabel}(演示)`;
     } else {
-      tip = `${c.tail ? '' : '头程'}补打 ${this.typeLabel(typeV)}:${no} → ${r.statusLabel}(演示)`;
+      tip = `${c.tail ? '' : '头程'}补打 ${this.typeLabel(typeV)}:${no} ${bring} → ${r.statusLabel}(演示)`;
     }
     Helpers.toast(tip);
   },
-  /* 下载PDF(头程 Tab,整单模式):逐个子单获取标签、按子单号排序合并为一个PDF(对齐 p1072_2222) */
+  /* 尾程份数模式切换:config=按打印配置后台带出(不展示份数);manual=显示输入框手填 */
+  onCopiesModeChange(mode) {
+    const input = document.getElementById('repCopies');
+    if (!input) return;
+    if (mode === 'config') {
+      input.style.display = 'none';
+      Helpers.toast('已切换:根据打印配置带出份数(演示)');
+    } else {
+      input.style.display = '';
+      input.focus();
+      Helpers.toast('已切换:手动输入份数(演示)');
+    }
+  },
+  /* 下载PDF(尾程/头程,整单模式):逐个子单获取标签、按子单号排序合并为一个PDF(对齐 p1072_2222) */
   downloadPdf() {
     const c = this.ctx();
     const ipt = document.getElementById(c.scanId);
@@ -488,76 +615,127 @@ const RepPage = {
 
   /* ================= 打印设置(Tab3)交互 ================= */
 
-  /* 行内修改某渠道份数(1~9 校验,空值回退默认) */
-  setChannelCopies(code, val) {
-    const ch = repSettings.channels.find(c => c.code === code);
-    if (!ch) return;
-    const copies = parseInt(val, 10);
-    if (val === '' || !copies) {
-      ch.copies = null;
-      Helpers.toast(`「${ch.name}」已恢复跟随默认份数(演示)`);
-    } else if (copies < 1 || copies > 9) {
-      Helpers.toast('打印份数须为 1~9 的正整数！');
-    } else {
-      ch.copies = copies;
-      Helpers.toast(`「${ch.name}」份数已设为 ${copies}(演示)`);
-    }
-    this.refreshSettings();
+  /* 打开新增/编辑规则弹窗(mode='new' 或 编辑 key;key='default' 编辑默认份数) */
+  openRuleModal(mode, key) {
+    const existing = document.getElementById('ruleModal');
+    if (existing) { existing.remove(); }
+    const k = (mode === 'new') ? 'new' : (key || 'new');
+    /* 初始化弹窗态:已选(编辑时预填)+ 搜索词清空 */
+    const editRule = (k !== 'new' && k !== 'default') ? (repSettings.rules.find(r => r.key === k) || null) : null;
+    ruleModalSelected = new Set(editRule ? editRule.channels : []);
+    ruleModalKeyword = '';
+    const wrap = document.createElement('div');
+    wrap.innerHTML = ruleModal(mode, k);
+    document.body.appendChild(wrap.firstElementChild);
+    document.getElementById('ruleModal').classList.remove('hidden');
+    const search = document.getElementById('ruleChannelSearch');
+    if (search) setTimeout(() => search.focus(), 0);
   },
-  /* 恢复某渠道为默认份数 */
-  resetChannelCopies(code) {
-    const ch = repSettings.channels.find(c => c.code === code);
-    if (!ch) return;
-    ch.copies = null;
-    this.refreshSettings();
-    Helpers.toast(`「${ch.name}」已恢复跟随默认份数(演示)`);
+  closeRuleModal() {
+    const modal = document.getElementById('ruleModal');
+    if (modal) modal.remove();
   },
-  /* 修改全局默认份数 */
-  setDefaultCopies(val) {
-    const copies = parseInt(val, 10);
+  /* 渠道搜索:只刷新列表(保留已选,搜索词实时过滤) */
+  filterRuleChannel(v) {
+    ruleModalKeyword = (v || '').trim();
+    const el = document.getElementById('ruleChannelList');
+    if (el) el.innerHTML = ruleChannelListHTML();
+  },
+  /* 勾选/取消渠道:更新已选集合 + 刷新已选回显(列表 checkbox 由用户点击已变更,不重渲避免打断搜索) */
+  toggleChannel(name, checked) {
+    if (checked) ruleModalSelected.add(name); else ruleModalSelected.delete(name);
+    this.refreshRuleSelected();
+  },
+  /* 已选 tag 删除:移除集合并同步取消列表勾选 */
+  removeSelectedChannel(name) {
+    ruleModalSelected.delete(name);
+    const cb = document.querySelector(`#ruleChannelList input[value="${name}"]`);
+    if (cb) cb.checked = false;
+    this.refreshRuleSelected();
+  },
+  refreshRuleSelected() {
+    const sel = document.getElementById('ruleChannelSelected');
+    if (sel) sel.innerHTML = ruleSelectedHTML();
+    const cnt = document.getElementById('ruleSelectedCount');
+    if (cnt) cnt.textContent = ruleModalSelected.size;
+  },
+  /* 保存规则(新增/编辑/默认) */
+  saveRule(key) {
+    const copiesEl = document.getElementById('ruleCopies');
+    const copies = parseInt(copiesEl.value, 10);
     if (!copies || copies < 1 || copies > 9) {
-      Helpers.toast('默认份数须为 1~9 的正整数！');
+      Helpers.toast('打印份数须为 1~9 的正整数！'); copiesEl.focus(); return;
+    }
+    if (key === 'default') {
+      repSettings.defaultCopies = copies;
+      this.closeRuleModal();
       this.refreshSettings();
+      Helpers.toast(`默认规则份数已更新为 ${copies}(演示)`);
       return;
     }
-    repSettings.defaultCopies = copies;
+    /* 渠道规则:从已选集合取 + 渠道不重叠校验 */
+    const channels = [...ruleModalSelected];
+    if (channels.length === 0) { Helpers.toast('请至少选择一个渠道'); return; }
+    /* 编辑时排除自身 key;新增时校验全部 */
+    const conflict = channels.find(c =>
+      repSettings.rules.some(r => r.key !== key && r.channels.includes(c)));
+    if (conflict) { Helpers.toast(`渠道「${conflict}」已存在其他规则中,请调整`); return; }
+
+    if (key === 'new') {
+      repSettings.rules.push({ key: `r${repSettingKey++}`, channels, copies, status: 1 });
+    } else {
+      const exist = repSettings.rules.find(r => r.key === key);
+      if (exist) { exist.channels = channels; exist.copies = copies; }
+    }
+    this.closeRuleModal();
     this.refreshSettings();
-    Helpers.toast(`默认份数已更新为 ${copies},未覆盖渠道自动跟随(演示)`);
+    Helpers.toast(`已保存:${channels.join('、')} → ${copies} 份(演示)`);
   },
-  /* 筛选:仅显示可用渠道 */
-  setOnlyActive(on) {
-    repSettingFilter.onlyActive = on;
+  /* 行内启停渠道规则 */
+  toggleRule(key, on) {
+    const r = repSettings.rules.find(x => x.key === key);
+    if (!r) return;
+    r.status = on ? 1 : 0;
     this.refreshSettings();
+    Helpers.toast(`规则已${on ? '启用' : '停用'}:${r.channels.join('、')}(演示)`);
   },
-  /* 筛选:按渠道名称搜索(只刷新表格,不重建输入框,避免失焦无法连续输入) */
-  setKeyword(v) {
-    repSettingFilter.keyword = (v || '').trim();
-    const wrap = document.getElementById('settingTableWrap');
-    if (wrap) wrap.innerHTML = settingsTable();
+  /* 全选/取消全选 */
+  onChkAll(el) {
+    document.querySelectorAll('.rep-rule-chk').forEach(c => { c.checked = el.checked; });
   },
-  /* 重渲染设置区(仅非输入类操作调用;搜索用 setKeyword 只刷表格) */
+  /* 编辑:勾选一条规则(默认规则仅编辑份数) */
+  editChecked() {
+    const checked = document.querySelectorAll('.rep-rule-chk:checked');
+    if (checked.length !== 1) { Helpers.toast('请勾选一条规则后编辑'); return; }
+    this.openRuleModal('edit', checked[0].dataset.key);
+  },
+  /* 删除:勾选渠道规则,二次确认;默认规则不可删除 */
+  deleteChecked() {
+    const checked = Array.from(document.querySelectorAll('.rep-rule-chk:checked'));
+    if (checked.length === 0) { Helpers.toast('请勾选要删除的规则'); return; }
+    const keys = checked.map(c => c.dataset.key);
+    if (keys.includes('default')) { Helpers.toast('默认规则不可删除'); return; }
+    if (!confirm(`确定删除选中的 ${keys.length} 条渠道配置?删除后对应渠道按默认规则份数带出`)) return;
+    repSettings.rules = repSettings.rules.filter(r => !keys.includes(r.key));
+    this.refreshSettings();
+    Helpers.toast(`已删除 ${keys.length} 条渠道配置(演示)`);
+  },
+  /* 重渲染设置区 */
   refreshSettings() {
     const wrap = document.querySelector('[data-section="setting"]');
     if (!wrap) return;
     wrap.innerHTML = `
       <div class="rep-setting-tip">
-        仅作用于<b>尾程面单</b>:打印时按订单渠道取份数带出,未单独设置的渠道按默认份数;带出后支持手动修改。
+        仅作用于<b>尾程面单</b>:打印时按订单渠道命中渠道规则带出份数,未命中按默认份数;带出后支持手动修改。
       </div>
-      <div class="rep-setting-bar">
-        <label class="rep-setting-default">默认份数
-          <input id="repDefaultCopies" class="ipt" type="number" min="1" max="9" value="${repSettings.defaultCopies}"
-                 style="width:70px;" onchange="RepPage.setDefaultCopies(this.value)" />
-        </label>
-        <label class="rep-setting-filter">
-          <input type="checkbox" id="repOnlyActive" ${repSettingFilter.onlyActive ? 'checked' : ''}
-                 onchange="RepPage.setOnlyActive(this.checked)" /> 仅显示可用渠道
-        </label>
-        <input id="repChannelSearch" class="ipt" placeholder="搜索渠道名称" style="width:160px;"
-               value="${repSettingFilter.keyword}" oninput="RepPage.setKeyword(this.value)" />
+      <div class="grid-toolbar">
+        <button class="btn btn--primary" onclick="RepPage.openRuleModal('new')">＋ 新增渠道配置</button>
+        <button class="btn" onclick="RepPage.editChecked()">✎ 编辑</button>
+        <button class="btn" onclick="RepPage.deleteChecked()">🗑 删除</button>
         <span class="sep"></span>
-        <span style="color:#888;line-height:26px;font-size:11px;">已覆盖 ${repSettings.channels.filter(c => c.copies !== null).length} 个渠道,其余跟随默认</span>
+        <span style="color:#888;line-height:24px;font-size:11px;">默认规则固定启用不可删除;渠道规则可启停</span>
       </div>
-      <div id="settingTableWrap">${settingsTable()}</div>
+      ${settingsTable()}
     `;
   },
 };

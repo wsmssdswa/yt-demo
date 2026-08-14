@@ -475,6 +475,10 @@
 .rep-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 /* 扫描输入框:加粗边框,提示是主操作控件 */
 .rep-scan { border: 2px solid #4472C4 !important; font-family: Consolas, "Courier New", monospace; }
+/* 尾程打印份数:根据配置/手动输入 单选 + 份数输入 */
+.rep-copies-mode { display: flex; align-items: center; gap: 12px; height: 26px; }
+.rep-copies-opt { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #333; cursor: pointer; white-space: nowrap; }
+.rep-copies-opt input[type="radio"] { cursor: pointer; }
 
 /* —— 箱标补打:页内双 Tab(尾程面单打印 | 头程YT面单打印,对齐线上 frmLabelPrint) —— */
 .rep-page-tabs {
@@ -495,45 +499,70 @@
 .rep-page-section { display: none; }
 .rep-page-section.is-active { display: block; }
 
-/* —— 箱标补打:打印设置页签(Tab3,全渠道直改,对齐需求 0811 打印份数配置) —— */
+/* —— 箱标补打:打印设置页签(Tab3,规则列表 V1.2 式,对齐需求 0811 打印份数配置) —— */
 .rep-setting-tip {
   background: #FFFBE6; border: 1px solid #FFE58F; color: #874D00;
   font-size: 12px; padding: 6px 12px; line-height: 20px;
 }
 .rep-setting-tip b { color: #D46B08; }
-/* 配置工具栏:默认份数 + 筛选 + 搜索 */
-.rep-setting-bar {
-  display: flex; align-items: center; gap: 14px;
-  background: #F5F8FC; border-bottom: 1px solid #D6E2F0;
-  padding: 8px 14px; font-size: 12px; color: #555;
-}
-.rep-setting-default { display: inline-flex; align-items: center; gap: 6px; }
-.rep-setting-filter { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-/* 行内份数输入:跟随默认灰底 / 已覆盖高亮 */
-.rep-copies-input {
-  width: 64px; height: 24px; text-align: center;
-  border: 1px solid #D9D9D9; border-radius: 3px; font-size: 12px;
-  background: #FAFAFA; color: #888;
-}
-.rep-copies-input.is-covered { background: #fff; color: #1F4E79; border-color: #4472C4; font-weight: 600; }
-.rep-copies-input:focus { outline: none; border-color: #00A99D; box-shadow: 0 0 0 2px rgba(0,169,157,.15); }
-/* 覆盖/默认标记 */
-.rep-covered-tag {
+/* 默认规则行:浅色底,突出固定规则 */
+.rep-rule-default td { background: #F6F8FA; }
+.rep-rule-default-tag {
   display: inline-block; background: #E6F4FF; color: #0958D9;
   border: 1px solid #91CAFF; border-radius: 3px;
-  font-size: 11px; padding: 0 6px; margin-left: 8px;
+  font-size: 11px; padding: 1px 8px; margin-right: 8px;
 }
-.rep-default-tag {
-  display: inline-block; color: #999; font-size: 11px; margin-left: 8px;
+/* 渠道 tag(规则内多选渠道展示;停用渠道灰字) */
+.rep-rule-channel {
+  display: inline-block; background: #F0F5FF; color: #2F54EB;
+  border: 1px solid #ADC6FF; border-radius: 3px;
+  font-size: 11px; padding: 1px 8px; margin: 1px 4px 1px 0;
 }
-.rep-reset {
-  display: inline-block; margin-left: 4px; color: #bbb; cursor: pointer;
-  font-size: 12px; padding: 0 3px;
-}
-.rep-reset:hover { color: #E81123; }
+.rep-rule-channel--off { background: #FAFAFA; color: #999; border-color: #D9D9D9; }
 /* 状态色阶(复用 .abn-tag 基类):启用绿 / 停用灰 */
 .rule-status--on  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
 .rule-status--off { background: #F5F5F5; color: #757575; border: 1px solid #D9D9D9; }
+/* 行内启停开关 */
+.rep-switch { position: relative; display: inline-block; width: 34px; height: 18px; margin-left: 8px; vertical-align: middle; }
+.rep-switch input { opacity: 0; width: 0; height: 0; }
+.rep-switch-slider {
+  position: absolute; inset: 0; background: #C0C4CC; border-radius: 18px;
+  transition: background .2s; cursor: pointer;
+}
+.rep-switch-slider::before {
+  content: ""; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px;
+  background: #fff; border-radius: 50%; transition: transform .2s;
+}
+.rep-switch input:checked + .rep-switch-slider { background: #00A99D; }
+.rep-switch input:checked + .rep-switch-slider::before { transform: translateX(16px); }
+/* 规则编辑弹窗:渠道多选 + 份数 */
+.rep-rule-form-row { margin-bottom: 12px; }
+.rep-rule-form-label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
+.rep-channel-list {
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+  border: 1px solid #D9D9D9; border-radius: 4px; padding: 10px 12px;
+  max-height: 180px; overflow-y: auto; background: #fff;
+}
+.rep-channel-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+.rep-channel-name { color: #333; }
+.rep-channel-server { color: #999; font-style: normal; font-size: 11px; margin-left: 4px; }
+.rep-channel-off { color: #bbb; font-style: normal; font-size: 11px; margin-left: 2px; }
+.rep-channel-search { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
+/* 已选渠道回显区 + tag(可删) */
+.rep-channel-selected {
+  min-height: 32px; padding: 6px 8px; background: #FAFAFA;
+  border: 1px dashed #D9D9D9; border-radius: 4px; line-height: 26px;
+}
+.rep-channel-selected-tag {
+  display: inline-block; background: #E6F4FF; color: #0958D9;
+  border: 1px solid #91CAFF; border-radius: 3px;
+  font-size: 12px; padding: 1px 4px 1px 8px; margin: 2px 4px 2px 0;
+}
+.rep-channel-selected-tag i {
+  font-style: normal; color: #91CAFF; cursor: pointer; margin-left: 4px; padding: 0 2px;
+}
+.rep-channel-selected-tag i:hover { color: #E81123; }
+.rep-rule-form-tip { display: block; font-size: 11px; color: #999; margin-top: 6px; line-height: 16px; }
 
 
 /* ============================================================
