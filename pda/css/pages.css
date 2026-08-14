@@ -1671,6 +1671,33 @@
 }
 .cc-btn--danger:active { background: #FFF1F0; }
 
+/* ============================================
+   抽屉容器基础样式(customs-check 各弹窗共用)
+   ⚠️ 2026-08-14 曾被误删导致弹窗背景透明,已恢复
+   ============================================ */
+/* 抽屉容器:相对设备框定位(absolute,约束在设备屏幕内) */
+.drawer { position: absolute; inset: 0; z-index: 1000; }
+.drawer.hidden { display: none; }
+.drawer-mask {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.45);
+  border-radius: 18px;            /* 跟随设备屏幕内圆角 */
+  animation: fade-in .2s;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.drawer-panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 8px 0 0;
+  animation: slide-up .25s ease;
+  max-width: 390px;
+  margin: 0 auto;
+}
+@keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
 /* —— 查验扣件弹窗(复用 .drawer 抽屉容器) —— */
 .cc-detain-row {
   display: flex;
@@ -2237,3 +2264,74 @@ g {
   align-items: center;
   justify-content: center;
 }
+
+/* ============================================================
+   箱标补打(label-reprint) — 对齐线上 PDA LabelReprint 页
+   ============================================================ */
+/* 表单卡片:类型行/份数行/扫描行 */
+.lr-form { background: #fff; border-radius: 8px; margin: 10px 10px 0; padding: 0 12px; }
+.lr-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 13px 0; border-bottom: 1px solid #F0F0F0; font-size: 14px;
+}
+.lr-row:last-child { border-bottom: none; }
+.lr-label { color: #333; flex-shrink: 0; }
+.lr-value { flex: 1; color: #333; }
+.lr-value--ph { color: #999; }
+.lr-arrow { color: #C0C0C0; font-size: 14px; }
+/* 份数模式:根据配置/手动输入 单选 + 手动输入框 */
+.lr-copies-mode { flex: 1; display: flex; align-items: center; gap: 14px; }
+.lr-mode-opt { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #555; cursor: pointer; }
+.lr-mode-opt i {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid #C0C0C0; box-sizing: border-box;
+}
+.lr-mode-opt.is-on { color: #00A99D; font-weight: 600; }
+.lr-mode-opt.is-on i { border: 4.5px solid #00A99D; }
+.lr-copies-ipt {
+  width: 52px; height: 28px; text-align: center;
+  border: 1px solid #D9D9D9; border-radius: 4px; font-size: 14px;
+}
+.lr-copies-ipt:focus { outline: none; border-color: #00A99D; }
+.lr-copies-unit { color: #555; font-size: 13px; }
+/* 扫描行 */
+.lr-scan-ipt {
+  flex: 1; height: 30px; padding: 0 8px; font-size: 13px;
+  border: 1.5px solid #00A99D; border-radius: 4px;
+  font-family: Consolas, "Courier New", monospace;
+}
+.lr-scan-ipt:focus { outline: none; background: #F0FAF9; }
+.lr-print-btn {
+  flex-shrink: 0; padding: 6px 18px; border: none; border-radius: 4px;
+  background: #00A99D; color: #fff; font-size: 14px; cursor: pointer;
+}
+.lr-print-btn:active { background: #009185; }
+/* 记录卡片 */
+.lr-records { padding: 0 10px 16px; display: flex; flex-direction: column; gap: 8px; }
+.lr-record { background: #fff; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.lr-record--fail { background: #FFF5F5; }
+.lr-record-head { display: flex; align-items: center; gap: 5px; }
+.lr-record-no { font-size: 14px; font-weight: 600; color: #333; font-family: Consolas, monospace; }
+.lr-record--fail .lr-record-no { color: #CF1322; }
+.lr-record-msg { color: #CF1322; margin-top: 3px; font-size: 12px; }
+.lr-record-kv { display: flex; justify-content: space-between; margin-top: 3px; }
+.lr-record-kv span { color: #888; }
+.lr-record-kv b { color: #333; font-weight: 500; }
+/* 类型选择弹层(底部上滑) */
+.lr-picker-wrap { position: absolute; inset: 0; z-index: 2000; display: none; }
+.lr-picker-wrap.is-open { display: block; }
+.lr-picker-mask { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+.lr-picker {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: #fff; border-radius: 12px 12px 0 0; padding: 14px 16px 20px;
+}
+.lr-picker-title { font-size: 14px; font-weight: 600; color: #333; text-align: center; margin-bottom: 8px; }
+.lr-picker-opt {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 4px; font-size: 14px; color: #333;
+  border-bottom: 1px solid #F0F0F0; cursor: pointer;
+}
+.lr-picker-opt:last-child { border-bottom: none; }
+.lr-picker-opt i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #D9D9D9; box-sizing: border-box; }
+.lr-picker-opt.is-on { color: #00A99D; font-weight: 600; }
+.lr-picker-opt.is-on i { border: 5px solid #00A99D; }

@@ -57,7 +57,7 @@ function mockPrintResult() {
 
 /* 按渠道从打印设置带出份数:命中启用的渠道规则→规则份数;未命中→默认份数 */
 function copiesFromConfig(channel) {
-  const rule = repSettings.rules.find(r => r.status === 1 && r.channels.includes(channel));
+  const rule = repSettings.rules.find(r => r.channels.includes(channel));
   return rule ? rule.copies : repSettings.defaultCopies;
 }
 
@@ -88,9 +88,9 @@ const REP_CHANNELS = [
 let repSettings = {
   defaultCopies: 2,
   rules: [
-    { key:'r1', channels:['美森正班', '美森加班'], copies:3, status:1 },
-    { key:'r2', channels:['B2B空运直飞'],         copies:1, status:0 },
-    { key:'r3', channels:['以星EXX'],             copies:2, status:1 },
+    { key:'r1', channels:['美森正班', '美森加班'], copies:3 },
+    { key:'r2', channels:['B2B空运直飞'],         copies:1 },
+    { key:'r3', channels:['以星EXX'],             copies:2 },
   ],
 };
 let repSettingKey = 4; /* 渠道规则 key 自增 */
@@ -98,12 +98,6 @@ let repSettingKey = 4; /* 渠道规则 key 自增 */
 /* 弹窗态:已选渠道 + 搜索词(新增/编辑规则弹窗内使用) */
 let ruleModalSelected = new Set();
 let ruleModalKeyword = '';
-
-/* 规则状态枚举 */
-const REP_RULE_STATUS = {
-  1: { label:'启用', cls:'rule-status--on' },
-  0: { label:'停用', cls:'rule-status--off' },
-};
 
 /* ============================================
    数据:每个 Tab 独立累积列表
@@ -225,7 +219,7 @@ function gridTable(gridId, rows) {
     c === 0 ? '<span style="color:#bbb;">—</span>' : `${c}`;
 
   const trs = rows.map(r => `
-    <tr class="${r.no === 1 ? 'row--selected' : ''}" data-no="${r.no}">
+    <tr class="${r.no === 1 ? 'row--selected' : ''} ${r.status === 3 ? 'print-row--fail' : ''}" data-no="${r.no}">
       <td class="col--num">${r.no}</td>
       <td class="col--code">${r.scanNo}</td>
       <td class="col--code">${r.matchNo}</td>
@@ -292,12 +286,8 @@ function repSection(tail) {
 }
 
 /* ---- Tab3 打印设置:规则列表(默认规则 + 渠道规则,V1.2 式) ---- */
-/* 规则表格:勾选 | 规则(渠道) | 打印份数 | 状态(行内开关) */
+/* 规则表格:勾选 | 规则(渠道) | 打印份数(无启停,规则保存即生效、删除即失效) */
 function settingsTable() {
-  const statusTag = s => {
-    const e = REP_RULE_STATUS[s] || REP_RULE_STATUS[0];
-    return `<span class="abn-tag ${e.cls}">${e.label}</span>`;
-  };
   /* 渠道规则行 */
   const rows = repSettings.rules.map(r => `
     <tr data-key="${r.key}">
@@ -307,14 +297,6 @@ function settingsTable() {
         return `<span class="rep-rule-channel ${ch && ch.status === 0 ? 'rep-rule-channel--off' : ''}">${c}</span>`;
       }).join('')}</td>
       <td class="col--num">${r.copies}</td>
-      <td>
-        ${statusTag(r.status)}
-        <label class="rep-switch" title="启用/停用规则">
-          <input type="checkbox" ${r.status === 1 ? 'checked' : ''}
-                 onchange="RepPage.toggleRule('${r.key}', this.checked)" />
-          <span class="rep-switch-slider"></span>
-        </label>
-      </td>
     </tr>
   `).join('');
 
@@ -323,26 +305,23 @@ function settingsTable() {
       <table class="grid wh-grid" id="settingGrid">
         <colgroup>
           <col style="width:46px" />   <!-- 勾选 -->
-          <col style="width:340px" />  <!-- 规则(渠道) -->
+          <col style="width:400px" />  <!-- 规则(渠道) -->
           <col style="width:110px" />  <!-- 打印份数 -->
-          <col style="width:150px" />  <!-- 状态 -->
         </colgroup>
         <thead>
           <tr>
             <th class="col--center"><input type="checkbox" id="settingChkAll" onclick="RepPage.onChkAll(this)" /></th>
             <th>规则(渠道)</th>
             <th class="col--center">打印份数</th>
-            <th>状态</th>
           </tr>
         </thead>
         <tbody>
-          <!-- 默认规则:首行固定,仅可改份数,不可删/停用 -->
+          <!-- 默认规则:首行固定,仅可改份数,不可删 -->
           <tr class="rep-rule-default" data-key="default">
             <td class="col--center"><input type="checkbox" class="rep-rule-chk" data-key="default" /></td>
             <td><span class="rep-rule-default-tag">默认</span>
                 <span style="color:#888;font-size:11px;">未命中任何渠道规则时适用</span></td>
             <td class="col--num">${repSettings.defaultCopies}</td>
-            <td>${statusTag(1)}<span style="color:#aaa;font-size:11px;margin-left:8px;">固定启用</span></td>
           </tr>
           ${rows}
         </tbody>
@@ -363,26 +342,34 @@ function settingsSection() {
         <button class="btn" onclick="RepPage.editChecked()">✎ 编辑</button>
         <button class="btn" onclick="RepPage.deleteChecked()">🗑 删除</button>
         <span class="sep"></span>
-        <span style="color:#888;line-height:24px;font-size:11px;">默认规则固定启用不可删除;渠道规则可启停</span>
+        <span style="color:#888;line-height:24px;font-size:11px;">默认规则不可删除;渠道规则可删除</span>
       </div>
       ${settingsTable()}
     </div>
   `;
 }
 
-/* 渠道列表渲染(按搜索词过滤;checkbox 根据 ruleModalSelected 勾选) */
+/* 渠道列表渲染(表格:序号/渠道代码/渠道名称;点击行切换选中,选中行高亮;按 ruleModalKeyword 过滤) */
 function ruleChannelListHTML() {
   const kw = ruleModalKeyword.toLowerCase();
   const list = REP_CHANNELS.filter(c =>
-    !kw || c.name.toLowerCase().includes(kw) || (c.server || '').toLowerCase().includes(kw));
+    !kw || c.name.toLowerCase().includes(kw) || (c.code || '').toLowerCase().includes(kw));
   if (list.length === 0) return '<div style="color:#999;padding:10px;font-size:12px;">无匹配渠道</div>';
-  return list.map(c => `
-    <label class="rep-channel-item">
-      <input type="checkbox" value="${c.name}" ${ruleModalSelected.has(c.name) ? 'checked' : ''}
-             onchange="RepPage.toggleChannel('${c.name}', this.checked)" />
-      <span class="rep-channel-name">${c.name}</span>
-      <em class="rep-channel-server">${c.server || ''}</em>${c.status === 0 ? '<em class="rep-channel-off">(停用)</em>' : ''}
-    </label>`).join('');
+  const rows = list.map((c, i) => `
+    <tr class="${ruleModalSelected.has(c.name) ? 'is-selected' : ''}"
+        onclick="RepPage.toggleChannel('${c.name}')">
+      <td class="col--num">${i + 1}</td>
+      <td class="col--code">${c.code || ''}</td>
+      <td>${c.name}</td>
+    </tr>`).join('');
+  return `
+    <table class="rep-ch-table">
+      <thead>
+        <tr><th style="width:52px;">序号</th><th style="width:200px;">渠道代码</th><th>渠道名称</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
 /* 已选渠道回显(tag,可删) */
@@ -417,10 +404,10 @@ function ruleModal(mode, key) {
             </div>` : `
             <div class="rep-rule-form-row">
               <label class="rep-rule-form-label">选择渠道</label>
-              <input id="ruleChannelSearch" class="ipt rep-channel-search" placeholder="搜索渠道名称 / 服务商"
+              <input id="ruleChannelSearch" class="ipt rep-channel-search" placeholder="搜索渠道代码 / 渠道名称"
                      value="${ruleModalKeyword}" oninput="RepPage.filterRuleChannel(this.value)" />
-              <div id="ruleChannelList" class="rep-channel-list">${ruleChannelListHTML()}</div>
-              <div class="rep-rule-form-tip">搜索定位 → 勾选加入已选;同一渠道不允许出现在多条规则中</div>
+              <div id="ruleChannelList" class="rep-ch-list">${ruleChannelListHTML()}</div>
+              <div class="rep-rule-form-tip">输入实时过滤;点击行加入/移出已选;同一渠道不允许出现在多条规则中</div>
             </div>
             <div class="rep-rule-form-row">
               <label class="rep-rule-form-label">已选渠道(<span id="ruleSelectedCount">${ruleModalSelected.size}</span>)</label>
@@ -493,14 +480,12 @@ const RepPage = {
     const typeV = this.getType();
     /* 份数来源:尾程选「根据配置」→ 按渠道命中打印设置带出(只读);选「手动输入」/头程 → 取输入框值 */
     let copies;
-    let autoBrought = false;
     if (c.tail) {
       const modeEl = document.querySelector('input[name="repCopiesMode"]:checked');
       const autoOn = modeEl ? modeEl.value === 'config' : true;
       if (autoOn) {
         copies = copiesFromConfig('美森正班'); /* 演示:扫描单号渠道=美森正班,命中 r1 规则;后台带出不展示 */
         document.getElementById('repCopies').value = copies;
-        autoBrought = true;
       } else {
         copies = parseInt(document.getElementById(c.copiesId).value, 10) || 1;
       }
@@ -528,17 +513,7 @@ const RepPage = {
     this.refresh(c.tail ? 'repGrid' : 'headGrid', c.rows);
     ipt.value = '';
     ipt.focus();
-
-    let tip;
-    const bring = autoBrought ? `(按配置带出${copies}份)` : '';
-    if (typeV === '2') {
-      tip = c.tail
-        ? `整单打印:${no} 共${boxes}箱,批量打印${totalCopies}张${bring} → ${r.statusLabel}(演示)`
-        : `头程整单:${no} 先查子单列表(共${boxes}箱),逐箱打印${totalCopies}张 → ${r.statusLabel}(演示)`;
-    } else {
-      tip = `${c.tail ? '' : '头程'}补打 ${this.typeLabel(typeV)}:${no} ${bring} → ${r.statusLabel}(演示)`;
-    }
-    Helpers.toast(tip);
+    /* 打印结果不弹提示(对齐线上):状态/张数通过列表行展示,失败行红底 */
   },
   /* 尾程份数模式切换:config=按打印配置后台带出(不展示份数);manual=显示输入框手填 */
   onCopiesModeChange(mode) {
@@ -553,7 +528,8 @@ const RepPage = {
       Helpers.toast('已切换:手动输入份数(演示)');
     }
   },
-  /* 下载PDF(尾程/头程,整单模式):逐个子单获取标签、按子单号排序合并为一个PDF(对齐 p1072_2222) */
+  /* 下载PDF(尾程/头程,整单模式):逐个子单获取标签、按子单号排序合并为一个PDF(对齐 p1072_2222)
+     注:仅下载文件,不改变换单状态——走纯查询链路,不触发换单标识/轨迹副作用(参照头程 ListFirstLegLabel) */
   downloadPdf() {
     const c = this.ctx();
     const ipt = document.getElementById(c.scanId);
@@ -561,7 +537,7 @@ const RepPage = {
     if (!no) { Helpers.toast('请先扫描或输入主单号！'); ipt.focus(); return; }
     const boxes = demoBoxCount(no);
     const file = `${no}_共${boxes}箱.pdf`;
-    Helpers.toast(`已按子单号排序合并下载:${file}(演示)`);
+    Helpers.toast(`已按子单号排序合并下载:${file}(仅下载文件,不改变换单状态)(演示)`);
   },
   /* 清空扫描框 */
   clearScan() {
@@ -597,7 +573,7 @@ const RepPage = {
     const costCell = c =>
       c === 0 ? '<span style="color:#bbb;">—</span>' : `${c}`;
     tbody.innerHTML = rows.map(r => `
-      <tr data-no="${r.no}">
+      <tr class="${r.status === 3 ? 'print-row--fail' : ''}" data-no="${r.no}">
         <td class="col--num">${r.no}</td>
         <td class="col--code">${r.scanNo}</td>
         <td class="col--code">${r.matchNo}</td>
@@ -635,22 +611,25 @@ const RepPage = {
     const modal = document.getElementById('ruleModal');
     if (modal) modal.remove();
   },
-  /* 渠道搜索:只刷新列表(保留已选,搜索词实时过滤) */
+  /* 渠道搜索:实时过滤列表(只刷表格,保留已选与输入焦点) */
   filterRuleChannel(v) {
     ruleModalKeyword = (v || '').trim();
     const el = document.getElementById('ruleChannelList');
     if (el) el.innerHTML = ruleChannelListHTML();
   },
-  /* 勾选/取消渠道:更新已选集合 + 刷新已选回显(列表 checkbox 由用户点击已变更,不重渲避免打断搜索) */
-  toggleChannel(name, checked) {
-    if (checked) ruleModalSelected.add(name); else ruleModalSelected.delete(name);
+  /* 点击渠道行:切换选中(选中集合 + 行高亮 + 已选回显) */
+  toggleChannel(name) {
+    if (ruleModalSelected.has(name)) ruleModalSelected.delete(name);
+    else ruleModalSelected.add(name);
+    const el = document.getElementById('ruleChannelList');
+    if (el) el.innerHTML = ruleChannelListHTML();
     this.refreshRuleSelected();
   },
-  /* 已选 tag 删除:移除集合并同步取消列表勾选 */
+  /* 已选 tag 删除:移除集合并同步取消行选中 */
   removeSelectedChannel(name) {
     ruleModalSelected.delete(name);
-    const cb = document.querySelector(`#ruleChannelList input[value="${name}"]`);
-    if (cb) cb.checked = false;
+    const el = document.getElementById('ruleChannelList');
+    if (el) el.innerHTML = ruleChannelListHTML();
     this.refreshRuleSelected();
   },
   refreshRuleSelected() {
@@ -682,7 +661,7 @@ const RepPage = {
     if (conflict) { Helpers.toast(`渠道「${conflict}」已存在其他规则中,请调整`); return; }
 
     if (key === 'new') {
-      repSettings.rules.push({ key: `r${repSettingKey++}`, channels, copies, status: 1 });
+      repSettings.rules.push({ key: `r${repSettingKey++}`, channels, copies });
     } else {
       const exist = repSettings.rules.find(r => r.key === key);
       if (exist) { exist.channels = channels; exist.copies = copies; }
@@ -690,14 +669,6 @@ const RepPage = {
     this.closeRuleModal();
     this.refreshSettings();
     Helpers.toast(`已保存:${channels.join('、')} → ${copies} 份(演示)`);
-  },
-  /* 行内启停渠道规则 */
-  toggleRule(key, on) {
-    const r = repSettings.rules.find(x => x.key === key);
-    if (!r) return;
-    r.status = on ? 1 : 0;
-    this.refreshSettings();
-    Helpers.toast(`规则已${on ? '启用' : '停用'}:${r.channels.join('、')}(演示)`);
   },
   /* 全选/取消全选 */
   onChkAll(el) {
@@ -733,7 +704,7 @@ const RepPage = {
         <button class="btn" onclick="RepPage.editChecked()">✎ 编辑</button>
         <button class="btn" onclick="RepPage.deleteChecked()">🗑 删除</button>
         <span class="sep"></span>
-        <span style="color:#888;line-height:24px;font-size:11px;">默认规则固定启用不可删除;渠道规则可启停</span>
+        <span style="color:#888;line-height:24px;font-size:11px;">默认规则不可删除;渠道规则可删除</span>
       </div>
       ${settingsTable()}
     `;

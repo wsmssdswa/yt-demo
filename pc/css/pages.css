@@ -440,6 +440,9 @@
 
 /* 打印错误信息列:红色 */
 .print-err { color: #CF1322; }
+/* 打印失败整行红底白字(对齐线上 UpdatePrintRecord 失败行样式) */
+.print-row--fail td { background: #E81123 !important; color: #fff !important; }
+.print-row--fail .print-err { color: #FFD3D3; }
 
 /* —— 移库类型 ChangeTypes(整箱移库蓝 / 单箱移库青 / 整库紫) —— */
 .mv-type--box    { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }   /* 整箱移库-蓝 */
@@ -519,22 +522,6 @@
   font-size: 11px; padding: 1px 8px; margin: 1px 4px 1px 0;
 }
 .rep-rule-channel--off { background: #FAFAFA; color: #999; border-color: #D9D9D9; }
-/* 状态色阶(复用 .abn-tag 基类):启用绿 / 停用灰 */
-.rule-status--on  { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
-.rule-status--off { background: #F5F5F5; color: #757575; border: 1px solid #D9D9D9; }
-/* 行内启停开关 */
-.rep-switch { position: relative; display: inline-block; width: 34px; height: 18px; margin-left: 8px; vertical-align: middle; }
-.rep-switch input { opacity: 0; width: 0; height: 0; }
-.rep-switch-slider {
-  position: absolute; inset: 0; background: #C0C4CC; border-radius: 18px;
-  transition: background .2s; cursor: pointer;
-}
-.rep-switch-slider::before {
-  content: ""; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px;
-  background: #fff; border-radius: 50%; transition: transform .2s;
-}
-.rep-switch input:checked + .rep-switch-slider { background: #00A99D; }
-.rep-switch input:checked + .rep-switch-slider::before { transform: translateX(16px); }
 /* 规则编辑弹窗:渠道多选 + 份数 */
 .rep-rule-form-row { margin-bottom: 12px; }
 .rep-rule-form-label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
@@ -545,9 +532,25 @@
 }
 .rep-channel-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
 .rep-channel-name { color: #333; }
-.rep-channel-server { color: #999; font-style: normal; font-size: 11px; margin-left: 4px; }
-.rep-channel-off { color: #bbb; font-style: normal; font-size: 11px; margin-left: 2px; }
+.rep-channel-code { color: #888; font-style: normal; font-size: 11px; margin-left: 4px; font-family: Consolas, "Courier New", monospace; }
+/* 渠道选择:搜索框实时过滤 + 三列表格(序号/代码/名称,点击行选中) */
 .rep-channel-search { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
+.rep-ch-list {
+  border: 1px solid #D9D9D9; border-radius: 4px; background: #fff;
+  max-height: 220px; overflow-y: auto;
+}
+.rep-ch-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rep-ch-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: linear-gradient(to bottom, #F8F8F8 0%, #E8E8E8 100%);
+  border-bottom: 1px solid #C0C0C0; padding: 5px 8px;
+  text-align: left; font-weight: 600; color: #333; white-space: nowrap;
+}
+.rep-ch-table td { padding: 5px 8px; border-bottom: 1px solid #EFEFEF; }
+.rep-ch-table tbody tr { cursor: pointer; }
+.rep-ch-table tbody tr:hover { background: #F0F7FF; }
+.rep-ch-table tbody tr.is-selected { background: #E6F4FF; }
+.rep-ch-table tbody tr.is-selected td { color: #0958D9; font-weight: 600; }
 /* 已选渠道回显区 + tag(可删) */
 .rep-channel-selected {
   min-height: 32px; padding: 6px 8px; background: #FAFAFA;

@@ -4,12 +4,14 @@
 
 const Helpers = {
   /* toast 提示(居中,自动消失)
-     msg: 文案;duration: 显示毫秒 */
+     msg: 文案;duration: 显示毫秒
+     挂到设备屏内(.screen)居中,不弹到整个浏览器页面;无设备外壳时回退 body */
   toast(msg, duration = 1600) {
     const t = document.createElement('div');
     t.className = 'toast';
     t.textContent = msg;
-    document.body.appendChild(t);
+    const host = document.querySelector('.screen') || document.body;
+    host.appendChild(t);
     setTimeout(() => t.remove(), duration);
   },
 

@@ -14,7 +14,7 @@ const MENUS = [
   { icon: '↩️', text: '还货上架',      go: '' },
   { icon: '🚫', text: '安检拦截',      go: './security-check.html' },
   { icon: '📦', text: '退仓扫描',      go: './outbound-scan.html' },
-  { icon: '🏷️', text: '箱标补打',      go: '' },
+  { icon: '🏷️', text: '箱标补打',      go: './label-reprint.html' },
   { icon: '🔎', text: '大货快查',      go: '' },
   { icon: '✔️', text: '单号校验',      go: '' },
   { icon: '🖥️', text: 'B2B工作台',     go: './b2b-workbench.html' },
