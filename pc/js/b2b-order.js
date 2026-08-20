@@ -1,42 +1,44 @@
 /* ============================================
    b2b-order.js — B2B 订单管理页
    依据:code/pc 生产源码
-     · 列表模型 OrderListItemDto(挑主线 18 列展示,字段全来自此类)
+     · 列表模型 OrderListItemDto(挑主线 19 列展示,字段全来自此类)
      · 查询条件 ListOrderInput(单号/单号类型/时间/日期类型/产品/渠道/客户/揽收/订单/库操/网点/分批/尾程/换单)
+     · 结算模式:客户级属性,取 csi_customer.settlement_type(枚举 S票结/P预付/H半月结/M月结/C现结/W周结,CRM 事件总线同步),
+       订单列表按 customer_code 实时关联,同一客户所有订单同值,未同步客户显示 —
      · 窗体 FrmOrderManage(按钮:订单信息/箱号信息/日志/导出/扣件/打印/导出材料明细/确认换单/列表配置/修改材积/服务商标签)
      · 枚举 OrderStatus/OrderOperateStatus/CollectionStatus/OrderChangeMarkType/CheckInStatus/OrderTransferStatus/LastMileMode
    ============================================ */
 
 /* ---- 演示数据(10 行,覆盖各种订单/库操/换单/调拨状态) ---- */
 const ORD_ROWS = [
-  { no:1,  waybill:'YT2621601300301272', cust:'CST2621601300101272', b2b:'B2B260804001', track:'20260804185331460', oType:'海运拼柜', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
+  { no:1,  waybill:'YT2621601300301272', cust:'CST2621601300101272', settle:'月结', b2b:'B2B260804001', track:'20260804185331460', oType:'海运拼柜', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
     opStatus:4, opStatusLabel:'已发货', collect:1, collectLabel:'已揽收', pieces:5, checkin:5, weight:128.5, cWeight:135.2, country:'美国', product:'美森快船-普货', channel:'美森正班',
     lastMile:'卡派', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 18:53:17', checkinTime:'2026-08-04 19:10:22', sel:false },
-  { no:2,  waybill:'YT2621601300301249', cust:'CST2621601300301249', b2b:'B2B260804002', track:'20260804184711458', oType:'海运整柜', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
+  { no:2,  waybill:'YT2621601300301249', cust:'CST2621601300301249', settle:'票结', b2b:'B2B260804002', track:'20260804184711458', oType:'海运整柜', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
     opStatus:2, opStatusLabel:'已上架', collect:1, collectLabel:'已揽收', pieces:10, checkin:10, weight:520.0, cWeight:531.8, country:'美国', product:'美森快船-带电', channel:'美森加班',
     lastMile:'卡派', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 18:46:37', checkinTime:'2026-08-04 19:05:10', sel:true },
-  { no:3,  waybill:'YT2621601300301227', cust:'CST2621601300101227', b2b:'B2B260804003', track:'20260804174758428', oType:'空运', oStatus:2, oStatusLabel:'已确认', swap:0, swapLabel:'无需换单',
+  { no:3,  waybill:'YT2621601300301227', cust:'CST2621601300101227', settle:'预付', b2b:'B2B260804003', track:'20260804174758428', oType:'空运', oStatus:2, oStatusLabel:'已确认', swap:0, swapLabel:'无需换单',
     opStatus:2, opStatusLabel:'已上架', collect:1, collectLabel:'已揽收', pieces:3, checkin:3, weight:45.2, cWeight:48.0, country:'美国', product:'B2B空运-普货', channel:'B2B空运直飞',
     lastMile:'快递', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 17:47:52', checkinTime:'2026-08-04 18:00:15', sel:false },
-  { no:4,  waybill:'YT2621601300301201', cust:'CST2621601300101201', b2b:'B2B260804004', track:'20260804174546426', oType:'海运拼柜', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
+  { no:4,  waybill:'YT2621601300301201', cust:'CST2621601300101272', settle:'月结', b2b:'B2B260804004', track:'20260804174546426', oType:'海运拼柜', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
     opStatus:1, opStatusLabel:'已入库', collect:1, collectLabel:'已揽收', pieces:8, checkin:8, weight:312.6, cWeight:0, country:'美国', product:'以星快船-普货', channel:'以星EXX',
     lastMile:'卡派', batch:true, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 17:45:35', checkinTime:'2026-08-04 17:50:40', sel:true },
-  { no:5,  waybill:'YT2621625400300033', cust:'PH2608030000051',     b2b:'B2B260803005', track:'20260804202334515', oType:'空运', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
+  { no:5,  waybill:'YT2621625400300033', cust:'PH2608030000051',     settle:'周结', b2b:'B2B260803005', track:'20260804202334515', oType:'空运', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
     opStatus:4, opStatusLabel:'已发货', collect:1, collectLabel:'已揽收', pieces:5, checkin:5, weight:88.3, cWeight:92.5, country:'美国', product:'B2B空运-带电', channel:'B2B空运直飞',
     lastMile:'快递', batch:false, transfer:2, transferLabel:'全部调拨中', checkinOg:'东腾曼沙项目仓', created:'2026-08-03 17:22:33', checkinTime:'2026-08-03 17:30:00', sel:true },
-  { no:6,  waybill:'YT2621601300101052', cust:'CST2621601300101052', b2b:'B2B260803006', track:'20260804170933405', oType:'海运拼柜', oStatus:1, oStatusLabel:'已预报', swap:0, swapLabel:'无需换单',
+  { no:6,  waybill:'YT2621601300101052', cust:'CST2621601300101052', settle:'现结', b2b:'B2B260803006', track:'20260804170933405', oType:'海运拼柜', oStatus:1, oStatusLabel:'已预报', swap:0, swapLabel:'无需换单',
     opStatus:0, opStatusLabel:'待入库', collect:2, collectLabel:'待揽收', pieces:6, checkin:0, weight:0, cWeight:0, country:'美国', product:'美森快船-普货', channel:'美森正班',
     lastMile:'卡派', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'', created:'2026-08-03 17:09:27', checkinTime:'', sel:false },
-  { no:7,  waybill:'YT2621601300101037', cust:'CST2621601300101037', b2b:'B2B260803007', track:'20260804165039388', oType:'海运整柜', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
+  { no:7,  waybill:'YT2621601300101037', cust:'CST2621601300101037', settle:'半月结', b2b:'B2B260803007', track:'20260804165039388', oType:'海运整柜', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
     opStatus:3, opStatusLabel:'已拣货', collect:1, collectLabel:'已揽收', pieces:4, checkin:4, weight:240.0, cWeight:245.5, country:'美国', product:'长荣海运-普货', channel:'长荣海运',
     lastMile:'卡派', batch:false, transfer:1, transferLabel:'部分调拨中', checkinOg:'东腾曼沙项目仓', created:'2026-08-03 16:50:30', checkinTime:'2026-08-03 17:00:12', sel:false },
-  { no:8,  waybill:'YT2621601300101029', cust:'CST2621601300101029', b2b:'B2B260803008', track:'20260804164912386', oType:'空运', oStatus:3, oStatusLabel:'已取消', swap:0, swapLabel:'无需换单',
+  { no:8,  waybill:'YT2621601300101029', cust:'CST2621601300101029', settle:'', b2b:'B2B260803008', track:'20260804164912386', oType:'空运', oStatus:3, oStatusLabel:'已取消', swap:0, swapLabel:'无需换单',
     opStatus:0, opStatusLabel:'待入库', collect:3, collectLabel:'揽收失败', pieces:2, checkin:0, weight:0, cWeight:0, country:'美国', product:'B2B空运-普货', channel:'B2B空运直飞',
     lastMile:'快递', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'', created:'2026-08-03 16:49:07', checkinTime:'', sel:false },
-  { no:9,  waybill:'YT2621625700100026', cust:'CST2621625700100026', b2b:'B2B260803009', track:'20260804152619320', oType:'卡航', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
+  { no:9,  waybill:'YT2621625700100026', cust:'CST2621625700100026', settle:'票结', b2b:'B2B260803009', track:'20260804152619320', oType:'卡航', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
     opStatus:2, opStatusLabel:'已上架', collect:1, collectLabel:'已揽收', pieces:2, checkin:2, weight:65.8, cWeight:68.0, country:'德国', product:'中欧卡航-普货', channel:'中欧卡航',
     lastMile:'卡派', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 15:26:12', checkinTime:'2026-08-04 15:30:00', sel:false },
-  { no:10, waybill:'YT2621624300300047', cust:'CST2621624300300047', b2b:'B2B260803010', track:'20260804151659306', oType:'海运拼柜', oStatus:4, oStatusLabel:'已退件', swap:0, swapLabel:'无需换单',
+  { no:10, waybill:'YT2621624300300047', cust:'CST2621624300300047', settle:'月结', b2b:'B2B260803010', track:'20260804151659306', oType:'海运拼柜', oStatus:4, oStatusLabel:'已退件', swap:0, swapLabel:'无需换单',
     opStatus:5, opStatusLabel:'已退件', collect:1, collectLabel:'已揽收', pieces:3, checkin:3, weight:95.2, cWeight:0, country:'美国', product:'美森快船-带电', channel:'美森正班',
     lastMile:'卡派', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-03 15:16:54', checkinTime:'2026-08-03 15:20:00', sel:false },
 ];
@@ -97,6 +99,7 @@ function queryPanel() {
       <div class="qp-row qp-more" id="ordMore" style="display:none;">
         ${f('时间', `<span class="qf-time"><select class="sel sel--inline"><option value="1">创建时间</option><option value="2" selected>首次签入时间</option><option value="3">计费签入时间</option><option value="4">费用确认时间</option><option value="5">揽收时间</option><option value="6">上架时间(首仓)</option></select><span class="qf-range"><input class="ipt ipt--date" value="2026-08-04" /><span class="qf-sep">~</span><input class="ipt ipt--date" value="2026-08-04 23:59:59" /></span></span>`)}
         ${f('客户代码', `<input class="ipt" placeholder="多个换行分隔" />`)}
+        ${f('结算模式', `<select class="sel"><option value="">全部</option><option value="S">票结</option><option value="P">预付</option><option value="H">半月结</option><option value="M">月结</option><option value="C">现结</option><option value="W">周结</option></select>`)}
         ${f('销售产品', `<input class="ipt" />`)}
         ${f('服务渠道', `<input class="ipt" />`)}
         ${f('订单状态', `<select class="sel"><option value="">全部</option><option>已预报</option><option>已确认</option><option>已取消</option><option>已退件</option></select>`)}
@@ -140,7 +143,7 @@ function gridToolbar() {
   `;
 }
 
-/* ---- 数据表格(18 列,来自 OrderListItemDto) ---- */
+/* ---- 数据表格(19 列,来自 OrderListItemDto) ---- */
 function gridTable() {
   const oStatusTag = v => { const e = ORD_ENUM.oStatus[v] || {label:'',cls:''}; return `<span class="ord-tag ${e.cls}">${e.label}</span>`; };
   const opStatusTag = v => { const e = ORD_ENUM.opStatus[v] || {label:'',cls:''}; return `<span class="ord-tag ${e.cls}">${e.label}</span>`; };
@@ -160,6 +163,7 @@ function gridTable() {
       <td>${swapTag(r.swap)}</td>
       <td>${opStatusTag(r.opStatus)}</td>
       <td>${r.collectLabel}</td>
+      <td>${r.settle || '<span style="color:#bbb;">—</span>'}</td>
       <td class="col--num">${r.pieces}</td>
       <td class="col--num">${r.checkin}/${r.pieces}</td>
       <td class="col--num">${r.weight > 0 ? r.weight.toFixed(1) : '—'}</td>
@@ -191,6 +195,7 @@ function gridTable() {
           <col style="width:80px" />   <!-- 是否换单 -->
           <col style="width:80px" />   <!-- 库内操作状态 -->
           <col style="width:70px" />   <!-- 揽收状态 -->
+          <col style="width:64px" />   <!-- 结算模式 -->
           <col style="width:56px" />   <!-- 件数 -->
           <col style="width:70px" />   <!-- 签入/总件 -->
           <col style="width:64px" />   <!-- 重量 -->
@@ -218,6 +223,7 @@ function gridTable() {
             <th>是否换单</th>
             <th>库内操作状态</th>
             <th>揽收状态</th>
+            <th>结算模式</th>
             <th>件数</th>
             <th>签入/总件</th>
             <th>重量(kg)</th>
