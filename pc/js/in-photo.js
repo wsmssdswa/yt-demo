@@ -295,27 +295,36 @@ function exportFloat(plan) {
   `;
 }
 
-/* 导出结果弹窗(点完成态浮条打开) */
-function exportResultModal(plan) {
+/* 导出结果弹窗(点完成态浮条打开);失败张数大于 0 时展示失败清单与重试入口 */
+function exportResultModal(plan, failed) {
+  const failBox = failed && failed.length > 0 ? `
+    <div class="exp-fail-box">
+      <div class="exp-fail-box--title">⚠ ${failed.length} 张下载失败(已自动重试 2 次,zip 内为成功的 ${plan.files.length - failed.length} 张)</div>
+      <div class="exp-fail-box--list">
+        ${failed.map(f => `<div class="exp-fail-box--item">${Helpers.esc(f.name)} <span class="exp-fail-box--reason">下载超时</span></div>`).join('')}
+      </div>
+      <button class="btn" style="margin-top:6px;" onclick="Helpers.toast('重试失败项(占位):仅重新下载失败清单,不影响已成功部分')">🔄 重试失败项</button>
+    </div>` : '';
   return `
     <div class="rw-modal" id="expModal">
       <div class="rw-modal-mask" onclick="PhotoPage.closeResult()"></div>
       <div class="rw-modal-panel photo-export" style="width:520px;">
         <div class="rw-modal-header">
-          <span class="rw-modal-title">导出完成</span>
+          <span class="rw-modal-title">${failed && failed.length > 0 ? '导出完成(部分成功)' : '导出完成'}</span>
           <span class="rw-modal-close" onclick="PhotoPage.closeResult()">✕</span>
         </div>
         <div class="rw-modal-body">
           <div style="text-align:center;padding:8px 0 4px;">
-            <div style="font-size:44px;color:#389E0D;">✔</div>
-            <div style="font-size:14px;font-weight:bold;margin:6px 0;">导出完成</div>
+            <div style="font-size:44px;color:${failed && failed.length > 0 ? '#D46B08' : '#389E0D'};">${failed && failed.length > 0 ? '⚠' : '✔'}</div>
+            <div style="font-size:14px;font-weight:bold;margin:6px 0;">${failed && failed.length > 0 ? `成功 ${plan.files.length - failed.length} 张 / 失败 ${failed.length} 张` : '导出完成'}</div>
             <div style="font-size:12px;color:#555;line-height:1.9;">
-              已导出 <b class="check-ok-text">${plan.files.length}</b> 张图片(每子单取最近上传一张),以子单号命名<br/>
+              已导出 <b class="check-ok-text">${plan.files.length - (failed ? failed.length : 0)}</b> 张图片(每子单取最近上传一张),以子单号命名<br/>
               ${plan.dupSkipped > 0 ? `<span class="check-err">去重跳过 ${plan.dupSkipped} 张重复照片(同一子单仅保留最新)</span><br/>` : ''}
               ${plan.skipped.length > 0 ? `<span class="check-err">跳过 ${plan.skipped.length} 条记录(无匹配子单号,未导出)</span><br/>` : ''}
               已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>(演示文件名)
             </div>
           </div>
+          ${failBox}
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="Helpers.toast('打开文件夹(占位)')">📂 打开所在文件夹</button>
@@ -340,6 +349,7 @@ function demoPanel() {
         <button class="btn" onclick="PhotoPage.applyDemo('normal')">① 正常导出(原始 10 条/8 张)</button>
         <button class="btn" onclick="PhotoPage.applyDemo('many')">② 数量较多提醒(注入 800 条/去重后 400 张)</button>
         <button class="btn" onclick="PhotoPage.applyDemo('over')">③ 超量拦截(注入 30000 条/去重后 10000 张)</button>
+        <button class="btn" onclick="PhotoPage.applyDemo('fail')">④ 部分导出失败(8 张中 2 张下载失败)</button>
         <button class="btn" onclick="PhotoPage.applyDemo('reset')">↺ 重置恢复原始数据</button>
         <div class="photo-demo--tip">切换后自动弹出导出弹窗;重置仅还原数据不弹窗</div>
       </div>
@@ -418,7 +428,8 @@ const PhotoPage = {
   /* ---- 导出图片(需求新增;后台任务式:开始后不阻塞页面操作) ---- */
   exporting: false,     /* 是否有导出任务进行中 */
   exportTimer: null,
-  lastPlan: null,
+  lastPlan: null,       /* { plan, failed } */
+  demoFail: false,      /* 演示面板场景④:模拟部分下载失败 */
   openExport() {
     if (this.exporting) { Helpers.toast('已有导出任务进行中,请稍候'); return; }
     document.body.insertAdjacentHTML('beforeend', exportModal(buildExportPlan()));
@@ -452,20 +463,25 @@ const PhotoPage = {
   exportFinish(plan) {
     this.exporting = false;
     this.exportTimer = null;
-    this.lastPlan = plan;
+    /* 演示场景④:固定第 2、7 张下载失败 */
+    const failed = this.demoFail ? plan.files.filter((_, i) => i === 1 || i === 6) : [];
+    this.lastPlan = { plan, failed };
+    const ok = plan.files.length - failed.length;
     const f = document.getElementById('expFloat');
     if (f) {
-      f.classList.add('exp-float--done');
-      f.innerHTML = `
-        <span class="exp-float--ico" style="color:#389E0D;">✔</span>
-        <span class="exp-float--body"><span class="exp-float--txt"><b>导出完成</b>(${plan.files.length} 张),点击查看</span></span>`;
+      f.classList.add(failed.length > 0 ? 'exp-float--warn' : 'exp-float--done');
+      f.innerHTML = failed.length > 0
+        ? `<span class="exp-float--ico" style="color:#D46B08;">⚠</span>
+           <span class="exp-float--body"><span class="exp-float--txt"><b>导出完成</b>(成功 ${ok} / 失败 ${failed.length}),点击查看</span></span>`
+        : `<span class="exp-float--ico" style="color:#389E0D;">✔</span>
+           <span class="exp-float--body"><span class="exp-float--txt"><b>导出完成</b>(${plan.files.length} 张),点击查看</span></span>`;
     }
-    Helpers.toast('导出完成,可继续其他操作');
+    Helpers.toast(failed.length > 0 ? '导出完成(部分成功),可查看失败清单' : '导出完成,可继续其他操作');
   },
   viewResult() {
     if (this.exporting || !this.lastPlan) return;   /* 进行中点浮条不响应 */
     if (document.getElementById('expModal')) return;
-    document.body.insertAdjacentHTML('beforeend', exportResultModal(this.lastPlan));
+    document.body.insertAdjacentHTML('beforeend', exportResultModal(this.lastPlan.plan, this.lastPlan.failed));
   },
   closeResult() {
     const el = document.getElementById('expModal');
@@ -478,6 +494,7 @@ const PhotoPage = {
     if (this.exportTimer) { clearInterval(this.exportTimer); this.exportTimer = null; }
     this.exporting = false;
     this.lastPlan = null;
+    this.demoFail = false;
     document.getElementById('expFloat')?.remove();
   },
   closeExport() {
@@ -495,12 +512,13 @@ const PhotoPage = {
     let list;
     if (type === 'many') list = genDemoRows(800, 2);        /* 800 条,400 子单各 2 张 → 去重后 400 张,触发提醒 */
     else if (type === 'over') list = genDemoRows(30000, 3); /* 30000 条,10000 子单各 3 张 → 去重后 10000 张,触发拦截 */
-    else list = PHOTO_ORIG.slice();                          /* normal / reset 均还原 */
+    else list = PHOTO_ORIG.slice();                          /* normal / fail / reset 均用原始数据 */
     photoFiltered = list;
     document.getElementById('photoBody').innerHTML = buildRows(list);
     document.getElementById('pgTotal').textContent = list.length;
     if (type === 'reset') { Helpers.toast('已恢复原始演示数据'); return; }
-    if (type !== 'normal') Helpers.toast(`已注入 ${list.length} 条演示数据`);
+    if (type === 'fail') { this.demoFail = true; Helpers.toast('已开启失败模拟:导出完成后第 2、7 张将下载失败'); }
+    else if (type !== 'normal') Helpers.toast(`已注入 ${list.length} 条演示数据`);
     PhotoPage.closeExport();
     PhotoPage.openExport();
   },
