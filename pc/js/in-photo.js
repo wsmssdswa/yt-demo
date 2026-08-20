@@ -282,18 +282,44 @@ function exportModal(plan) {
   `;
 }
 
-function exportProgressModal(plan) {
+/* 后台导出浮条:点开始导出后弹窗收起,页面可继续操作 */
+function exportFloat(plan) {
+  return `
+    <div class="exp-float" id="expFloat" onclick="PhotoPage.viewResult()" title="导出任务">
+      <span class="exp-float--ico">⬇</span>
+      <span class="exp-float--body">
+        <span class="exp-float--txt">正在后台导出照片… <b id="expFloatNum">0 / ${plan.files.length}</b></span>
+        <span class="exp-float--bar"><span id="expFloatBar" style="width:0%"></span></span>
+      </span>
+    </div>
+  `;
+}
+
+/* 导出结果弹窗(点完成态浮条打开) */
+function exportResultModal(plan) {
   return `
     <div class="rw-modal" id="expModal">
-      <div class="rw-modal-mask"></div>
+      <div class="rw-modal-mask" onclick="PhotoPage.closeResult()"></div>
       <div class="rw-modal-panel photo-export" style="width:520px;">
         <div class="rw-modal-header">
-          <span class="rw-modal-title">导出图片</span>
-          <span class="rw-modal-close" onclick="PhotoPage.closeExport()">✕</span>
+          <span class="rw-modal-title">导出完成</span>
+          <span class="rw-modal-close" onclick="PhotoPage.closeResult()">✕</span>
         </div>
-        <div class="rw-modal-body" id="expBody">
-          <div style="font-size:13px;margin-bottom:10px;">正在下载并保存图片… <b id="expPct">0%</b></div>
-          <div class="exp-bar"><div class="exp-bar--in" id="expBarIn" style="width:0%"></div></div>
+        <div class="rw-modal-body">
+          <div style="text-align:center;padding:8px 0 4px;">
+            <div style="font-size:44px;color:#389E0D;">✔</div>
+            <div style="font-size:14px;font-weight:bold;margin:6px 0;">导出完成</div>
+            <div style="font-size:12px;color:#555;line-height:1.9;">
+              已导出 <b class="check-ok-text">${plan.files.length}</b> 张图片(每子单取最近上传一张),以子单号命名<br/>
+              ${plan.dupSkipped > 0 ? `<span class="check-err">去重跳过 ${plan.dupSkipped} 张重复照片(同一子单仅保留最新)</span><br/>` : ''}
+              ${plan.skipped.length > 0 ? `<span class="check-err">跳过 ${plan.skipped.length} 条记录(无匹配子单号,未导出)</span><br/>` : ''}
+              已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>(演示文件名)
+            </div>
+          </div>
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn" onclick="Helpers.toast('打开文件夹(占位)')">📂 打开所在文件夹</button>
+          <button class="btn btn--primary" onclick="PhotoPage.closeResult()">关闭</button>
         </div>
       </div>
     </div>
@@ -389,50 +415,70 @@ const PhotoPage = {
     if (el) el.remove();
   },
 
-  /* ---- 导出图片(需求新增) ---- */
+  /* ---- 导出图片(需求新增;后台任务式:开始后不阻塞页面操作) ---- */
+  exporting: false,     /* 是否有导出任务进行中 */
+  exportTimer: null,
+  lastPlan: null,
   openExport() {
+    if (this.exporting) { Helpers.toast('已有导出任务进行中,请稍候'); return; }
     document.body.insertAdjacentHTML('beforeend', exportModal(buildExportPlan()));
   },
   startExport() {
     const plan = buildExportPlan();
     const modal = document.getElementById('expModal');
     if (modal) modal.remove();
-    document.body.insertAdjacentHTML('beforeend', exportProgressModal(plan));
+    /* 上一次结果未查看又发起导出时,先清掉旧浮条 */
+    document.getElementById('expFloat')?.remove();
+    /* 弹窗收起为右下角浮条,后台下载,页面可继续操作 */
+    this.exporting = true;
+    this.lastPlan = plan;
+    document.body.insertAdjacentHTML('beforeend', exportFloat(plan));
     /* 演示:进度模拟 */
     let pct = 0;
     const timer = setInterval(() => {
       pct = Math.min(100, pct + Math.round(60 + Math.random() * 120) / 10);
-      const bar = document.getElementById('expBarIn');
-      const txt = document.getElementById('expPct');
-      if (!bar) { clearInterval(timer); return; }   /* 弹窗被关闭则停止 */
+      const bar = document.getElementById('expFloatBar');
+      const num = document.getElementById('expFloatNum');
+      if (!bar) { clearInterval(timer); return; }   /* 浮条被移除则停止 */
       bar.style.width = pct + '%';
-      txt.textContent = Math.round(pct) + '%';
+      num.textContent = `${Math.round(pct * plan.files.length / 100)} / ${plan.files.length}`;
       if (pct >= 100) {
         clearInterval(timer);
-        setTimeout(() => PhotoPage.showExportResult(plan), 300);
+        PhotoPage.exportFinish(plan);
       }
     }, 180);
+    this.exportTimer = timer;
   },
-  showExportResult(plan) {
-    const body = document.getElementById('expBody');
-    if (!body) return;
-    body.innerHTML = `
-      <div style="text-align:center;padding:8px 0 4px;">
-        <div style="font-size:44px;color:#389E0D;">✔</div>
-        <div style="font-size:14px;font-weight:bold;margin:6px 0;">导出完成</div>
-        <div style="font-size:12px;color:#555;line-height:1.9;">
-          已导出 <b class="check-ok-text">${plan.files.length}</b> 张图片(每子单取最近上传一张),以子单号命名<br/>
-          ${plan.dupSkipped > 0 ? `<span class="check-err">去重跳过 ${plan.dupSkipped} 张重复照片(同一子单仅保留最新)</span><br/>` : ''}
-          ${plan.skipped.length > 0 ? `<span class="check-err">跳过 ${plan.skipped.length} 条记录(无匹配子单号,未导出)</span><br/>` : ''}
-          已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>(演示文件名)
-        </div>
-      </div>`;
-    const panel = body.closest('.rw-modal-panel');
-    panel.insertAdjacentHTML('beforeend', `
-      <div class="rw-modal-footer">
-        <button class="btn" onclick="Helpers.toast('打开文件夹(占位)')">📂 打开文件夹</button>
-        <button class="btn btn--primary" onclick="PhotoPage.closeExport()">完成</button>
-      </div>`);
+  exportFinish(plan) {
+    this.exporting = false;
+    this.exportTimer = null;
+    this.lastPlan = plan;
+    const f = document.getElementById('expFloat');
+    if (f) {
+      f.classList.add('exp-float--done');
+      f.innerHTML = `
+        <span class="exp-float--ico" style="color:#389E0D;">✔</span>
+        <span class="exp-float--body"><span class="exp-float--txt"><b>导出完成</b>(${plan.files.length} 张),点击查看</span></span>`;
+    }
+    Helpers.toast('导出完成,可继续其他操作');
+  },
+  viewResult() {
+    if (this.exporting || !this.lastPlan) return;   /* 进行中点浮条不响应 */
+    if (document.getElementById('expModal')) return;
+    document.body.insertAdjacentHTML('beforeend', exportResultModal(this.lastPlan));
+  },
+  closeResult() {
+    const el = document.getElementById('expModal');
+    if (el) el.remove();
+    const f = document.getElementById('expFloat');
+    if (f) f.remove();   /* 查看完结果,浮条消失 */
+  },
+  /* 演示面板切场景时,终止进行中的任务并清理浮条 */
+  stopExportTask() {
+    if (this.exportTimer) { clearInterval(this.exportTimer); this.exportTimer = null; }
+    this.exporting = false;
+    this.lastPlan = null;
+    document.getElementById('expFloat')?.remove();
   },
   closeExport() {
     const el = document.getElementById('expModal');
@@ -445,6 +491,7 @@ const PhotoPage = {
     el.style.display = el.style.display === 'none' ? 'block' : 'none';
   },
   applyDemo(type) {
+    this.stopExportTask();   /* 切场景时终止进行中的导出任务 */
     let list;
     if (type === 'many') list = genDemoRows(800, 2);        /* 800 条,400 子单各 2 张 → 去重后 400 张,触发提醒 */
     else if (type === 'over') list = genDemoRows(30000, 3); /* 30000 条,10000 子单各 3 张 → 去重后 10000 张,触发拦截 */

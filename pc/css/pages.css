@@ -770,3 +770,19 @@
 .photo-demo--title { font-size: 12px; font-weight: bold; color: #333; }
 .photo-demo--panel .btn { width: 100%; text-align: left; font-size: 12px; }
 .photo-demo--tip { font-size: 11px; color: #999; line-height: 1.5; }
+
+/* === 拍照记录上传页:后台导出浮条 === */
+.exp-float {
+  position: fixed; right: 18px; bottom: 88px; z-index: 901;
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid #B7DEDC; border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.15); padding: 8px 14px;
+  width: 250px; cursor: pointer;
+}
+.exp-float:hover { border-color: #00A99D; }
+.exp-float--ico { font-size: 16px; color: #00706A; }
+.exp-float--body { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.exp-float--txt { font-size: 12px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exp-float--bar { display: block; height: 4px; background: #E6F7F5; border-radius: 2px; overflow: hidden; }
+.exp-float--bar span { display: block; height: 100%; background: #00A99D; transition: width .18s linear; }
+.exp-float--done { border-color: #B7EB8F; background: #F6FFED; }
