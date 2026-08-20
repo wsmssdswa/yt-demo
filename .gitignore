@@ -10,3 +10,7 @@ dist/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 飞书发布链路产物与内部映射(不进公网仓库)
+*.single.html
+tools/feishu-manifest.json
