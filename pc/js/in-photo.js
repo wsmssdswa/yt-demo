@@ -258,9 +258,7 @@ function exportModal(plan) {
         <div class="rw-modal-body">
           <div class="exp-sum">
             <div>导出范围:当前查询结果 <b>${plan.total}</b> 条记录</div>
-            <div>去重后可导出:<b class="check-ok-text">${n}</b> 张(${n} 个子单,每单取最近上传一张)
-              ${(plan.dupSkipped > 0 || plan.skipped.length > 0) ? `<span class="check-err">(去重跳过 ${plan.dupSkipped} 张重复照片${plan.skipped.length > 0 ? `、${plan.skipped.length} 条无子单号记录` : ''})</span>` : ''}</div>
-            <div>命名规则:<b>子单号.原扩展名</b>;同一子单多张照片只保留最近上传的一张</div>
+            <div>去重后可导出:<b class="check-ok-text">${n}</b> 张(${n} 个子单,每单取最近上传一张)</div>
           </div>
           ${overLimit ? `
           <div class="exp-alert exp-alert--block">
