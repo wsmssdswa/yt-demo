@@ -299,11 +299,11 @@ function exportFloat(plan) {
 function exportResultModal(plan, failed) {
   const failBox = failed && failed.length > 0 ? `
     <div class="exp-fail-box">
-      <div class="exp-fail-box--title">⚠ ${failed.length} 张下载失败(已自动重试 2 次,zip 内为成功的 ${plan.files.length - failed.length} 张)</div>
+      <div class="exp-fail-box--title">⚠ ${failed.length} 张下载失败(zip 内为成功的 ${plan.files.length - failed.length} 张)</div>
       <div class="exp-fail-box--list">
         ${failed.map(f => `<div class="exp-fail-box--item">${Helpers.esc(f.name)} <span class="exp-fail-box--reason">下载超时</span></div>`).join('')}
       </div>
-      <button class="btn" style="margin-top:6px;" onclick="Helpers.toast('重试失败项(占位):仅重新下载失败清单,不影响已成功部分')">🔄 重试失败项</button>
+      <button class="btn" style="margin-top:6px;" onclick="PhotoPage.copyFailNumbers()">📋 复制失败子单号</button>
     </div>` : '';
   return `
     <div class="rw-modal" id="expModal">
@@ -482,6 +482,25 @@ const PhotoPage = {
     if (this.exporting || !this.lastPlan) return;   /* 进行中点浮条不响应 */
     if (document.getElementById('expModal')) return;
     document.body.insertAdjacentHTML('beforeend', exportResultModal(this.lastPlan.plan, this.lastPlan.failed));
+  },
+  /* 复制失败清单的子单号(去掉扩展名,每行一个),失败项不做自动重试,由操作员自行处理 */
+  copyFailNumbers() {
+    const failed = this.lastPlan?.failed || [];
+    if (failed.length === 0) return;
+    const text = failed.map(f => f.name.replace(/\.\w+$/, '')).join('\n');
+    const ok = () => Helpers.toast(`已复制 ${failed.length} 个子单号,可粘贴到单号查询框重新导出`);
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => this.copyFallback(text, ok));
+    } else {
+      this.copyFallback(text, ok);
+    }
+  },
+  copyFallback(text, ok) {
+    const ta = Object.assign(document.createElement('textarea'), { value: text, style: 'position:fixed;opacity:0;' });
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); ok(); } catch (e) { Helpers.toast('复制失败,请手动记录子单号'); }
+    ta.remove();
   },
   closeResult() {
     const el = document.getElementById('expModal');
