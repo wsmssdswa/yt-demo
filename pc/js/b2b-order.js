@@ -3,8 +3,9 @@
    依据:code/pc 生产源码
      · 列表模型 OrderListItemDto(挑主线 19 列展示,字段全来自此类)
      · 查询条件 ListOrderInput(单号/单号类型/时间/日期类型/产品/渠道/客户/揽收/订单/库操/网点/分批/尾程/换单)
-     · 结算模式:客户级属性,取 csi_customer.settlement_type(枚举 S票结/P预付/H半月结/M月结/C现结/W周结,CRM 事件总线同步),
-       订单列表按 customer_code 实时关联,同一客户所有订单同值,未同步客户显示 —
+     · 结算模式:订单级属性,取 ord_order.settlement_type(p967_1877 账期优化:OFP 下单时随订单下发,
+       下单确定后不可变更;枚举 S票结/P预付/H半月结/M月结/C现结/W周结;同一客户可同时存在票结与非票结订单;
+       空=历史存量未回填(刷数接口处理),显示 —)
      · 窗体 FrmOrderManage(按钮:订单信息/箱号信息/日志/导出/扣件/打印/导出材料明细/确认换单/列表配置/修改材积/服务商标签)
      · 枚举 OrderStatus/OrderOperateStatus/CollectionStatus/OrderChangeMarkType/CheckInStatus/OrderTransferStatus/LastMileMode
    ============================================ */
@@ -20,7 +21,7 @@ const ORD_ROWS = [
   { no:3,  waybill:'YT2621601300301227', cust:'CST2621601300101227', settle:'预付', b2b:'B2B260804003', track:'20260804174758428', oType:'空运', oStatus:2, oStatusLabel:'已确认', swap:0, swapLabel:'无需换单',
     opStatus:2, opStatusLabel:'已上架', collect:1, collectLabel:'已揽收', pieces:3, checkin:3, weight:45.2, cWeight:48.0, country:'美国', product:'B2B空运-普货', channel:'B2B空运直飞',
     lastMile:'快递', batch:false, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 17:47:52', checkinTime:'2026-08-04 18:00:15', sel:false },
-  { no:4,  waybill:'YT2621601300301201', cust:'CST2621601300101272', settle:'月结', b2b:'B2B260804004', track:'20260804174546426', oType:'海运拼柜', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
+  { no:4,  waybill:'YT2621601300301201', cust:'CST2621601300101272', settle:'票结', b2b:'B2B260804004', track:'20260804174546426', oType:'海运拼柜', oStatus:2, oStatusLabel:'已确认', swap:1, swapLabel:'待换单',
     opStatus:1, opStatusLabel:'已入库', collect:1, collectLabel:'已揽收', pieces:8, checkin:8, weight:312.6, cWeight:0, country:'美国', product:'以星快船-普货', channel:'以星EXX',
     lastMile:'卡派', batch:true, transfer:0, transferLabel:'未调拨', checkinOg:'东腾曼沙项目仓', created:'2026-08-04 17:45:35', checkinTime:'2026-08-04 17:50:40', sel:true },
   { no:5,  waybill:'YT2621625400300033', cust:'PH2608030000051',     settle:'周结', b2b:'B2B260803005', track:'20260804202334515', oType:'空运', oStatus:2, oStatusLabel:'已确认', swap:2, swapLabel:'已换单',
