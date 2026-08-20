@@ -317,8 +317,6 @@ function exportResultModal(plan, failed) {
             <div style="font-size:14px;font-weight:bold;margin:6px 0;">${failed && failed.length > 0 ? `成功 ${plan.files.length - failed.length} 张 / 失败 ${failed.length} 张` : '导出完成'}</div>
             <div style="font-size:12px;color:#555;line-height:1.9;">
               已导出 <b class="check-ok-text">${plan.files.length - (failed ? failed.length : 0)}</b> 张图片(每子单取最近上传一张),以子单号命名<br/>
-              ${plan.dupSkipped > 0 ? `<span class="check-err">去重跳过 ${plan.dupSkipped} 张重复照片(同一子单仅保留最新)</span><br/>` : ''}
-              ${plan.skipped.length > 0 ? `<span class="check-err">跳过 ${plan.skipped.length} 条记录(无匹配子单号,未导出)</span><br/>` : ''}
               已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>(演示文件名)
             </div>
           </div>
