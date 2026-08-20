@@ -753,3 +753,20 @@
 .photo-export .exp-alert { font-size: 12px; line-height: 1.9; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; }
 .photo-export .exp-alert--warn  { background: #FFF7E6; border: 1px solid #FFD591; color: #D46B08; }
 .photo-export .exp-alert--block { background: #FFF1F0; border: 1px solid #FFA39E; color: #CF1322; }
+
+/* === 拍照记录上传页:演示面板(悬浮球,默认收起,不影响页面主体) === */
+.photo-demo { position: fixed; right: 18px; bottom: 46px; z-index: 900; }
+.photo-demo--fab {
+  border: 1px solid #B7DEDC; background: #E6F7F5; color: #00706A;
+  border-radius: 16px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+}
+.photo-demo--fab:hover { background: #C9EEEA; }
+.photo-demo--panel {
+  position: absolute; right: 0; bottom: 34px; width: 250px;
+  background: #fff; border: 1px solid #D6E2F0; border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12); padding: 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.photo-demo--title { font-size: 12px; font-weight: bold; color: #333; }
+.photo-demo--panel .btn { width: 100%; text-align: left; font-size: 12px; }
+.photo-demo--tip { font-size: 11px; color: #999; line-height: 1.5; }

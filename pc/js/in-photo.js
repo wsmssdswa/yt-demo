@@ -92,11 +92,13 @@ function gridToolbar() {
 }
 
 /* ---- 数据表格(10 列,严格对应 PictureUploadRecordResponse 的 [DataColumn] 顺序;线上无勾选列) ---- */
+const RENDER_CAP = 50;   /* 注入大量演示数据时,列表仅渲染前 50 行防卡顿 */
 function buildRows(list) {
   if (list.length === 0) {
     return `<tr><td colspan="10" style="text-align:center;color:#999;padding:28px 0;">暂无数据</td></tr>`;
   }
-  return list.map((r, i) => {
+  const cap = list.slice(0, RENDER_CAP);
+  const html = cap.map((r, i) => {
     const st = PHOTO_STATUS[r.status] || { label: '', cls: '' };
     const shortUrl = r.url.replace('https://yt-ccos.oss-cn-shenzhen.aliyuncs.com', '…');
     const dash = '<span style="color:#bbb;">—</span>';
@@ -116,6 +118,9 @@ function buildRows(list) {
         <td>${r.upTime}</td>
       </tr>`;
   }).join('');
+  return list.length > RENDER_CAP
+    ? html + `<tr><td colspan="10" style="text-align:center;color:#999;padding:10px 0;">(演示已注入 ${list.length} 条数据,列表仅展示前 ${RENDER_CAP} 条)</td></tr>`
+    : html;
 }
 
 function gridTable(list) {
@@ -297,6 +302,46 @@ function exportProgressModal(plan) {
 
 /* ---- 页面逻辑:查询过滤(带线上三条校验)/ 图片预览 ---- */
 let photoFiltered = PHOTO_ROWS;   /* 当前展示的数据集 */
+const PHOTO_ORIG = PHOTO_ROWS.slice();  /* 原始演示数据(演示面板重置用) */
+
+/* ---- 演示面板:一键切换三种量级场景,演示导出弹窗的防呆提示 ---- */
+function demoPanel() {
+  return `
+    <div class="photo-demo" id="photoDemo">
+      <button class="photo-demo--fab" onclick="PhotoPage.toggleDemo()">🧪 演示</button>
+      <div class="photo-demo--panel" id="photoDemoPanel" style="display:none;">
+        <div class="photo-demo--title">演示场景(切换导出弹窗量级提示)</div>
+        <button class="btn" onclick="PhotoPage.applyDemo('normal')">① 正常导出(原始 10 条/8 张)</button>
+        <button class="btn" onclick="PhotoPage.applyDemo('many')">② 数量较多提醒(注入 800 条/去重后 400 张)</button>
+        <button class="btn" onclick="PhotoPage.applyDemo('over')">③ 超量拦截(注入 30000 条/去重后 10000 张)</button>
+        <button class="btn" onclick="PhotoPage.applyDemo('reset')">↺ 重置恢复原始数据</button>
+        <div class="photo-demo--tip">切换后自动弹出导出弹窗;重置仅还原数据不弹窗</div>
+      </div>
+    </div>
+  `;
+}
+
+/* 生成注入数据:同子单多张(时间错开),子单号真实格式 */
+function genDemoRows(count, perChild) {
+  const base = 'YT2621000070480962';
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    const seq = (i % perChild) + 1;
+    const childIdx = Math.floor(i / perChild) + 1;
+    const child = `${base}U${String(childIdx).padStart(3, '0')}`;
+    const hh = String(8 + (i % 10)).padStart(2, '0');
+    const mm = String(i % 60).padStart(2, '0');
+    const ss = String((i * 7) % 60).padStart(2, '0');
+    rows.push({
+      waybill: base, child,
+      no1: base, no2: child, no3: '', no4: '',
+      imgName: `IMG_20260819_${hh}${mm}${ss}.jpg`,
+      url: `https://yt-ccos.oss-cn-shenzhen.aliyuncs.com/dws/2026/08/19/IMG_20260819_${hh}${mm}${ss}.jpg`,
+      status: 1, tip: '', upTime: `2026-08-19 ${hh}:${mm}:${ss}`,
+    });
+  }
+  return rows;
+}
 
 const PhotoPage = {
   /* 查询:线上规则——传了单号则忽略时间;校验单号≤500、开始≤结束、跨度≤30天 */
@@ -393,6 +438,25 @@ const PhotoPage = {
     const el = document.getElementById('expModal');
     if (el) el.remove();
   },
+
+  /* ---- 演示面板:切换量级场景 ---- */
+  toggleDemo() {
+    const el = document.getElementById('photoDemoPanel');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  },
+  applyDemo(type) {
+    let list;
+    if (type === 'many') list = genDemoRows(800, 2);        /* 800 条,400 子单各 2 张 → 去重后 400 张,触发提醒 */
+    else if (type === 'over') list = genDemoRows(30000, 3); /* 30000 条,10000 子单各 3 张 → 去重后 10000 张,触发拦截 */
+    else list = PHOTO_ORIG.slice();                          /* normal / reset 均还原 */
+    photoFiltered = list;
+    document.getElementById('photoBody').innerHTML = buildRows(list);
+    document.getElementById('pgTotal').textContent = list.length;
+    if (type === 'reset') { Helpers.toast('已恢复原始演示数据'); return; }
+    if (type !== 'normal') Helpers.toast(`已注入 ${list.length} 条演示数据`);
+    PhotoPage.closeExport();
+    PhotoPage.openExport();
+  },
 };
 
 /* ---- 渲染整页 ---- */
@@ -406,6 +470,7 @@ document.getElementById('app').innerHTML = Layout.window({
     ${gridToolbar()}
     ${gridTable(photoFiltered)}
     ${pager(photoFiltered.length)}
+    ${demoPanel()}
   `,
 });
 
