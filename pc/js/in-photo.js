@@ -216,12 +216,10 @@ function previewModal(r) {
    规则:导出当前查询结果;以匹配子单号命名(子单号.扩展名);
         同一子单有多张照片(重复拍照)时只保留最近上传的一张,每单恰好一图,文件名天然无冲突;
         匹配失败(无子单号)的记录跳过,完成后统一提示
-   防呆三层(阈值可配置):
-        ≤200 张 → 直接导出
-        201~2000 张 → 弹窗橙色提示数量与预计耗时,用户确认后再导
-        >2000 张 → 拦截,提示缩小范围/按单号分批导出 ---- */
-const EXPORT_WARN = 200;    /* 数量较多提醒阈值(张) */
-const EXPORT_LIMIT = 2000;  /* 单次导出硬上限(张),按 500 单号×3~4 张/单的批量规模留余量 */
+   防呆两档(阈值可配置):
+        ≤5000 张 → 正常导出
+        >5000 张 → 拦截,提示缩小范围分批导出 ---- */
+const EXPORT_LIMIT = 5000;  /* 单次导出硬上限(张),超过拦截;先按 5000 设置 */
 
 function buildExportPlan() {
   const rows = photoFiltered;
@@ -243,7 +241,6 @@ function buildExportPlan() {
 function exportModal(plan) {
   const n = plan.files.length;
   const overLimit = n > EXPORT_LIMIT;
-  const many = n > EXPORT_WARN && !overLimit;
   const preview = plan.files.slice(0, 8).map(f =>
     `<div class="exp-file">📄 ${Helpers.esc(f.name)}</div>`).join('') +
     (n > 8 ? `<div class="exp-file" style="color:#999;">… 其余 ${n - 8} 个文件</div>` : '');
@@ -263,11 +260,7 @@ function exportModal(plan) {
           ${overLimit ? `
           <div class="exp-alert exp-alert--block">
             <b>本次导出共 ${n} 张,超过单次上限 ${EXPORT_LIMIT} 张,已拦截。</b><br/>
-            请缩小查询范围后分批导出——推荐按单号批量查询(单次 ≤500 个单号)再导出。
-          </div>` : ''}
-          ${many ? `
-          <div class="exp-alert exp-alert--warn">
-            ⏳ 数量较多:${n} 张,预计需要 ${Math.max(1, Math.round(n / 100))} 分钟左右,期间请勿关闭页面。确认无误后请点击「开始导出」。
+            请缩小查询范围(如按单号批量查询、缩短时间范围)后分批导出。
           </div>` : ''}
           <div class="exp-preview" style="${overLimit ? 'display:none;' : ''}">${preview || '<div style="color:#999;padding:8px 0;">当前结果无可导出图片</div>'}</div>
         </div>
@@ -343,8 +336,8 @@ function demoPanel() {
       <div class="photo-demo--panel" id="photoDemoPanel" style="display:none;">
         <div class="photo-demo--title">演示场景(切换导出弹窗量级提示)</div>
         <button class="btn" onclick="PhotoPage.applyDemo('normal')">① 正常导出(原始 10 条/8 张)</button>
-        <button class="btn" onclick="PhotoPage.applyDemo('many')">② 数量较多提醒(注入 800 条/去重后 400 张)</button>
-        <button class="btn" onclick="PhotoPage.applyDemo('over')">③ 超量拦截(注入 30000 条/去重后 10000 张)</button>
+        <button class="btn" onclick="PhotoPage.applyDemo('many')">② 大数量正常导出(注入 800 条/400 张,5000 以内不拦截)</button>
+        <button class="btn" onclick="PhotoPage.applyDemo('over')">③ 超量拦截(注入 30000 条/去重后 10000 张,超 5000 拦截)</button>
         <button class="btn" onclick="PhotoPage.applyDemo('fail')">④ 部分导出失败(8 张中 2 张下载失败)</button>
         <button class="btn" onclick="PhotoPage.applyDemo('reset')">↺ 重置恢复原始数据</button>
         <div class="photo-demo--tip">切换后自动弹出导出弹窗;重置仅还原数据不弹窗</div>
