@@ -1,28 +1,24 @@
 /* ============================================
    outbound-scan.js — 退仓扫描页逻辑
-   两态分流:① 已登记(关务CIS/TMS 下发过指令)→ 直接放行
+   两态分流:① 已登记(关务CIS 下发过指令)→ 直接放行
             ② 其他(无指令/非已发货)→ 拒绝
    登记口径(2026-08-13):退仓登记仅在 PC 端进行(退仓管理页/订单管理页),
      PDA 不承担登记;扫到无指令子单,提示需先在 PC 端登记退仓。
    ============================================ */
 
 /* ---- 模拟数据(演示用,真实环境改为调接口) ----
-   RETURNABLE_ORDERS   : 已登记退仓单(直接放行;含关务CIS / TMS运力两种来源)
+   RETURNABLE_ORDERS   : 已登记退仓单(直接放行;关务CIS 来源)
    其他                : 无指令 / 非「已发货」状态,拒绝
 
    单号格式(B2B 大货):
    - 主单号 = YT + 16位数字(年份2/当年序数3/目的国3/流水7/校验1)
    - 子单号 = 主单号 + U + 3位序号(从 U001 起,多子单累加,无 U000) */
 
-// 已登记单(真实环境后端返回来源;演示用前缀区分:不标=关务CIS,*=TMS运力)
+// 已登记单(真实环境后端返回来源;演示用前缀区分:不标=关务CIS)
 const RETURNABLE_ORDERS = [
   'YT2621000070480962U001',
   'YT2621000070480962U002',
   'YT2621000070480962U003',
-];
-// 同一主单下另一箱,演示「TMS 运力退仓」来源(用 |TMS 后缀标记来源,仅演示用)
-const RETURNABLE_ORDERS_TMS = [
-  'YT2621000070480963U001',
 ];
 
 // 渲染页面结构
@@ -68,9 +64,8 @@ const recordsTitle = document.getElementById('recordsTitle');
 let records = [];          // 已扫描记录 { subNo, time, source }
 
 /* ---- 渲染 ---- */
-// 标签按来源区分:关务CIS / 运力TMS
-function srcTagHTML(r) {
-  if (r.source === 'TMS') return '<span class="src-tag src-tag--tms">运力退仓</span>';
+// 标签:关务CIS 来源
+function srcTagHTML() {
   return '<span class="src-tag src-tag--cis">关务指令</span>';
 }
 function recordHTML(r) {
@@ -111,16 +106,9 @@ function handleScan() {
     orderInput.focus();
     return;
   }
-  // ① 已登记 → 直接放行(区分来源 CIS/TMS)
+  // ① 已登记 → 直接放行(关务CIS 来源)
   if (RETURNABLE_ORDERS.includes(subNo)) {
     records.unshift({ subNo, time: Helpers.nowTime(), source: 'CIS' });
-    render();
-    orderInput.value = '';
-    orderInput.focus();
-    return;
-  }
-  if (RETURNABLE_ORDERS_TMS.includes(subNo)) {
-    records.unshift({ subNo, time: Helpers.nowTime(), source: 'TMS' });
     render();
     orderInput.value = '';
     orderInput.focus();
@@ -155,12 +143,6 @@ testPanel.innerHTML = `
     <div class="test-panel-label">关务退仓 · 放行</div>
     <div class="test-panel-tags">
       ${RETURNABLE_ORDERS.map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
-    </div>
-  </div>
-  <div class="test-panel-group">
-    <div class="test-panel-label">运力退仓 · 放行</div>
-    <div class="test-panel-tags">
-      ${RETURNABLE_ORDERS_TMS.map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
     </div>
   </div>
   <div class="test-panel-group">

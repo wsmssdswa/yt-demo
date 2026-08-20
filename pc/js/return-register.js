@@ -7,14 +7,13 @@
                                                     确认时按选中订单实际状态判结果
    交互:确认登记时统一校验(登记前不校验,因存在时差)
      全部成功 → toast;有失败 → 弹结果窗列失败单号+原因
-   兜底口径(2026-08-12):CIS/TMS 原因退仓必先登记(OFP下发),仓库不兜底;
+   兜底口径(2026-08-12):CIS 原因退仓必先登记(OFP下发),仓库不兜底;
      仓库兜底只兜"其他原因",弹窗不选原因、只填原因文本;不通知 CIS,纯本地登记
    ============================================ */
 
-/* 来源枚举(退仓管理页列表的「来源」列标签用) */
+/* 来源枚举(退仓管理页列表的「来源」列标签用;TMS 未支持退仓登记,不含 TMS) */
 const RW_SOURCE = {
   CIS: { label:'关务', cls:'rw-src--cis' },
-  TMS: { label:'运力', cls:'rw-src--tms' },
   WH:  { label:'仓库登记', cls:'rw-src--wh' },
 };
 
@@ -67,7 +66,7 @@ const ReturnRegister = {
     }
   },
   /* 登记弹窗
-     simple:订单页模式,不显示单号输入(勾选已定),只选原因+退回网点+备注
+     simple:订单页模式,不显示单号输入(勾选已定),只填原因+退回网点
      普通:退仓页模式,显示单号输入(子单/主单),lockMaster 时锁定主单模式 */
   dialogHtml(masterNums, lockMaster, simple) {
     /* 单号输入行(仅普通模式显示);主单号置前且默认选中(整单退为主) */
@@ -101,10 +100,6 @@ const ReturnRegister = {
           <div class="rw-form-row">
             <label class="rw-form-label"><span class="rw-req">*</span>退回网点</label>
             <input class="ipt rw-form-ipt rw-form-ipt--readonly" value="东腾曼沙项目仓" readonly title="按操作人所属网点带出" />
-          </div>
-          <div class="rw-form-row">
-            <label class="rw-form-label">备注</label>
-            <input class="ipt rw-form-ipt" placeholder="选填" />
           </div>
         </div>
         <div class="rw-modal-tip">登记后该单进入「待到货」状态,等货物到仓由 PDA 扫描收货。</div>

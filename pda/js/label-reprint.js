@@ -12,7 +12,7 @@
 
 /* ---- 演示 mock ---- */
 /* 打印设置(与 PC 端同一份配置的演示子集:命中渠道规则份数,未命中默认 2) */
-const LR_CONFIG = { rules: [{ channels: ['美森正班', '美森加班'], copies: 3 }, { channels: ['以星EXX'], copies: 1 }], defaultCopies: 2 };
+const LR_CONFIG = { rules: [{ channels: ['美森正班', '美森加班'], copies: 3 }, { channels: ['以星EXX'], copies: 1 }], defaultCopies: 1 };
 function lrCopiesFromConfig(channel) {
   const r = LR_CONFIG.rules.find(x => x.channels.includes(channel));
   return r ? r.copies : LR_CONFIG.defaultCopies;

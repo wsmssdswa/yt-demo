@@ -165,7 +165,6 @@
   line-height: 1.7;
 }
 .src-tag--cis  { background: #E6F7F6; color: #00A99D; }   /* 关务退仓(CIS,主色绿) */
-.src-tag--tms  { background: #E6F0FF; color: #3D6EFF; }   /* 运力退仓(TMS,蓝) */
 
 /* ============================================
    B2B工作台页(b2b-workbench.html)
@@ -2335,3 +2334,662 @@ g {
 .lr-picker-opt i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #D9D9D9; box-sizing: border-box; }
 .lr-picker-opt.is-on { color: #00A99D; font-weight: 600; }
 .lr-picker-opt.is-on i { border: 5px solid #00A99D; }
+
+/* ============================================
+   B2B拣货原型(pick-select / pick-task / pick-operation)
+   复刻线上 PDA toBPickGoods 模块(2B拣货):
+   拣货模式选择 → 拣货任务列表 → 拣货作业
+   ============================================ */
+
+/* ---- 拣货模式选择页(pick-select.html) ---- */
+.pk-sel-body {
+  flex: 1;
+  background: #F2F2F7;
+  padding-top: 18px;
+  overflow-y: auto;
+}
+.pk-sel-banner {
+  height: 132px;
+  margin: 0 12px 18px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #00A99D, #7fd0c9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.pk-sel-banner-icon { font-size: 42px; line-height: 1; }
+.pk-sel-banner-text { margin-top: 8px; font-size: 15px; font-weight: 600; }
+.pk-sel-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  margin: 0 12px;
+  border-radius: 6px;
+  background: #008081;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pk-sel-btn:active { background: #00696a; }
+.pk-sel-btn + .pk-sel-btn { margin-top: 14px; }
+.pk-sel-note {
+  margin: 18px 16px 0;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.9;
+}
+
+/* ---- 拣货任务列表页(pick-task.html) ---- */
+.pk-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #F2F2F7;
+}
+/* 块状双 Tab(待拣货/拣货中) */
+.pk-tabs {
+  display: flex;
+  gap: 4px;
+  background: #F2F2F7;
+  padding: 10px 12px 0;
+  flex-shrink: 0;
+}
+.pk-tab {
+  flex: 1;
+  text-align: center;
+  padding: 9px 2px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #666;
+  background: #E5E5EA;
+  cursor: pointer;
+}
+.pk-tab--on {
+  background: #fff;
+  color: #00A99D;
+  font-weight: 600;
+}
+/* 筛选入口 */
+.pk-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 14px 4px;
+  font-size: 14px;
+  color: #333;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.pk-filter-toggle:active { color: #00A99D; }
+.pk-filter-arrow { font-size: 12px; color: #999; transition: transform .2s; }
+.pk-filter-arrow--up { transform: rotate(180deg); }
+/* 筛选面板 */
+.pk-filter-panel {
+  background: #fff;
+  margin: 6px 12px 0;
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  flex-shrink: 0;
+}
+.pk-filter-panel.hidden { display: none; }
+.pk-filter-row { margin-bottom: 10px; }
+.pk-filter-row:last-of-type { margin-bottom: 4px; }
+.pk-filter-label { font-size: 12px; color: #666; margin-bottom: 4px; }
+.pk-filter-input {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #fff;
+}
+.pk-filter-input:focus { border-color: #00A99D; }
+.pk-filter-input::placeholder { color: #bbb; }
+.pk-filter-row--btns { display: flex; gap: 10px; padding-top: 6px; }
+.pk-filter-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pk-filter-btn--cancel { background: #f2f2f2; color: #666; }
+.pk-filter-btn--cancel:active { background: #e6e6e6; }
+.pk-filter-btn--ok { background: #00A99D; color: #fff; font-weight: 500; }
+.pk-filter-btn--ok:active { background: #00918a; }
+/* 扫码条(原型用输入框模拟线上扫枪 ScanUtil) */
+.pk-scan-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+.pk-scan-label { font-size: 13px; color: #333; font-weight: 600; flex-shrink: 0; }
+.pk-scan-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #fff;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.pk-scan-input:focus { border-color: #00A99D; }
+.pk-scan-input::placeholder { color: #bbb; font-family: inherit; }
+.pk-scan-btn {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  background: #E6F7F5;
+  color: #00A99D;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pk-scan-btn:active { background: #CDEEEB; }
+/* 任务卡片列表 */
+.pk-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 12px 16px;
+}
+.pk-task-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  margin-bottom: 8px;
+}
+.pk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 25px;
+  font-size: 14px;
+}
+.pk-row-label { color: #333; flex-shrink: 0; }
+.pk-row-value { color: #333; }
+.pk-row-value--no { color: #444; font-weight: 700; }
+.pk-row-value--pri { color: #c50f25; font-weight: 700; }
+.pk-row-value--gray { color: #8e8e8c; }
+.pk-row-value--loc { color: #008081; text-decoration: underline; cursor: pointer; }
+.pk-row-value--loc:active { opacity: .7; }
+.pk-go-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.pk-go-btn {
+  background: #008081;
+  color: #fff;
+  border-radius: 4px;
+  min-width: 76px;
+  height: 30px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pk-go-btn:active { background: #00696a; }
+.pk-empty {
+  text-align: center;
+  color: #d7d7d7;
+  font-size: 22px;
+  font-weight: 700;
+  padding: 60px 0;
+}
+
+/* ---- 拣货作业页(pick-operation.html) ---- */
+.pko-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #F2F2F7;
+}
+/* 统计行:子单总数 / 待拣子单数 / 已拣子单数 */
+.pko-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 2px;
+  flex-shrink: 0;
+}
+.pko-stat { font-size: 12px; color: #c2c2c0; }
+.pko-stat b { color: #333; font-size: 15px; margin-left: 3px; }
+/* 待发库位选择条(与视角切换同行的右侧项) */
+.pko-loc-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0.5px solid #a3a3a1;
+  border-radius: 3px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+.pko-loc-bar:active { background: #f7f9f9; }
+.pko-loc-bar--ph { color: #999; }
+.pko-loc-required { color: #f5222d; flex-shrink: 0; }
+.pko-loc-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pko-loc-arrow { font-size: 11px; color: #999; flex-shrink: 0; }
+/* 扫码条 */
+.pko-scan-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+.pko-scan-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #fff;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.pko-scan-input:focus { border-color: #00A99D; }
+.pko-scan-input::placeholder { color: #bbb; font-family: inherit; }
+/* 列表 */
+.pko-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 12px 12px;
+}
+.pko-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  margin-bottom: 8px;
+}
+.pko-wb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pko-wb-no {
+  font-size: 14px;
+  color: #f5222d;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pko-wb-no--done { color: #373737; }
+.pko-wb-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.pko-wb-count:active { opacity: .7; }
+.pko-wb-count--pending { color: #f5222d; }
+.pko-wb-count--done { color: #373737; }
+.pko-wb-arrow { font-size: 11px; color: #999; }
+.pko-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 14px;
+}
+.pko-row-label { color: #373737; flex-shrink: 0; }
+.pko-row-value { color: #f5222d; text-align: right; min-width: 0; }
+.pko-row-value--gray { color: #373737; }
+.pko-tips { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.pko-tip {
+  font-size: 11px;
+  color: #fff;
+  background: #F59B26;
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.pko-tip--red { background: #f5222d; }
+/* 已拣明细:修改待发库位入口 */
+.pko-loc-edit {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #3D9E9E;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.pko-loc-edit:active { opacity: .7; }
+/* 异常提示条 */
+.pko-abn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  background: #f9c989;
+  border-radius: 4px;
+  padding: 10px 8px;
+  font-size: 13px;
+  color: #f5222d;
+  cursor: pointer;
+}
+.pko-abn:active { background: #f6bd78; }
+.pko-abn b { font-size: 14px; }
+/* 底部:完成拣货 */
+.pko-bar {
+  flex-shrink: 0;
+  background: #fff;
+  border-top: 1px solid #ececec;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+}
+.pko-finish {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: 6px;
+  background: #008081;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pko-finish:active { background: #00696a; }
+.pko-empty {
+  text-align: center;
+  color: #d7d7d7;
+  font-size: 22px;
+  font-weight: 700;
+  padding: 48px 0;
+}
+.pko-empty-sub { font-size: 13px; color: #bbb; font-weight: 400; margin-top: 4px; }
+
+/* ---- 拣货弹窗 ---- */
+/* 库位明细(查看库位,底部抽屉) */
+.pk-loc-detail-text {
+  padding: 12px 4px;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.9;
+  word-break: break-all;
+}
+/* 待发库位选择弹窗:库位列表选项(点击即选中生效) */
+.pko-loc-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 0.5px solid #f0f0f0;
+  cursor: pointer;
+}
+.pko-loc-opt:last-child { border-bottom: none; }
+.pko-loc-opt:active { background: #f7f9f9; }
+.pko-loc-opt--on { color: #00A99D; font-weight: 600; }
+/* 子单明细弹窗(childItemModal,底部抽屉) */
+.pko-child-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px 0;
+}
+.pko-child-waybill {
+  font-size: 14px;
+  color: #373737;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pko-child-waybill--pending { color: #f5222d; }
+.pko-child-count { font-size: 14px; flex-shrink: 0; }
+.pko-child-count--pending { color: #f5222d; }
+.pko-child-edit {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #3D9E9E;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.pko-child-edit:active { opacity: .7; }
+.pko-child-list {
+  padding: 6px 4px 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pko-child-item {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid #f2f2f2;
+  padding: 4px 0;
+}
+.pko-child-item:last-child { border-bottom: none; }
+.pko-child-icon { width: 22px; height: 22px; margin-right: 6px; flex-shrink: 0; opacity: .85; }
+.pko-child-info { flex: 1; min-width: 0; }
+.pko-child-no {
+  font-size: 12px;
+  font-weight: 700;
+  color: #373737;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pko-child-meta { margin-top: 4px; font-size: 10px; color: #373737; font-weight: 700; }
+.pko-child-tips { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.pko-child-state {
+  margin-left: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #999;
+  flex-shrink: 0;
+}
+.pko-child-state--picked { color: #00A99D; }
+/* 异常拦截弹窗(居中,releaseInterceptionModal) */
+.pko-center-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0,0,0,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+}
+.pko-center-mask.hidden { display: none; }
+.pko-center-box {
+  width: 92%;
+  background: #fff;
+  border-radius: 8px;
+}
+.pko-intercept { padding: 22px 16px 16px; }
+.pko-intercept-text {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+.pko-intercept-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+}
+.pko-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #999;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.pko-checkbox--on { background: #00A99D; border-color: #00A99D; }
+.pko-intercept-btn {
+  display: block;
+  margin: 16px auto 0;
+  width: 160px;
+  height: 40px;
+  background: #1693A4;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pko-intercept-btn:active { background: #12808f; }
+/* 提示确认弹窗(居中,ConfirmModal) */
+.pko-confirm { padding: 24px 16px 16px; text-align: center; }
+.pko-confirm-text { font-size: 16px; color: #333; line-height: 1.6; }
+.pko-confirm-btn {
+  display: block;
+  margin: 18px auto 4px;
+  width: 160px;
+  height: 40px;
+  background: #03817F;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pko-confirm-btn:active { background: #00696a; }
+/* 异常详情弹窗(abnormalInfoModal,底部抽屉) */
+.pko-abn-detail-title { padding: 8px 4px 0; font-size: 16px; color: #373737; }
+.pko-abn-group-title { background: #e5e6e7; padding: 8px 10px; font-size: 14px; color: #333; }
+.pko-abn-group-child {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #333;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.pko-abn-group-child:last-child { padding-bottom: 12px; }
+
+/* ============================================
+   B2B拣货 · 按库位视角(待拣明细内切换)
+   按库位拣货:库位分组视图,组内跨主单混排按分拣码排序
+   ============================================ */
+/* 顶栏:待发库位(已拣明细 Tab 隐藏) */
+.pko-topbar {
+  margin: 8px 12px 0;
+  flex-shrink: 0;
+}
+/* 库位分组卡片 */
+.pko-slot-group {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.pko-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f2f2f2;
+}
+.pko-slot-no {
+  font-size: 18px;
+  font-weight: 700;
+  color: #222;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.pko-slot-count { font-size: 12px; color: #999; }
+.pko-slot-count b { color: #FA8C16; font-size: 14px; }
+/* 主单块(库位 → 主单 → 箱 三层;主单默认折叠,点标题展开) */
+.pko-slot-wb { padding: 8px 0 4px; }
+.pko-slot-wb + .pko-slot-wb { border-top: 1px solid #f2f2f2; }
+.pko-slot-wb-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.pko-slot-wb-title:active { opacity: .7; }
+.pko-slot-wb-arrow {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #999;
+}
+.pko-slot-wb-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pko-slot-wb-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #999;
+}
+.pko-slot-wb-sort {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #00A99D;
+  background: #E6F7F5;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.pko-tips-inline { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.pko-tips-inline .pko-tip { font-size: 10px; padding: 1px 6px; }
+/* 箱行(主单展开后按箱;普通客户显示子单号,SHEIN 等无 YT 标签客户显示 SSD 箱号) */
+.pko-slot-wb-boxes { padding-top: 4px; }
+.pko-slot-box {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0 5px 10px;
+  font-size: 12px;
+}
+.pko-slot-box-no {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

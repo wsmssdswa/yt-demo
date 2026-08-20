@@ -1,0 +1,156 @@
+/* ============================================
+   pick-by-location.css — B2B拣货 · 按库位拣货(方案原型)
+   对应页面:pick-by-location.html
+   说明:本文件为「逐箱拣货支持按库位拣货」方案的专属样式。
+        常规应追加到 pages.css 末尾;因本次遵循「只增不改现有文件」
+        约束单独成文件,并复用 pages.css 既有 pk-/pko- 基础类。
+   ============================================ */
+
+/* ---- 页面容器(复用 pko-page 布局思路) ---- */
+.pbl-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #F2F2F7;
+}
+
+/* ---- 统计条(库位/主单/子单 已拣/总,复用 pages.css 的 .pko-stats) ---- */
+.pbl-stats {
+  margin: 8px 12px 0;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+/* ---- 库位进度条(当前库位 / 库位进度) ---- */
+.pbl-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.pbl-progress-loc { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pbl-progress-tag {
+  background: #00A99D;
+  color: #fff;
+  font-size: 11px;
+  border-radius: 3px;
+  padding: 2px 5px;
+  flex-shrink: 0;
+}
+.pbl-progress-tag--none { background: #bfbfbf; }
+.pbl-progress-slot {
+  font-size: 16px;
+  font-weight: 700;
+  color: #00A99D;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pbl-progress-slot--none { color: #999; font-size: 14px; font-weight: 500; }
+.pbl-progress-next { font-size: 11px; color: #999; flex-shrink: 0; }
+
+/* ---- 扫库位条(定位当前库位) ---- */
+.pbl-locscan-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px 0; flex-shrink: 0; }
+.pbl-locscan-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 1px dashed #00A99D;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #F0FBFA;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.pbl-locscan-input::placeholder { color: #9cc7c3; font-family: inherit; }
+.pbl-locscan-btn {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  background: #00A99D;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pbl-locscan-btn:active { background: #00918a; }
+
+/* ---- 库位分组卡片 ---- */
+.pbl-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px 16px; }
+.pbl-slot-card {
+  background: #fff;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1.5px solid transparent;
+  overflow: hidden;
+}
+.pbl-slot-card--active { border-color: #00A99D; }
+.pbl-slot-card--done { opacity: .55; }
+.pbl-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.pbl-slot-head:active { background: #f7f9f9; }
+.pbl-slot-no {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #333;
+}
+.pbl-slot-area { font-size: 11px; color: #999; font-weight: 400; }
+.pbl-slot-meta { text-align: right; flex-shrink: 0; }
+.pbl-slot-count { font-size: 13px; color: #c50f25; font-weight: 600; }
+.pbl-slot-count--done { color: #52c41a; }
+.pbl-slot-orders { font-size: 11px; color: #bbb; margin-top: 2px; }
+.pbl-slot-body { border-top: 1px solid #f0f0f0; padding: 6px 12px 10px; }
+.pbl-slot-body.hidden { display: none; }
+
+/* 库位内按主单分组的箱子行 */
+.pbl-wb-block { margin-top: 8px; }
+.pbl-wb-block + .pbl-wb-block { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #eee; }
+.pbl-wb-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+  font-weight: 600;
+}
+.pbl-wb-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.pbl-wb-tips { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.pbl-wb-count { font-size: 12px; color: #999; font-weight: 400; flex-shrink: 0; }
+.pbl-box-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 3px;
+  border-bottom: 1px dashed #f5f5f5;
+}
+.pbl-box-row:last-child { border-bottom: none; }
+.pbl-box-row--done { opacity: .5; }
+.pbl-box-no { flex: 1; min-width: 0; font-size: 12.5px; color: #444; font-family: ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pbl-box-sort { font-size: 11px; color: #008081; flex-shrink: 0; }
+.pbl-box-state { font-size: 11px; color: #bbb; flex-shrink: 0; }
+.pbl-box-state--pick { color: #52c41a; font-weight: 600; }
+.pbl-box-state--done { color: #bbb; }
+

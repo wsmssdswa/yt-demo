@@ -4,54 +4,42 @@
      · 表 pt_return_warehouse_tasks / pt_return_warehouse_tasks_business
      · 字段:task_code / biz_code(子单) / waybill_number(主单) / return_reason /
             operation_status(0待到货 1已扫描)
-     · 来源:OFP 下发(关务CIS/运力TMS);仓库登记只登记"其他原因"(原因文本自由填)
+     · 来源:OFP 下发(关务CIS);仓库登记只登记"其他原因"(原因文本自由填)
      · 窗体(新建):列表 + 查询 + [登记退仓] 预登记弹窗 + 日志 + 作废
      · 登记弹窗逻辑在公共模块 return-register.js(订单管理页共用)
    ============================================ */
 
 /* ---- 演示数据(10 行,覆盖三种来源 + 两种状态) ----
    状态:0=待到货(预登记等货) 1=已退仓(PDA扫描完成,一个事务搞定,无中间态)
-   source:CIS=关务 TMS=运力 WH=仓库登记(兜底单,原因自由填) */
+   source:CIS=关务 WH=仓库登记(兜底单,原因自由填) */
 let RW_ROWS = [
   { no:1,  child:'YT2621601300301272U001', waybill:'YT2621601300301272', cust:'CST2621601300101272', source:'CIS', sourceFrom:'OFP下发',
     reason:'申报不符', og:'东腾曼沙项目仓', status:1, statusLabel:'已退仓', batch:true,
-    regSt:'关务系统', regTime:'2026-08-03 09:15:00', scanTime:'2026-08-04 19:10:22', scanSt:'庄亚运', scanOg:'东腾曼沙项目仓',
+    regSt:'关务系统', regTime:'2026-08-03 09:15:00', scanTime:'2026-08-04 19:10:22', scanSt:'庄亚运', scanOg:'东腾曼沙项目仓', logs:[{'t':'2026-08-03 09:15:00','u':'庄亚运','c':'登记退仓,退回原因申报不符','s':'登记','og':'东腾曼沙项目仓'},{'t':'2026-08-04 19:10:22','u':'庄亚运','c':'已发货退仓,PDA扫描收货','s':'扫描','og':'东腾曼沙项目仓'}],
     country:'美国', product:'美森快船-普货', taskCode:'RW20260803001',回流:'已回流', sel:false },
-  { no:2,  child:'YT2621601300301249U002', waybill:'YT2621601300301249', cust:'CST2621601300301249', source:'TMS', sourceFrom:'OFP下发',
-    reason:'运力退回', og:'东腾曼沙项目仓', status:1, statusLabel:'已退仓', batch:false,
-    regSt:'运力系统', regTime:'2026-08-03 10:20:00', scanTime:'2026-08-04 19:05:10', scanSt:'庄亚运', scanOg:'白云集运仓',
-    country:'美国', product:'美森快船-带电', taskCode:'RW20260803002',回流:'已回流', sel:true },
   { no:3,  child:'YT2621601300301227U001', waybill:'YT2621601300301227', cust:'CST2621601300101227', source:'CIS', sourceFrom:'OFP下发',
     reason:'海关抽查', og:'东腾曼沙项目仓', status:1, statusLabel:'已退仓', batch:false,
-    regSt:'关务系统', regTime:'2026-08-04 08:30:00', scanTime:'2026-08-04 18:00:15', scanSt:'庄亚运', scanOg:'东腾曼沙项目仓',
+    regSt:'关务系统', regTime:'2026-08-04 08:30:00', scanTime:'2026-08-04 18:00:15', scanSt:'庄亚运', scanOg:'东腾曼沙项目仓', logs:[{'t':'2026-08-04 08:30:00','u':'庄亚运','c':'登记退仓,退回原因海关抽查','s':'登记','og':'东腾曼沙项目仓'},{'t':'2026-08-04 18:00:15','u':'庄亚运','c':'已发货退仓,PDA扫描收货','s':'扫描','og':'东腾曼沙项目仓'}],
     country:'美国', product:'B2B空运-普货', taskCode:'RW20260804003',回流:'待回流', sel:false },
-  { no:4,  child:'YT2621601300301201U001', waybill:'YT2621601300301201', cust:'CST2621601300101201', source:'TMS', sourceFrom:'OFP下发',
-    reason:'服务商拒收', og:'东腾曼沙项目仓', status:1, statusLabel:'已退仓', batch:true,
-    regSt:'运力系统', regTime:'2026-08-04 09:00:00', scanTime:'2026-08-04 17:50:40', scanSt:'庄亚运', scanOg:'白云集运仓',
-    country:'美国', product:'以星快船-普货', taskCode:'RW20260804004',回流:'待回流', sel:true },
   { no:5,  child:'YT2621625400300033U001', waybill:'YT2621625400300033', cust:'PH2608030000051', source:'WH', sourceFrom:'仓库预登记',
     reason:'侵权', og:'东腾曼沙项目仓', status:0, statusLabel:'待到货', batch:false,
-    regSt:'庄亚运', regTime:'2026-08-05 08:00:00', scanTime:'', scanSt:'', scanOg:'',
+    regSt:'庄亚运', regTime:'2026-08-05 08:00:00', scanTime:'', scanSt:'', scanOg:'', logs:[{'t':'2026-08-05 08:00:00','u':'庄亚运','c':'登记退仓,退回原因侵权','s':'登记','og':'东腾曼沙项目仓'}],
     country:'美国', product:'B2B空运-带电', taskCode:'CCOS20260805001',回流:'待回流', sel:true },
   { no:6,  child:'YT2621601300101052U001', waybill:'YT2621601300101052', cust:'CST2621601300101052', source:'WH', sourceFrom:'仓库预登记',
     reason:'尾程无法送达', og:'东腾曼沙项目仓', status:0, statusLabel:'待到货', batch:false,
-    regSt:'庄亚运', regTime:'2026-08-05 08:30:00', scanTime:'', scanSt:'', scanOg:'',
+    regSt:'庄亚运', regTime:'2026-08-05 08:30:00', scanTime:'', scanSt:'', scanOg:'', logs:[{'t':'2026-08-05 08:30:00','u':'庄亚运','c':'登记退仓,退回原因尾程无法送达','s':'登记','og':'东腾曼沙项目仓'}],
     country:'美国', product:'美森快船-普货', taskCode:'CCOS20260805002',回流:'待回流', sel:false },
   { no:7,  child:'YT2621601300101037U001', waybill:'YT2621601300101037', cust:'CST2621601300101037', source:'WH', sourceFrom:'仓库预登记',
     reason:'涉动植物', og:'东腾曼沙项目仓', status:0, statusLabel:'待到货', batch:false,
-    regSt:'李四', regTime:'2026-08-05 09:00:00', scanTime:'', scanSt:'', scanOg:'',
+    regSt:'李四', regTime:'2026-08-05 09:00:00', scanTime:'', scanSt:'', scanOg:'', logs:[{'t':'2026-08-05 09:00:00','u':'李四','c':'登记退仓,退回原因涉动植物','s':'登记','og':'东腾曼沙项目仓'}],
     country:'美国', product:'长荣海运-普货', taskCode:'CCOS20260805003',回流:'待回流', sel:false },
   { no:8,  child:'YT2621601300101029U001', waybill:'YT2621601300101029', cust:'CST2621601300101029', source:'CIS', sourceFrom:'OFP下发',
     reason:'特殊布控', og:'东腾曼沙项目仓', status:1, statusLabel:'已退仓', batch:false,
-    regSt:'关务系统', regTime:'2026-08-02 14:00:00', scanTime:'2026-08-03 15:20:00', scanSt:'庄亚运', scanOg:'深圳宝安仓',
+    regSt:'关务系统', regTime:'2026-08-02 14:00:00', scanTime:'2026-08-03 15:20:00', scanSt:'庄亚运', scanOg:'深圳宝安仓', logs:[{'t':'2026-08-02 14:00:00','u':'庄亚运','c':'登记退仓,退回原因特殊布控','s':'登记','og':'东腾曼沙项目仓'},{'t':'2026-08-03 15:20:00','u':'庄亚运','c':'已发货退仓,PDA扫描收货','s':'扫描','og':'深圳宝安仓'}],
     country:'美国', product:'B2B空运-普货', taskCode:'RW20260802008',回流:'已回流', sel:false },
-  { no:9,  child:'YT2621625700100026U001', waybill:'YT2621625700100026', cust:'CST2621625700100026', source:'TMS', sourceFrom:'OFP下发',
-    reason:'运力退回', og:'东腾曼沙项目仓', status:1, statusLabel:'已退仓', batch:false,
-    regSt:'运力系统', regTime:'2026-08-04 11:00:00', scanTime:'2026-08-04 15:30:00', scanSt:'庄亚运', scanOg:'东腾曼沙项目仓',
-    country:'德国', product:'中欧卡航-普货', taskCode:'RW20260804009',回流:'已回流', sel:false },
   { no:10, child:'YT2621624300300047U001', waybill:'YT2621624300300047', cust:'CST2621624300300047', source:'CIS', sourceFrom:'OFP下发',
     reason:'涉医疗食品', og:'东腾曼沙项目仓', status:0, statusLabel:'待到货', batch:false,
-    regSt:'关务系统', regTime:'2026-08-04 16:00:00', scanTime:'', scanSt:'', scanOg:'',
+    regSt:'关务系统', regTime:'2026-08-04 16:00:00', scanTime:'', scanSt:'', scanOg:'', logs:[{'t':'2026-08-04 16:00:00','u':'庄亚运','c':'登记退仓,退回原因涉医疗食品','s':'登记','og':'东腾曼沙项目仓'}],
     country:'美国', product:'美森快船-带电', taskCode:'RW20260804010',回流:'待回流', sel:false },
 ];
 
@@ -62,7 +50,7 @@ const RW_ENUM = {
     0: { label:'待到货', cls:'rw-st--wait' },     // 预登记后等货到(PDA 未扫)
     1: { label:'已退仓', cls:'rw-st--scanned' },   // PDA 扫描完成
   },
-  /* 来源(CIS/TMS/WH)定义在公共模块 return-register.js 的 RW_SOURCE */
+  /* 来源(CIS/WH)定义在公共模块 return-register.js 的 RW_SOURCE */
 };
 
 /* ---- 查询区 ---- */
@@ -81,7 +69,7 @@ function queryPanel() {
       </div>
       <div class="qp-row qp-more" id="rwMore" style="display:none;">
         ${f('退仓状态', `<select class="sel"><option value="">全部</option><option>待到货</option><option>已退仓</option></select>`)}
-        ${f('来源', `<select class="sel"><option value="">全部</option><option>关务</option><option>运力</option><option>仓库登记</option></select>`)}
+        ${f('来源', `<select class="sel"><option value="">全部</option><option>关务</option><option>仓库登记</option></select>`)}
         ${f('登记时间', `<span class="qf-range"><input class="ipt ipt--date" value="2026-08-01" /><span class="qf-sep">~</span><input class="ipt ipt--date" value="2026-08-05 23:59:59" /></span>`)}
         ${f('到货扫描时间', `<span class="qf-range"><input class="ipt ipt--date" value="" placeholder="开始" /><span class="qf-sep">~</span><input class="ipt ipt--date" value="" placeholder="结束" /></span>`)}
         ${f('退回网点', `<input class="ipt" placeholder="选择组织" />`)}
@@ -102,7 +90,7 @@ function gridToolbar() {
       ${btn('➕', '登记退仓', "ReturnRegister.open()")}
       <span class="sep"></span>
       ${btn('🗑', '删除', "ReturnPage.remove()")}
-      ${btn('🗒', '查看日志', "ReturnPage.requireSelect('查看日志')")}
+      ${btn('🗒', '查看日志', "ReturnPage.viewLog()")}
     </div>
   `;
 }
@@ -173,7 +161,7 @@ function pager() {
 
 /* ---- 登记退仓弹窗/结果弹窗:在公共模块 return-register.js,本页不重复 ----
    ReturnRegister.open() 动态注入弹窗,交互:填退仓原因文本(兜底只兜"其他原因",
-   不选 CIS/TMS 原因列表),退回网点只读,确认时统一校验 */
+   不选 CIS 原因列表),退回网点只读,确认时统一校验 */
 
 /* ---- 校验模拟数据:在公共模块 return-register.js(RW_EXISTING/RW_INVALID/RW_MASTER_EXPAND) ---- */
 
@@ -197,7 +185,7 @@ const ReturnPage = {
     Helpers.toast(`${action}(占位)`);
   },
   /* 删除:仅"仓库登记 + 待到货(未扫描收货)"的记录可删,防止误登记
-     已收货/关务TMS下发的不可删 */
+     已收货/关务下发的不可删 */
   remove() {
     const checked = this.getChecked();
     if (checked.length === 0) { Helpers.toast('请选择要删除的退仓单！'); return; }
@@ -224,6 +212,46 @@ const ReturnPage = {
       `,
     });
     Helpers.toast(`已删除 ${targets.length} 条仓库登记退仓单`);
+  },
+  /* 查看日志:展示选中退仓子单的操作日志(登记/扫描)
+     对齐线上 frmNote 通用日志窗体:行头序号 + 4 列(操作人/操作时间/操作网点/操作内容)
+     (线上操作模块列 Visible=false 隐藏;内容列 HeaderText=操作内容;RowHeaders 显示行号)
+     数据维度=子单日志(ChildLog,按 child_number 查,对应退仓列表一行一子单) */
+  viewLog() {
+    const checked = this.getChecked();
+    if (checked.length === 0) { Helpers.toast('请选择要查看日志的退仓单！'); return; }
+    if (checked.length > 1) { Helpers.toast('请选择单条退仓单查看日志'); return; }
+    const no = +checked[0].closest('tr').dataset.no;
+    const r = RW_ROWS.find(x => x.no === no);
+    if (!r || !r.logs || r.logs.length === 0) { Helpers.toast('该退仓单暂无日志'); return; }
+    const rowsHtml = r.logs.map((l, i) => `
+      <tr>
+        <td class="col--num">${i + 1}</td>
+        <td class="col--code">${l.u}</td>
+        <td>${l.t}</td>
+        <td>${l.og || '<span style="color:#bbb;">—</span>'}</td>
+        <td>${l.c}</td>
+      </tr>`).join('');
+    const modal = document.createElement('div');
+    modal.className = 'rw-modal';
+    modal.innerHTML = `
+      <div class="rw-modal-mask" onclick="this.parentElement.remove()"></div>
+      <div class="rw-modal-panel rw-modal-panel--wide">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title">操作日志 · ${r.child}</span>
+          <span class="rw-modal-close" onclick="this.closest('.rw-modal').remove()">✕</span>
+        </div>
+        <div class="rw-modal-body">
+          <table class="grid rw-log-grid" style="width:100%;">
+            <thead><tr><th>NO.</th><th>操作人</th><th>操作时间</th><th>操作网点</th><th>操作内容</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn btn--primary" onclick="this.closest('.rw-modal').remove()">关闭</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
   },
   /* 登记退仓:弹窗+校验+结果逻辑在公共模块 return-register.js,调 ReturnRegister.open() */
 };

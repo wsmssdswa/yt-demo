@@ -262,7 +262,6 @@
 
 /* 来源标签:关务=绿 运力=蓝 仓库登记=橙(仓库主动建,需关注) */
 .rw-src--cis { background: #E6F7F6; color: #00A99D; border: 1px solid #87E8DE; }
-.rw-src--tms { background: #E3F2FD; color: #1565C0; border: 1px solid #90CAF9; }
 .rw-src--wh  { background: #FFF7E6; color: #D46B08; border: 1px solid #FFD591; }
 
 /* —— 登记退仓弹窗 —— */
@@ -346,6 +345,13 @@
 }
 .rw-res-ok  { color: #389E0D; }
 .rw-res-bad { color: #CF1322; }
+
+/* —— 操作日志弹窗(查看日志)表格:列宽固定,操作内容自动填充可换行 —— */
+.rw-log-grid th:nth-child(1), .rw-log-grid td:nth-child(1) { width: 44px; text-align: center; }
+.rw-log-grid th:nth-child(2), .rw-log-grid td:nth-child(2) { width: 80px; white-space: nowrap; }
+.rw-log-grid th:nth-child(3), .rw-log-grid td:nth-child(3) { width: 160px; white-space: nowrap; }
+.rw-log-grid th:nth-child(4), .rw-log-grid td:nth-child(4) { width: 150px; white-space: nowrap; }
+.rw-log-grid th:nth-child(5), .rw-log-grid td:nth-child(5) { width: auto; }
 
 
 /* ============================================================
@@ -733,3 +739,17 @@
 .receipt-grid-wrap { overflow-x: auto; }
 .receipt-grid      { min-width: 2200px; }
 .receipt-grid th, .receipt-grid td { white-space: nowrap; font-size: 12px; }
+
+/* === 拍照记录上传页:导出图片弹窗 === */
+.photo-export .exp-sum   { font-size: 12px; color: #333; line-height: 2; margin-bottom: 8px; }
+.photo-export .check-ok-text { color: #389E0D; font-weight: bold; }
+.photo-export .exp-preview {
+  max-height: 180px; overflow-y: auto; background: #FAFBFC;
+  border: 1px solid #E3E8EE; border-radius: 4px; padding: 6px 10px;
+}
+.photo-export .exp-file  { font-family: Consolas, monospace; font-size: 12px; color: #444; line-height: 1.9; }
+.photo-export .exp-bar   { height: 14px; background: #F0F2F5; border: 1px solid #D9D9D9; border-radius: 7px; overflow: hidden; }
+.photo-export .exp-bar--in { height: 100%; background: #00A99D; transition: width .18s linear; }
+.photo-export .exp-alert { font-size: 12px; line-height: 1.9; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; }
+.photo-export .exp-alert--warn  { background: #FFF7E6; border: 1px solid #FFD591; color: #D46B08; }
+.photo-export .exp-alert--block { background: #FFF1F0; border: 1px solid #FFA39E; color: #CF1322; }

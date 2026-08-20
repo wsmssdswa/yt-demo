@@ -86,7 +86,7 @@ const REP_CHANNELS = [
 
 /* 运行态:默认份数 + 渠道规则列表 */
 let repSettings = {
-  defaultCopies: 2,
+  defaultCopies: 1,
   rules: [
     { key:'r1', channels:['美森正班', '美森加班'], copies:3 },
     { key:'r2', channels:['B2B空运直飞'],         copies:1 },

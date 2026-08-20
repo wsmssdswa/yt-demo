@@ -7,7 +7,7 @@ const MENUS = [
   { icon: '📥', text: 'PDA签入',       go: './check-in.html' },
   { icon: '🗂️', text: '操作上架',      go: '' },
   { icon: '🔄', text: '移库操作',      go: '' },
-  { icon: '🧺', text: 'B2B拣货',       go: '' },
+  { icon: '🧺', text: 'B2B拣货',       go: './pick-select.html' },
   { icon: '➕', text: '增值服务',      go: '' },
   { icon: '⚠️', text: '异常件登记',    go: '' },
   { icon: '🔍', text: '关务查验',      go: './customs-check.html' },

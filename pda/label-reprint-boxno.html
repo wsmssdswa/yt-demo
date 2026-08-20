@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>箱标补打·扫箱号 方案原型 · CCOS PDA</title>
+  <link rel="stylesheet" href="./css/base.css" />
+  <link rel="stylesheet" href="./css/pages.css" />
+  <!-- 本页专属少量样式:按"只加新文件"约定内嵌,不改动 pages.css -->
+  <style>
+    /* === 箱标补打·扫箱号 方案原型页(复用 lr-* 基线样式,仅新增以下少量) === */
+    .bx-demo-tip {
+      margin: 8px 12px 0;
+      padding: 8px 10px;
+      background: #E6F7F5;
+      border-left: 3px solid #00A99D;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #4a4a4a;
+    }
+    .bx-scan-tip {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: #8a8a8a;
+      line-height: 1.5;
+    }
+    .bx-record-kv { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+    .bx-record-kv span { color: #8a8a8a; }
+    .bx-record-kv b { color: #333; font-weight: 600; }
+    .bx-record-arrow { font-size: 11px; color: #00A99D; padding: 2px 0; }
+    .bx-match {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 0 6px;
+      font-size: 10px;
+      color: #fff;
+      background: #00A99D;
+      border-radius: 8px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="./js/layout.js"></script>
+  <script src="./js/helpers.js"></script>
+  <script src="./js/label-reprint-boxno.js"></script>
+</body>
+</html>
