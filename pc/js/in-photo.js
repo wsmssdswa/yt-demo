@@ -379,7 +379,7 @@ const PhotoPage = {
           已导出 <b class="check-ok-text">${plan.files.length}</b> 张图片(每子单取最近上传一张),以子单号命名<br/>
           ${plan.dupSkipped > 0 ? `<span class="check-err">去重跳过 ${plan.dupSkipped} 张重复照片(同一子单仅保留最新)</span><br/>` : ''}
           ${plan.skipped.length > 0 ? `<span class="check-err">跳过 ${plan.skipped.length} 条记录(无匹配子单号,未导出)</span><br/>` : ''}
-          保存至:<span style="font-family:Consolas,monospace;">D:\\CCOS导出\\${Helpers.nowTime().slice(0, 10).replace(/-/g, '')}\\</span>(演示路径)
+          已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>(演示文件名)
         </div>
       </div>`;
     const panel = body.closest('.rw-modal-panel');

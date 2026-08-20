@@ -7,11 +7,15 @@
 | 端 | 目录 | 在线预览 | 说明 |
 |----|------|----------|------|
 | PDA 手持终端 | [`pda/`](./pda) | [wsmssdswa.github.io/yt-demo/pda](https://wsmssdswa.github.io/yt-demo/pda/) | 仓库作业:PDA 工作台、退仓扫描、增值服务等 |
-| PC 桌面端 | [`pc/`](./pc) | — | 仓库作业后台:B2B 订单管理(WinForms 风格) |
+| PC 桌面端 | [`pc/`](./pc) | [wsmssdswa.github.io/yt-demo/pc](https://wsmssdswa.github.io/yt-demo/pc/) | 仓库作业后台:B2B 订单管理(WinForms 风格) |
 
 ## 本地预览
 
 直接双击各子目录的 `index.html` 即可,无需服务器、无需安装任何依赖。
+
+## 发布
+
+push 到 `main` 即自动更新 GitHub Pages(<https://wsmssdswa.github.io/yt-demo/>),无需手动部署,约 1-2 分钟生效。页面 URL 格式:`https://wsmssdswa.github.io/yt-demo/{pda|pc}/{页面名}.html`。
 
 ## 目录结构
 
