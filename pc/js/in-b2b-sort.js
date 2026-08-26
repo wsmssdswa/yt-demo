@@ -207,7 +207,9 @@ function sbBoardCardsHtml() {
     const rule = c.conds.length
       ? `<div class="sb-card-badge sb-card-badge--rule" title="${sbRuleTitle(c)}">规则:${sbRuleSummary(c)}</div>`
       : '';
-    return `<div class="sb-card ${cls}" onclick="SbPage.openRule('${c.no}')" title="格口 ${c.no} · ${c.attr}(点击配置规则)">
+    return `<div class="sb-card ${cls} ${SbPage.selChutes.has(c.no) ? 'sb-card--sel' : ''}"
+                 onclick="SbPage.cardClick('${c.no}')" ondblclick="SbPage.cardDblClick('${c.no}')"
+                 title="格口 ${c.no} · ${c.attr}(单击选中,双击编辑规则)">
       <div class="sb-card-top"><span class="sb-card-no">${c.no}</span>
         <span class="sb-card-attr" style="color:${sbAttrColor(c.attr)}">${c.attr}</span></div>
       ${mid}${confHtml}${rule}
@@ -248,9 +250,13 @@ function sbRenderBoardBody() {
         <i class="sb-lg sb-lg--abn"></i>异常
         <i class="sb-lg sb-lg--rule">规则:</i>已配规则
       </span>
+      <span style="flex:1"></span>
+      <span class="sb-pick-count">已选中 <b>${SbPage.selChutes.size}</b> 个口</span>
+      <button class="btn btn--primary" onclick="SbPage.editRuleChecked()">✏️ 编辑落口规则</button>
+      <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
-    <div class="sb-board-tip">看板 3s 自动轮询(演示为静态);点格口卡片=配置该口规则(规则直挂口,无方案实体);未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
+    <div class="sb-board-tip">看板 3s 自动轮询(演示为静态);单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
   `;
 }
 
@@ -356,7 +362,6 @@ function sbRuleModal() {
           <div class="sb-policy-note">点行尾 ✕ 删除该行;删光条件行并保存=恢复默认池;未配规则的格口=默认池(按单件/多件正常分配)</div>
         </div>
         <div class="rw-modal-footer">
-          <button class="btn" onclick="SbPage.openRelease()" style="margin-right:auto">🔓 释放格口</button>
           <button class="btn" onclick="SbPage.closeRule()">取消</button>
           <button class="btn btn--primary" onclick="SbPage.saveRule()">保存</button>
         </div>
@@ -396,6 +401,8 @@ function sbReleaseModal() {
 const SbPage = {
   sol: null,                  /* 当前分拣方案对象 */
   checkedSol: null,           /* 方案列表选中 sorterCode */
+  selChutes: new Set(),       /* 看板选中的格口(单击;配合编辑规则/释放) */
+  _clickTimer: null,          /* 单击/双击区分定时器 */
   ruleNo: null,               /* 规则弹窗编辑的格口号 */
   editConds: [],
   editJoiner: '且',
@@ -423,7 +430,25 @@ const SbPage = {
   },
   closeBoard() { document.getElementById('sbBoardMask').style.display = 'none'; },
 
+  /* ---- 卡片单击=选中(延时区分双击),双击=编辑规则 ---- */
+  cardClick(no) {
+    clearTimeout(this._clickTimer);
+    this._clickTimer = setTimeout(() => this.toggleChute(no), 220);
+  },
+  cardDblClick(no) {
+    clearTimeout(this._clickTimer);
+    this.openRule(no);
+  },
+  toggleChute(no) {
+    this.selChutes.has(no) ? this.selChutes.delete(no) : this.selChutes.add(no);
+    sbRenderBoardBody();
+  },
+
   /* ---- 配置格口规则(单口,交互与 格口规则对比页 一致) ---- */
+  editRuleChecked() {
+    if (this.selChutes.size !== 1) { Helpers.toast('编辑规则为单口操作,请只选中 1 个格口'); return; }
+    this.openRule(Array.from(this.selChutes)[0]);
+  },
   openRule(no) {
     const c = SB_CHUTES.find(x => x.no === no);
     this.ruleNo = no;
@@ -515,22 +540,23 @@ const SbPage = {
     this.renderValDrop(idx);
   },
 
-  /* 释放格口(从规则弹窗进入,基线乐观锁交互) */
+  /* 释放格口(选中单口,基线乐观锁交互) */
   openRelease() {
-    const c = SB_CHUTES.find(x => x.no === this.ruleNo);
-    if (!c) return;
+    if (this.selChutes.size !== 1) { Helpers.toast('释放为单口操作,请只选中 1 个格口'); return; }
+    const c = SB_CHUTES.find(x => x.no === Array.from(this.selChutes)[0]);
     document.getElementById('sbRelInfo').innerHTML =
       `格口号:<b>${c.no}</b>(${c.attr})<br/>占用主单:<b>${c.master || '(空闲)'}</b><br/>状态:${c.exc || (c.done ? '已到齐' : (c.master ? '占用中' : '空闲'))}`;
     document.getElementById('sbRelMask').style.display = 'flex';
   },
   doRelease() {
-    const c = SB_CHUTES.find(x => x.no === this.ruleNo);
+    const no = Array.from(this.selChutes)[0];
+    const c = SB_CHUTES.find(x => x.no === no);
     if (c) { c.master = ''; c.cur = 0; c.total = 0; c.done = false; c.exc = ''; }
+    this.selChutes.clear();
     document.getElementById('sbRelMask').style.display = 'none';
-    this.closeRule();
     sbRenderBoardBody();
     document.getElementById('sbBoardMask').style.display = 'flex';
-    Helpers.toast(`格口 ${this.ruleNo} 已释放(演示)`);
+    Helpers.toast(`格口 ${no} 已释放(演示)`);
   },
 };
 
