@@ -62,6 +62,8 @@ const Layout = {
       { key: 'b-channel',    label: '渠道配置' },
       { key: 'b-push',       label: '推送配置' },
       { key: 'b-b2b-bin',    label: 'B2B推荐库位配置' },
+      { key: 'b-sort-scheme', label: '分拣分组方案' },
+      { key: 'b-chute-rule',  label: '分拣格口规则(对比)' },
     ]},
   ],
 
@@ -223,6 +225,7 @@ const Layout = {
       'in-batch': './in-batch.html',
       'in-photo': './in-photo.html',
       'in-receipt': './in-receipt.html',
+      'in-b2b-sort': './in-b2b-sort.html',
       'wh-shelf-q':  './wh-shelf-q.html',
       'wh-mv':       './wh-mv.html',
       'wh-stock':    './wh-stock.html',
@@ -230,6 +233,9 @@ const Layout = {
       'wh-stk-task': './wh-stk-task.html',
       'wh-print':    './wh-print.html',
       'wh-box-rep':  './wh-box-rep.html',
+      'b-b2b-bin':   './wh-loc-rule.html',
+      'b-sort-scheme': './b-sort-scheme.html',
+      'b-chute-rule':  './b-sort-chute-rule.html',
     };
     if (PAGES[key]) { location.href = PAGES[key]; return; }
     Helpers.toast(`子菜单 ${key}(占位,待后续实现)`);
