@@ -196,33 +196,38 @@ function ssCondRowHtml(c, idx) {
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
   const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
   return `
-    <div class="sb-crow">
-      <select class="sel sb-crow-item" onchange="SsPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
-      <select class="sel sb-crow-op" onchange="SsPage.editConds[${idx}].op = this.value">${opOpts}</select>
-      <div class="sb-msel" id="ssValBox_${idx}">
-        <div class="sb-msel-toggle" onclick="SsPage.toggleValDrop(${idx}, event)">
-          <span class="sb-msel-chips" id="ssValChips_${idx}"></span>
-          <span class="sb-msel-arrow">▾</span>
+    <tr class="${SsPage.rowSel.has(idx) ? 'is-cur' : ''}">
+      <td class="col--check"><input type="checkbox" ${SsPage.rowSel.has(idx) ? 'checked' : ''}
+        onchange="SsPage.checkRow(${idx}, this.checked)" /></td>
+      <td class="col--num">${idx + 1}</td>
+      <td><select class="sel" onchange="SsPage.onItemChange(${idx}, this.value)">${itemOpts}</select></td>
+      <td><select class="sel" onchange="SsPage.editConds[${idx}].op = this.value">${opOpts}</select></td>
+      <td>
+        <div class="sb-msel" id="ssValBox_${idx}">
+          <div class="sb-msel-toggle" onclick="SsPage.toggleValDrop(${idx}, event)">
+            <span class="sb-msel-chips" id="ssValChips_${idx}"></span>
+            <span class="sb-msel-arrow">▾</span>
+          </div>
+          <div class="sb-msel-drop" id="ssValDrop_${idx}">
+            <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SsPage.renderValDrop(${idx})" />
+            <div class="sb-msel-list" id="ssValList_${idx}"></div>
+          </div>
         </div>
-        <div class="sb-msel-drop" id="ssValDrop_${idx}">
-          <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SsPage.renderValDrop(${idx})" />
-          <div class="sb-msel-list" id="ssValList_${idx}"></div>
-        </div>
-      </div>
-      <button class="sb-crow-del" onclick="SsPage.removeCond(${idx})" title="删除该条件">✕</button>
-    </div>
+      </td>
+    </tr>
   `;
 }
 
 function ssCondRowsHtml() {
   const rows = SsPage.editConds.map((c, i) => ssCondRowHtml(c, i)).join('');
-  const showJoiner = SsPage.editConds.length > 1;
+  const n = SsPage.rowSel.size, total = SsPage.editConds.length;
+  const headAttr = total > 0 && n === total ? 'checked' : (n > 0 && n < total ? 'indeterminate' : '');
   return `
-    <div class="sb-crows">${rows}</div>
-    <div class="sb-crow-foot">
-      <button class="btn" onclick="SsPage.addCond()">➕ 新增条件</button>
-      ${showJoiner ? `
-        <span class="sb-joiner">
+    <div class="cr-cond-tools">
+      <button class="btn" onclick="SsPage.addCond()">➕ 新增</button>
+      <button class="btn" onclick="SsPage.delRow()">✕ 删除</button>
+      ${SsPage.editConds.length > 1 ? `
+        <span class="sb-joiner" style="margin-left:auto">
           多条件生效:
           <label class="lrb-check"><input type="radio" name="ssJoiner" ${SsPage.editJoiner === '且' ? 'checked' : ''}
             onchange="SsPage.editJoiner='且'" />全部满足</label>
@@ -230,6 +235,15 @@ function ssCondRowsHtml() {
             onchange="SsPage.editJoiner='或'" />满足其一</label>
         </span>` : ''}
     </div>
+    <table class="grid cr-cond-grid">
+      <colgroup><col style="width:36px" /><col style="width:40px" /><col style="width:110px" />
+        <col style="width:110px" /><col /></colgroup>
+      <thead><tr>
+        <th class="col--check"><input type="checkbox" ${headAttr}
+          onchange="SsPage.checkAll(this.checked)" /></th>
+        <th>NO.</th><th>验证字段</th><th>验证类型</th><th>内容</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="cr-empty">暂无条件行,点击「➕ 新增」添加</td></tr>'}</tbody>
+    </table>
   `;
 }
 
@@ -341,6 +355,7 @@ const SsPage = {
   editingId: 0,
   editConds: [],
   editJoiner: '且',
+  rowSel: new Set(),        /* 条件表勾选的行(复选列;✕删除作用于勾选行) */
 
   render() {
     document.getElementById('ssGridBody').innerHTML = ssGridHtml();
@@ -398,6 +413,7 @@ const SsPage = {
       this.editConds = [{ item: SS_COND_ITEMS[0].key, op: SS_COND_ITEMS[0].ops[0], values: [] }];
       this.editJoiner = '且';
     }
+    this.rowSel.clear();
     document.getElementById('ssCondBox').innerHTML = ssCondRowsHtml();
     this.editConds.forEach((c, i) => ssFitChips(i));
     document.getElementById('ssEditMask').style.display = 'flex';
@@ -433,7 +449,29 @@ const SsPage = {
     Helpers.toast('分组方案已保存(演示)');
   },
 
-  /* ---- 条件行 ---- */
+  /* ---- 条件行(表格式:复选列勾选,工具栏增/删勾选行) ---- */
+  checkRow(idx, on) {
+    on ? this.rowSel.add(idx) : this.rowSel.delete(idx);
+    this.refreshRowSel();
+  },
+  checkAll(on) {
+    this.rowSel.clear();
+    if (on) this.editConds.forEach((c, i) => this.rowSel.add(i));
+    this.refreshRowSel();
+  },
+  refreshRowSel() {
+    document.querySelectorAll('#ssCondBox tbody tr').forEach((tr, i) => {
+      tr.classList.toggle('is-cur', this.rowSel.has(i));
+      const cb = tr.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = this.rowSel.has(i);
+    });
+    const head = document.querySelector('#ssCondBox thead input[type=checkbox]');
+    if (head) {
+      const n = this.rowSel.size, total = this.editConds.length;
+      head.checked = total > 0 && n === total;
+      head.indeterminate = n > 0 && n < total;
+    }
+  },
   addCond() {
     if (this.editConds.length >= SS_COND_ITEMS.length) { Helpers.toast('条件项已全部使用'); return; }
     const free = SS_COND_ITEMS.find(d => !this.editConds.some(c => c.item === d.key));
@@ -441,8 +479,11 @@ const SsPage = {
     this.editConds.push({ item: free.key, op: free.ops[0], values: [] });
     this.refreshCondBox();
   },
-  removeCond(idx) {
-    this.editConds.splice(idx, 1);
+  delRow() {
+    if (!this.editConds.length) { Helpers.toast('无条件行可删'); return; }
+    if (!this.rowSel.size) { Helpers.toast('请先勾选要删除的条件行'); return; }
+    Array.from(this.rowSel).sort((a, b) => b - a).forEach(idx => this.editConds.splice(idx, 1));
+    this.rowSel.clear();
     if (this.editConds.length <= 1) this.editJoiner = '且';
     this.refreshCondBox();
   },
@@ -454,6 +495,7 @@ const SsPage = {
   refreshCondBox() {
     document.getElementById('ssCondBox').innerHTML = ssCondRowsHtml();
     this.editConds.forEach((c, i) => ssFitChips(i));
+    this.refreshRowSel();
   },
 
   /* ---- 值选择(行内下拉多选) ---- */

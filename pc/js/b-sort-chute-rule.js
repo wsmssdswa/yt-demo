@@ -228,37 +228,33 @@ function crCondRowHtml(c, idx) {
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
   const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
   return `
-    <tr class="${CrPage.rowSel.has(idx) ? 'is-cur' : ''}">
-      <td class="col--check"><input type="checkbox" ${CrPage.rowSel.has(idx) ? 'checked' : ''}
-        onchange="CrPage.checkRow(${idx}, this.checked)" /></td>
-      <td class="col--num">${idx + 1}</td>
-      <td><select class="sel" onchange="CrPage.onItemChange(${idx}, this.value)">${itemOpts}</select></td>
-      <td><select class="sel" onchange="CrPage.editConds[${idx}].op = this.value">${opOpts}</select></td>
-      <td>
-        <div class="sb-msel" id="crValBox_${idx}">
-          <div class="sb-msel-toggle" onclick="CrPage.toggleValDrop(${idx}, event)">
-            <span class="sb-msel-chips" id="crValChips_${idx}"></span>
-            <span class="sb-msel-arrow">▾</span>
-          </div>
-          <div class="sb-msel-drop" id="crValDrop_${idx}">
-            <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="CrPage.renderValDrop(${idx})" />
-            <div class="sb-msel-list" id="crValList_${idx}"></div>
-          </div>
+    <div class="sb-crow">
+      <select class="sel sb-crow-item" onchange="CrPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
+      <select class="sel sb-crow-op" onchange="CrPage.editConds[${idx}].op = this.value">${opOpts}</select>
+      <div class="sb-msel" id="crValBox_${idx}">
+        <div class="sb-msel-toggle" onclick="CrPage.toggleValDrop(${idx}, event)">
+          <span class="sb-msel-chips" id="crValChips_${idx}"></span>
+          <span class="sb-msel-arrow">▾</span>
         </div>
-      </td>
-    </tr>
+        <div class="sb-msel-drop" id="crValDrop_${idx}">
+          <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="CrPage.renderValDrop(${idx})" />
+          <div class="sb-msel-list" id="crValList_${idx}"></div>
+        </div>
+      </div>
+      <button class="sb-crow-del" onclick="CrPage.removeCond(${idx})" title="删除该条件">✕</button>
+    </div>
   `;
 }
 
 function crCondRowsHtml() {
   const rows = CrPage.editConds.map((c, i) => crCondRowHtml(c, i)).join('');
-  const allSel = CrPage.editConds.length > 0 && CrPage.rowSel.size === CrPage.editConds.length;
+  const showJoiner = CrPage.editConds.length > 1;
   return `
-    <div class="cr-cond-tools">
-      <button class="btn" onclick="CrPage.addCond()">➕ 新增</button>
-      <button class="btn" onclick="CrPage.delRow()">✕ 删除</button>
-      ${CrPage.editConds.length > 1 ? `
-        <span class="sb-joiner" style="margin-left:auto">
+    <div class="sb-crows">${rows}</div>
+    <div class="sb-crow-foot">
+      <button class="btn" onclick="CrPage.addCond()">➕ 新增条件</button>
+      ${showJoiner ? `
+        <span class="sb-joiner">
           多条件生效:
           <label class="lrb-check"><input type="radio" name="crJoiner" ${CrPage.editJoiner === '且' ? 'checked' : ''}
             onchange="CrPage.editJoiner='且'" />全部满足</label>
@@ -266,15 +262,6 @@ function crCondRowsHtml() {
             onchange="CrPage.editJoiner='或'" />满足其一</label>
         </span>` : ''}
     </div>
-    <table class="grid cr-cond-grid">
-      <colgroup><col style="width:36px" /><col style="width:40px" /><col style="width:110px" />
-        <col style="width:110px" /><col /></colgroup>
-      <thead><tr>
-        <th class="col--check"><input type="checkbox" ${allSel ? 'checked' : ''}
-          onchange="CrPage.checkAll(this.checked)" /></th>
-        <th>NO.</th><th>验证字段</th><th>验证类型</th><th>内容</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="5" class="cr-empty">暂无条件行,点击「➕ 新增」添加;删光条件行并保存=恢复默认池</td></tr>'}</tbody>
-    </table>
   `;
 }
 
@@ -292,7 +279,7 @@ function crEditModal() {
           <div style="margin-top:10px" id="crCondBoxWrap">
             <div class="sb-cond-box" id="crCondBox" style="gap:8px"></div>
           </div>
-          <div class="sb-policy-note">勾选行后再「✕ 删除」;删光条件行并保存=恢复默认池;未配规则的格口=默认池(按单件/多件正常分配)</div>
+          <div class="sb-policy-note">点行尾 ✕ 删除该行;删光条件行并保存=恢复默认池;未配规则的格口=默认池(按单件/多件正常分配)</div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="CrPage.closeEdit()">取消</button>
@@ -374,7 +361,6 @@ const CrPage = {
   editChutes: [],         /* 弹窗编辑目标口(当前仅单口) */
   editConds: [],
   editJoiner: '且',
-  rowSel: new Set(),        /* 条件表勾选的行(复选列;✕删除作用于勾选行) */
 
   render() {
     document.getElementById('crView').innerHTML = crBoardView();
@@ -400,7 +386,6 @@ const CrPage = {
       ? c.conds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }))
       : [{ item: CR_COND_ITEMS[0].key, op: CR_COND_ITEMS[0].ops[0], values: [] }];
     this.editJoiner = c.joiner || '且';
-    this.rowSel.clear();
     this.openEditCommon();
   },
   closeEdit() { document.getElementById('crEditMask').style.display = 'none'; },
@@ -424,42 +409,17 @@ const CrPage = {
       : `格口 ${this.editChutes.join('、')} 规则已保存(演示)`);
   },
 
-  /* ---- 条件行(表格式:复选列勾选,工具栏增/删勾选行) ---- */
-  checkRow(idx, on) {
-    on ? this.rowSel.add(idx) : this.rowSel.delete(idx);
-    this.refreshRowSel();
-  },
-  checkAll(on) {
-    this.rowSel.clear();
-    if (on) this.editConds.forEach((c, i) => this.rowSel.add(i));
-    this.refreshRowSel();
-  },
-  refreshRowSel() {
-    document.querySelectorAll('#crCondBox tbody tr').forEach((tr, i) => {
-      tr.classList.toggle('is-cur', this.rowSel.has(i));
-      const cb = tr.querySelector('input[type=checkbox]');
-      if (cb) cb.checked = this.rowSel.has(i);
-    });
-    const head = document.querySelector('#crCondBox thead input[type=checkbox]');
-    if (head) {
-      const n = this.rowSel.size, total = this.editConds.length;
-      head.checked = total > 0 && n === total;
-      head.indeterminate = n > 0 && n < total;
-    }
+  /* ---- 条件行(flex 行式:行尾✕删除,底部新增条件) ---- */
+  removeCond(idx) {
+    this.editConds.splice(idx, 1);
+    if (this.editConds.length <= 1) this.editJoiner = '且';
+    this.refreshCondBox();
   },
   addCond() {
     if (this.editConds.length >= CR_COND_ITEMS.length) { Helpers.toast('条件项已全部使用'); return; }
     const free = CR_COND_ITEMS.find(d => !this.editConds.some(c => c.item === d.key));
     if (!free) { Helpers.toast('条件项已全部使用'); return; }
     this.editConds.push({ item: free.key, op: free.ops[0], values: [] });
-    this.refreshCondBox();
-  },
-  delRow() {
-    if (!this.editConds.length) { Helpers.toast('无条件行可删'); return; }
-    if (!this.rowSel.size) { Helpers.toast('请先勾选要删除的条件行'); return; }
-    Array.from(this.rowSel).sort((a, b) => b - a).forEach(idx => this.editConds.splice(idx, 1));
-    this.rowSel.clear();
-    if (this.editConds.length <= 1) this.editJoiner = '且';
     this.refreshCondBox();
   },
   onItemChange(idx, key) {
