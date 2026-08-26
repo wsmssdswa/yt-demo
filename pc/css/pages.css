@@ -946,3 +946,4 @@
 .cr-cond-grid tbody tr.is-cur td { background: #E8F0FE; }
 .cr-cond-grid .sel { width: 100%; box-sizing: border-box; }
 .cr-cond-grid .cr-empty { text-align: center; color: #999; padding: 10px; cursor: default; }
+.sb-rule-preview { margin-top: 10px; font-size: 12px; color: #1F4E79; background: #F0F7FF; border: 1px solid #C9E0F5; border-radius: 4px; padding: 7px 10px; line-height: 1.6; word-break: break-all; }

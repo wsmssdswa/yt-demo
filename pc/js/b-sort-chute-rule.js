@@ -246,6 +246,19 @@ function crCondRowHtml(c, idx) {
   `;
 }
 
+/* 规则预览(实时反映当前条件行;连接词显示 全部满足/满足其一) */
+function crRulePreviewText() {
+  if (!CrPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
+  const body = CrPage.editConds.map(x =>
+    `${crItemDef(x.item).label}${x.op} ${x.values.length ? x.values.map(v => crNameOf(x.item, v)).join('、') : '(未选值)'}`)
+    .join(` ${CrPage.editJoiner} `);
+  return `落口规则:${body}`;
+}
+function crRenderPreview() {
+  const el = document.getElementById('crRulePreview');
+  if (el) el.textContent = crRulePreviewText();
+}
+
 function crCondRowsHtml() {
   const rows = CrPage.editConds.map((c, i) => crCondRowHtml(c, i)).join('');
   const showJoiner = CrPage.editConds.length > 1;
@@ -257,9 +270,9 @@ function crCondRowsHtml() {
         <span class="sb-joiner">
           多条件生效:
           <label class="lrb-check"><input type="radio" name="crJoiner" ${CrPage.editJoiner === '且' ? 'checked' : ''}
-            onchange="CrPage.editJoiner='且'" />全部满足</label>
+            onchange="CrPage.editJoiner='且';crRenderPreview()" />全部满足</label>
           <label class="lrb-check"><input type="radio" name="crJoiner" ${CrPage.editJoiner === '或' ? 'checked' : ''}
-            onchange="CrPage.editJoiner='或'" />满足其一</label>
+            onchange="CrPage.editJoiner='或';crRenderPreview()" />满足其一</label>
         </span>` : ''}
     </div>
   `;
@@ -279,7 +292,7 @@ function crEditModal() {
           <div style="margin-top:10px" id="crCondBoxWrap">
             <div class="sb-cond-box" id="crCondBox" style="gap:8px"></div>
           </div>
-          <div class="sb-policy-note">点行尾 ✕ 删除该行;删光条件行并保存=恢复默认池;未配规则的格口=默认池(按单件/多件正常分配)</div>
+          <div class="sb-rule-preview" id="crRulePreview"></div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="CrPage.closeEdit()">取消</button>
@@ -375,6 +388,7 @@ const CrPage = {
   openEditCommon() {
     document.getElementById('crCondBox').innerHTML = crCondRowsHtml();
     this.editConds.forEach((c, i) => crFitChips(i));
+    crRenderPreview();
     document.getElementById('crEditMask').style.display = 'flex';
   },
   openRule(no) {
@@ -430,6 +444,7 @@ const CrPage = {
   refreshCondBox() {
     document.getElementById('crCondBox').innerHTML = crCondRowsHtml();
     this.editConds.forEach((c, i) => crFitChips(i));
+    crRenderPreview();
   },
 
   /* ---- 值选择(行内下拉多选) ---- */
@@ -464,12 +479,14 @@ const CrPage = {
       const i = values.indexOf(code); if (i >= 0) values.splice(i, 1);
     }
     crFitChips(idx);
+    crRenderPreview();
   },
   removeValChip(idx, code) {
     const values = this.editConds[idx].values;
     const i = values.indexOf(code); if (i >= 0) values.splice(i, 1);
     crFitChips(idx);
     this.renderValDrop(idx);
+    crRenderPreview();
   },
 
   showLogs() {

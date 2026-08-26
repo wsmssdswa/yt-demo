@@ -316,6 +316,19 @@ function sbCondRowHtml(c, idx) {
   `;
 }
 
+/* 规则预览(实时反映当前条件行;连接词直接用 且/或,读起来通顺) */
+function sbRulePreviewText() {
+  if (!SbPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
+  const body = SbPage.editConds.map(x =>
+    `${sbItemDef(x.item).label}${x.op} ${x.values.length ? x.values.map(v => sbNameOf(x.item, v)).join('、') : '(未选值)'}`)
+    .join(` ${SbPage.editJoiner} `);
+  return `落口规则:${body}`;
+}
+function sbRenderPreview() {
+  const el = document.getElementById('sbRulePreview');
+  if (el) el.textContent = sbRulePreviewText();
+}
+
 function sbCondRowsHtml() {
   const rows = SbPage.editConds.map((c, i) => sbCondRowHtml(c, i)).join('');
   const showJoiner = SbPage.editConds.length > 1;
@@ -327,9 +340,9 @@ function sbCondRowsHtml() {
         <span class="sb-joiner">
           多条件生效:
           <label class="lrb-check"><input type="radio" name="sbJoiner" ${SbPage.editJoiner === '且' ? 'checked' : ''}
-            onchange="SbPage.editJoiner='且'" />全部满足</label>
+            onchange="SbPage.editJoiner='且';sbRenderPreview()" />全部满足</label>
           <label class="lrb-check"><input type="radio" name="sbJoiner" ${SbPage.editJoiner === '或' ? 'checked' : ''}
-            onchange="SbPage.editJoiner='或'" />满足其一</label>
+            onchange="SbPage.editJoiner='或';sbRenderPreview()" />满足其一</label>
         </span>` : ''}
     </div>
   `;
@@ -359,7 +372,7 @@ function sbRuleModal() {
           <div style="margin-top:10px">
             <div class="sb-cond-box" id="sbCondBox" style="gap:8px"></div>
           </div>
-          <div class="sb-policy-note">点行尾 ✕ 删除该行;删光条件行并保存=恢复默认池;未配规则的格口=默认池(按单件/多件正常分配)</div>
+          <div class="sb-rule-preview" id="sbRulePreview"></div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="SbPage.closeRule()">取消</button>
@@ -498,6 +511,7 @@ const SbPage = {
   refreshCondBox() {
     document.getElementById('sbCondBox').innerHTML = sbCondRowsHtml();
     this.editConds.forEach((c, i) => sbFitChips(i));
+    sbRenderPreview();
   },
 
   /* ---- 值选择(行内下拉多选) ---- */
@@ -532,12 +546,14 @@ const SbPage = {
       const i = values.indexOf(code); if (i >= 0) values.splice(i, 1);
     }
     sbFitChips(idx);
+    sbRenderPreview();
   },
   removeValChip(idx, code) {
     const values = this.editConds[idx].values;
     const i = values.indexOf(code); if (i >= 0) values.splice(i, 1);
     sbFitChips(idx);
     this.renderValDrop(idx);
+    sbRenderPreview();
   },
 
   /* 释放格口(选中单口,基线乐观锁交互) */
