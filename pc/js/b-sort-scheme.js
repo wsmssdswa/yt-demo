@@ -27,9 +27,14 @@ const SS_CHANNELS = [
   { code: 'KONGYUN-ZHIXIAN',    name: '空运直达' },
   { code: 'KONGYUN-JIJI',       name: '空运急件' },
 ];
+const SS_EXCEPTIONS = [
+  { code: 'CIF', name: '签入失败' },
+  { code: 'CF',  name: '格口已满' },
+];
 const SS_COND_ITEMS = [
   { key: 'product', label: '产品', ops: ['包含', '不包含'], values: SS_PRODUCTS },
   { key: 'channel', label: '渠道', ops: ['包含', '不包含'], values: SS_CHANNELS },
+  { key: 'exception', label: '异常类型', ops: ['包含', '不包含'], values: SS_EXCEPTIONS },
 ];
 const ssItemDef = k => SS_COND_ITEMS.find(d => d.key === k);
 
@@ -47,11 +52,15 @@ const SS_APPLIES = [
     chutes: ['61', '62'], invalid: true, updateUser: '王强', updateTime: '2026-08-10 09:10:00' },
   { schemeId: 5, sorterCode: 'FJ-01', sorterName: '1号分拣机', solutionName: 'B2B标准分拣方案',
     chutes: ['07', '08', '27', '28'], invalid: false, updateUser: '李丽', updateTime: '2026-08-25 09:30:05' },
+  { schemeId: 6, sorterCode: 'FJ-01', sorterName: '1号分拣机', solutionName: 'B2B标准分拣方案',
+    chutes: ['43', '44'], invalid: false, updateUser: '庄亚运', updateTime: '2026-08-26 10:05:00' },
 ];
 const ssApplyCount = id => new Set(SS_APPLIES.filter(a => a.schemeId === id).map(a => a.sorterCode)).size;
 
 /* ---- 演示数据:方案操作日志(全生命周期流水,最新在前;方案删除后日志仍保留) ---- */
 const SS_LOGS = [
+  { schemeId: 6, time: '2026-08-26 10:05:00', action: '挂载', detail: 'FJ-01 异常格口 43、44', user: '庄亚运' },
+  { schemeId: 6, time: '2026-08-26 10:00:00', action: '新建', detail: '条件:异常类型包含1项', user: '庄亚运' },
   { schemeId: 1, time: '2026-08-25 10:00:11', action: '挂载', detail: 'FJ-01 格口 05、06(与敏货类共享口)', user: '庄亚运' },
   { schemeId: 1, time: '2026-08-24 10:30:11', action: '挂载', detail: 'FJ-01 格口 03、04、21、22', user: '庄亚运' },
   { schemeId: 1, time: '2026-08-21 14:00:00', action: '挂载', detail: 'FJ-02 格口 05、08', user: '王强' },
@@ -92,6 +101,9 @@ const SS_SCHEMES = [
       { item: 'product', op: '不包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC', 'US-KONGYUN-ELC'] },
       { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
     ], joiner: '且', status: 1, updateUser: '李丽', updateTime: '2026-08-25 09:15:20' },
+  { id: 6, code: 'GS-006', name: '签入失败件',
+    conds: [ { item: 'exception', op: '包含', values: ['CIF'] } ], joiner: '且',
+    status: 1, updateUser: '庄亚运', updateTime: '2026-08-26 10:00:00' },
 ];
 
 /* ---- 条件列渲染 ---- */
@@ -211,11 +223,11 @@ function ssCondRowsHtml() {
       <button class="btn" onclick="SsPage.addCond()">➕ 新增条件</button>
       ${showJoiner ? `
         <span class="sb-joiner">
-          条件间关系:
+          多条件生效:
           <label class="lrb-check"><input type="radio" name="ssJoiner" ${SsPage.editJoiner === '且' ? 'checked' : ''}
-            onchange="SsPage.editJoiner='且'" />且</label>
+            onchange="SsPage.editJoiner='且'" />全部满足</label>
           <label class="lrb-check"><input type="radio" name="ssJoiner" ${SsPage.editJoiner === '或' ? 'checked' : ''}
-            onchange="SsPage.editJoiner='或'" />或</label>
+            onchange="SsPage.editJoiner='或'" />满足其一</label>
         </span>` : ''}
     </div>
   `;
@@ -235,8 +247,7 @@ function ssEditModal() {
             <label class="rw-form-label">方案名称：</label>
             <input class="ipt" id="ssFName" style="flex:1" placeholder="如 带电×海运" />
           </div>
-          <div class="rw-form-row" style="align-items:flex-start">
-            <label class="rw-form-label">匹配条件：</label>
+          <div style="margin-top:8px">
             <div class="sb-cond-box" id="ssCondBox"></div>
           </div>
           <div class="sb-policy-note">ℹ 分组方案只定义「什么样的货」,不绑定格口;到 B2B分拣管理 → 格口看板 勾选格口挂载后生效</div>

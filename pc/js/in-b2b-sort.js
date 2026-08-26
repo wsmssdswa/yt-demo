@@ -59,8 +59,10 @@ const SB_SCHEMES = [
       { item: 'product', op: '不包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC', 'US-KONGYUN-ELC'] },
       { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
     ], joiner: '且', status: 1 },
+  { id: 6, name: '签入失败件',
+    conds: [ { item: 'exception', op: '包含', values: ['CIF'] } ], joiner: '且', status: 1 },
 ];
-const SB_ITEM_LABEL = { product: '产品', channel: '渠道' };
+const SB_ITEM_LABEL = { product: '产品', channel: '渠道', exception: '异常类型' };
 const sbScheme = id => SB_SCHEMES.find(x => x.id === id);
 
 /* ---- 演示数据:格口应用(挂 分拣机+分拣方案 维度;一口一方案) ---- */
@@ -77,6 +79,8 @@ const SB_APPLIES = [
     updateUser: '王强', updateTime: '2026-08-21 14:00:00' },
   { id: 16, schemeId: 1, sorterCode: 'FJ-01', ruleId: 10086, chutes: ['05', '06'],   /* 共享口:敏货口同时挂带电×海运 */
     updateUser: '庄亚运', updateTime: '2026-08-25 10:00:00' },
+  { id: 17, schemeId: 6, sorterCode: 'FJ-01', ruleId: 10086, chutes: ['43', '44'],   /* 异常方案挂异常口:签入失败件 */
+    updateUser: '庄亚运', updateTime: '2026-08-26 10:05:00' },
 ];
 
 /* ---- 工具 ---- */

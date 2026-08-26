@@ -2,7 +2,7 @@
    b-sort-chute-rule.js — 分拣格口规则(单层结构·对比方案)
    与「分组方案+格口应用」两层结构对比体验:
      · 无分组方案实体,每个格口直接配条件规则(条件项+运算符+值,多条件 且/或)
-     · 未配规则的口=默认池;异常口不配规则(按异常代码路由)
+     · 未配规则的口=默认池;异常口可配规则(异常类型验证字段区分不同异常)
      · 一票货命中多个口的规则 → 按格口号顺序落第一个空闲口(无优先级仲裁)
      · 同类货要 N 个口 = 逐口重复配(或勾选批量配);规则变更需逐口改
      · 每口规则变更单独记日志(批量操作每口一条)
@@ -30,9 +30,14 @@ const CR_CHANNELS = [
   { code: 'KONGYUN-ZHIXIAN',    name: '空运直达' },
   { code: 'KONGYUN-JIJI',       name: '空运急件' },
 ];
+const CR_EXCEPTIONS = [
+  { code: 'CIF', name: '签入失败' },
+  { code: 'CF',  name: '格口已满' },
+];
 const CR_COND_ITEMS = [
   { key: 'product', label: '产品', ops: ['包含', '不包含'], values: CR_PRODUCTS },
   { key: 'channel', label: '渠道', ops: ['包含', '不包含'], values: CR_CHANNELS },
+  { key: 'exception', label: '异常类型', ops: ['包含', '不包含'], values: CR_EXCEPTIONS },
 ];
 const crItemDef = k => CR_COND_ITEMS.find(d => d.key === k);
 const crNameOf = (item, code) => {
@@ -129,10 +134,10 @@ function crCardsHtml() {
     const confs = (cmap[c.no] || []).map(g => g.a === c.no ? g.b : g.a);
     const confHtml = confs.length
       ? `<div class="cr-conflict" title="规则包含值有交集,该货会同时命中两口,按格口号顺序落第一个空闲口">⚠ 与 ${[...new Set(confs)].join('、')} 重叠</div>` : '';
-    const sum = isAbn
-      ? `<div class="cr-rule-sum cr-rule-sum--dim">按异常代码路由</div>`
-      : hasRule
-        ? `<div class="cr-rule-sum" title="${crRuleTitle(c)}">${crRuleSummary(c)}</div>`
+    const sum = hasRule
+      ? `<div class="cr-rule-sum" title="${crRuleTitle(c)}">${crRuleSummary(c)}</div>`
+      : isAbn
+        ? `<div class="cr-rule-sum cr-rule-sum--dim">未配规则(落首个空闲异常口)</div>`
         : `<div class="cr-rule-sum cr-rule-sum--dim">默认池(未配规则)</div>`;
     return `<div class="sb-card ${cls}"
                  onclick="CrPage.openRule('${c.no}')" title="格口 ${c.no} · ${c.attr}(点击配置规则)">
@@ -176,7 +181,7 @@ function crBoardView() {
         <span class="sb-legend">
           <i class="sb-lg cr-lg--rule"></i>已配规则
           <i class="sb-lg cr-lg--pool"></i>默认池
-          <i class="sb-lg sb-lg--abn"></i>异常口(不配规则)
+          <i class="sb-lg sb-lg--abn"></i>异常口
         </span>
       </div>
       <div class="cr-board-wrap">${crCardsHtml()}</div>
@@ -351,7 +356,7 @@ function crHelpModal() {
           <div class="lr-help-step"><b>② 生效:</b>分拣签入后按各口规则匹配;未配规则的口=默认池(按单件/多件正常分配,与现状一致)</div>
           <div class="lr-help-step"><b>③ 多口命中:</b>一票货同时命中多个口的规则时,按格口号顺序落第一个空闲口(⚠ 页面对「包含」值有交集的口给出重叠提示,无优先级仲裁)</div>
           <div class="lr-help-step"><b>④ 同类多口:</b>一类货需要多个格口时,需逐口配置相同规则;后续规则变更(如产品清单更新)需对每个口重新配置</div>
-          <div class="lr-help-step"><b>⑤ 异常口:</b>不配规则,按异常代码路由;规则口全满一律转异常口</div>
+          <div class="lr-help-step"><b>⑤ 异常口:</b>可配规则(用「异常类型」验证字段区分不同异常);异常件未命中方案时落首个空闲异常口</div>
           <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道),值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
         </div>
         <div class="rw-modal-footer">
@@ -388,7 +393,6 @@ const CrPage = {
   },
   openRule(no) {
     const c = CR_CHUTES.find(x => x.no === no);
-    if (c.attr === '异常') { Helpers.toast('异常口按异常代码路由,无需配置规则'); return; }
     this.editChutes = [no];
     document.getElementById('crEditTitle').textContent = `配置格口规则 — ${no} 号口(${c.attr})`;
     document.getElementById('crInfoBar').innerHTML = crInfoBarHtml(c);
