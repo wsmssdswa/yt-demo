@@ -11,6 +11,15 @@
      RevokeScan                    撤销扫描
      /pda/CheckChargeOrg           校验当前网点是否计费网点(决定是否录尺寸重量)
    原型为纯静态演示,数据在下方 MAIN_ORDERS 预置,交互 1:1 模拟代码行为。
+
+   签入即到货(2026-08 新需求):有调拨任务的货,签入时自动登记到货(替代单独的到货扫描)
+     适用范围:全部调拨货,不区分计费/非计费网点 — 两类网点都是"人工做一个动作、系统补全另一件":
+       · 非计费网点:人工签入(采材积) + 系统自动到货
+       · 计费网点:货已在源计费仓签过,目的仓只到货不重签;若经 PDA 签入,同样自动带出到货
+     触发条件:① 调拨货(主单带中转单号 transitNo,对应 transfer_status=1)
+              ② 签入网点 == 调拨目的网点(destOrg;目的仓≠本仓时仅提示不拦截 — PDA 口径,
+                 过机签入按 Apollo 配置决定直接签入/落异常,原型只演 PDA)
+     防重复:该箱已有到货记录(arrived)则不再重复触发。
    ============================================ */
 
 /* ---- 演示数据:批次 + 主单 + 子单 ----
@@ -47,6 +56,33 @@ const OVERSIZE_LIMIT = 265;
 const OVERSIZE_NO = 'YT2621000070480964U001';
 // 无效单号(演示拒绝):非当前批次子单
 const INVALID_NO = 'YT2621000070480999U005';
+
+/* ---- 签入即到货演示常量 ----
+   CUR_ORG:当前操作网点(签入网点);调拨票主单带 transitNo/destOrg/destOrgName
+   PRE_ARRIVED_CHILD:预置"已有到货记录"的箱(模拟 OTS 已推送过到货 → 签入时防重复) */
+const CUR_ORG = 'GZ01';   // 当前网点 = 广州仓
+const PRE_ARRIVED_CHILD = 'YT2621000070481066U003';
+const DEMO_MAINS = [
+  {
+    // 调拨票①:目的仓=本仓(GZ01) → 非计费网点扫 U001/U002 触发自动到货;U003 演示防重复
+    WaybillNumber: 'YT2621000070481066', OrderPieces: 3, CheckInCount: 0, AbnormalCount: 0,
+    transitNo: 'ZX2608270156', destOrg: 'GZ01', destOrgName: '广州仓',
+    children: [
+      { ChildNumber: 'YT2621000070481066U001', IsCheckIn: false },
+      { ChildNumber: 'YT2621000070481066U002', IsCheckIn: false },
+      { ChildNumber: 'YT2621000070481066U003', IsCheckIn: false, arrived: true },   // 已有到货记录
+    ],
+  },
+  {
+    // 调拨票②:目的仓=上海仓(SH01)≠本仓 → 签入照常成功,仅提示不拦截、不自动到货
+    WaybillNumber: 'YT2621000070481088', OrderPieces: 1, CheckInCount: 0, AbnormalCount: 0,
+    transitNo: 'ZX2608270201', destOrg: 'SH01', destOrgName: '上海仓',
+    children: [
+      { ChildNumber: 'YT2621000070481088U001', IsCheckIn: false },
+    ],
+  },
+];
+MAIN_ORDERS.push(...DEMO_MAINS);
 
 /* ---- 页面骨架 ---- */
 document.getElementById('app').innerHTML = Layout.shell(`
@@ -152,6 +188,17 @@ document.getElementById('app').innerHTML = Layout.shell(`
     </div>
   </div>
 
+  <!-- 目的仓不一致确认弹层(对齐线上"到货操作"弹窗:让用户选择是否继续) -->
+  <div class="ci-mask hidden" id="ciMismatchMask">
+    <div class="ci-confirm">
+      <div class="ci-confirm-text" id="ciMismatchText"></div>
+      <div class="ci-confirm-btns">
+        <button class="ci-confirm-btn ci-confirm-btn--cancel" id="ciMismatchCancel">取消签入</button>
+        <button class="ci-confirm-btn ci-confirm-btn--ok" id="ciMismatchOk">确认签入</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 照片选择(拍照上传,隐藏 input) -->
   <input type="file" accept="image/*" capture="environment" class="hidden" id="ciPhotoInput" />
 `);
@@ -171,6 +218,7 @@ const revokeMask = $('ciRevokeMask'), revokeInput = $('ciRevokeInput');
 const abnMask    = $('ciAbnMask'), abnMain = $('ciAbnMain'), abnList = $('ciAbnList');
 const oversizePanel = $('ciOversizePanel'), oversizePhotos = $('ciOversizePhotos');
 const photoInput = $('ciPhotoInput');
+const mismatchMask = $('ciMismatchMask'), mismatchText = $('ciMismatchText');
 const finishBtn  = $('ciFinishBtn');
 
 /* ---- 状态 ---- */
@@ -190,6 +238,7 @@ let abnMainNo = '';           // 异常弹层当前主单号
 let photoTargetIdx = -1;      // 记录上"拍照"补图的目标记录索引
 let photoMode = '';           // 当前拍照目标:'oversize'=超尺寸拍照上传框 / 'record'=记录补图
 let oversizeImgs = [];        // 超尺寸箱拍照上传框中的照片(上传完才允许扫描签入,签入后清空)
+let pendingMismatchScan = ''; // 目的仓不一致弹窗暂存的待签子单号(确认后继续签入,取消则丢弃)
 
 /* ---- 工具:数值格式化(复刻代码 floatText3:3位小数/9999.999上限) ---- */
 function fmtNum(text) {
@@ -239,13 +288,19 @@ function renderRecords() {
     <div class="ci-record">
       <div class="ci-rec-top">
         <span class="ci-rec-no">${r.scanCode}</span>
-        <span class="ci-rec-tag">已扫描</span>
+        <span class="ci-rec-tags">
+          <span class="ci-rec-tag">已扫描</span>
+          ${r.arrivalDone ? '<span class="ci-rec-tag ci-rec-tag--arrival">已自动到货</span>' : ''}
+          ${r.orgMismatch ? '<span class="ci-rec-tag ci-rec-tag--warn">目的仓非本仓</span>' : ''}
+        </span>
       </div>
       ${isCharge ? `
       <div class="ci-rec-meta">
         <span>体积(CM)：${r.pkgVolume}</span>
         <span>重量(KG)：${r.pkgWeight}</span>
       </div>` : ''}
+      ${r.transitNo ? `
+      <div class="ci-rec-transfer${r.orgMismatch ? ' ci-rec-transfer--warn' : ''}">${r.orgMismatch ? '⚠ ' : ''}中转单:${r.transitNo} · 目的仓:${r.destOrgName}${r.arrivalDone ? ' · 已到货' : ''}</div>` : ''}
       ${r.childAbnormal ? `
       <div class="ci-rec-abn">
         <span class="ci-abn-icon">异</span>
@@ -289,6 +344,12 @@ function renderRecv() {
           <span class="ci-main-count" style="color:${done ? '#353535' : '#e64e58'}">${m.CheckInCount}/${m.OrderPieces}</span>
           <span class="ci-main-arrow">${expanded ? '▴' : '▾'}</span>
         </div>
+        ${m.transitNo ? `
+        <div class="ci-main-transit">
+          <span class="ci-transit-badge">调拨</span>
+          <span>中转单:${m.transitNo}</span>
+          <span>目的仓:${m.destOrgName}(${m.destOrg})</span>
+        </div>` : ''}
         ${m.AbnormalCount > 0 ? `
         <div class="ci-main-abn" data-abn="${m.WaybillNumber}">
           <span class="ci-abn-icon">异</span>
@@ -300,9 +361,9 @@ function renderRecv() {
             <div class="ci-child">
               <span class="ci-child-no">${c.ChildNumber}</span>
               ${c.IsCheckIn
-                ? `<span class="ci-child-kv">体积(CM)：${c.Length}*${c.Width}*${c.Height}　重量(KG)：${c.Weight}</span>
-                   <span class="ci-child-state ci-child-state--ok">已扫描</span>`
-                : `<span class="ci-child-state">未扫描</span>`}
+                ? `${c.Length ? `<span class="ci-child-kv">体积(CM)：${c.Length}*${c.Width}*${c.Height}　重量(KG)：${c.Weight}</span>` : ''}
+                   <span class="ci-child-state ci-child-state--ok">${c.arrived ? '已扫描·已到货' : '已扫描'}</span>`
+                : `<span class="ci-child-state">${c.arrived ? '已有到货·未签入' : '未扫描'}</span>`}
             </div>`).join('')}
         </div>` : ''}
       </div>`;
@@ -413,6 +474,15 @@ function onScan() {
     return;
   }
 
+  // 目的仓不一致:调拨货目的仓≠当前网点 → 弹窗让用户选择(对齐线上"到货操作"弹窗交互)
+  if (hit.main.transitNo && hit.main.destOrg !== CUR_ORG) {
+    pendingMismatchScan = code;
+    mismatchText.textContent = '中转单' + hit.main.transitNo + '目的仓' + hit.main.destOrgName
+      + ',与当前网点不一致,是否确认签入';
+    mismatchMask.classList.remove('hidden');
+    return;
+  }
+
   // 正常签入
   doSignIn(code, [], { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
 }
@@ -429,11 +499,31 @@ function doSignIn(code, imgs, dims) {
       ? { IssueKindName: child.abnormal, FontColor: '#e64e58' }
       : null,
     imgs: imgs,
+    // 签入即到货字段(渲染用)
+    transitNo: main.transitNo || '',
+    destOrgName: main.destOrgName || '',
+    arrivalDone: false,                                             // 本次签入触发了自动到货
+    orgMismatch: !!main.transitNo && main.destOrg !== CUR_ORG,      // 调拨目的仓≠本仓(仅提示)
   };
   scanRecords.unshift(rec);
   if (!child.IsCheckIn) { child.IsCheckIn = true; main.CheckInCount++; }
   child.Length = dims.L; child.Width = dims.W; child.Height = dims.H;
   child.Weight = dims.Wt;
+
+  // ===== 签入即到货判断(全部调拨货适用,不区分网点类型;目的仓==本仓且未arrived才触发) =====
+  let toastMsg = '签入成功:' + code;
+  if (rec.orgMismatch) {
+    // 目的仓≠本仓:弹窗确认后放行,签入照常,但不自动到货(货不是调拨到本仓的)
+    toastMsg = '签入成功(已确认错仓):' + code;
+  } else if (main.transitNo) {
+    if (child.arrived) {
+      toastMsg = '签入成功,该箱已有到货记录,未重复到货';
+    } else {
+      child.arrived = true;
+      rec.arrivalDone = true;
+      toastMsg = '签入成功,已自动到货';
+    }
+  }
 
   // 未锁定 → 清空尺寸重量,方便连续扫下一箱(复刻代码 setPackLength('') 等)
   if (!locked) {
@@ -446,7 +536,7 @@ function doSignIn(code, imgs, dims) {
   renderOversizePanel();
   syncOversizePanel();
   scanInput.focus();
-  Helpers.toast('签入成功:' + code);
+  Helpers.toast(toastMsg);
 }
 
 /* ---- 图片录入(超尺寸必填)交互:拍照为签入前置,上传完再扫描 ---- */
@@ -575,6 +665,7 @@ finishBtn.addEventListener('click', () => {
     m.CheckInCount = 0;
     m.children.forEach(c => {
       c.IsCheckIn = false;
+      c.arrived = undefined;
       c.Length = c.Width = c.Height = c.Weight = undefined;
     });
   });
@@ -582,11 +673,33 @@ finishBtn.addEventListener('click', () => {
   Helpers.toast('批次签入已完成');
 });
 
+/* ---- 目的仓不一致确认弹层:确认→继续签入(带错仓标记,不自动到货);取消→丢弃本次扫描 ---- */
+function doMismatchConfirm() {
+  const code = pendingMismatchScan;
+  closeMismatch();
+  if (!code) return;
+  // 计费模式下弹窗确认的签入同样要尺寸;非计费直接签(test-panel 演示已预填)
+  doSignIn(code, [], { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
+}
+function closeMismatch() {
+  pendingMismatchScan = '';
+  mismatchMask.classList.add('hidden');
+  scanInput.focus();
+}
+$('ciMismatchOk').addEventListener('click', doMismatchConfirm);
+$('ciMismatchCancel').addEventListener('click', () => {
+  closeMismatch();
+  scanInput.value = '';
+  Helpers.toast('已取消签入');
+});
+mismatchMask.addEventListener('click', e => { if (e.target === mismatchMask) { closeMismatch(); scanInput.value = ''; } });
+
 /* ---- 全局键盘:Escape 关弹层 ---- */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!revokeMask.classList.contains('hidden')) closeRevoke();
     if (!abnMask.classList.contains('hidden')) abnMask.classList.add('hidden');
+    if (!mismatchMask.classList.contains('hidden')) { closeMismatch(); scanInput.value = ''; }
   }
 });
 
@@ -611,16 +724,25 @@ testPanel.innerHTML = `
     </div>
   </div>
   <div class="test-panel-group">
-    <div class="test-panel-label">正常签入(尺寸先填好)</div>
+    <div class="test-panel-label">签入即到货(全部调拨货适用,不分网点类型)</div>
     <div class="test-panel-tags">
-      ${MAIN_ORDERS.flatMap(m => m.children.filter(c => !c.abnormal).map(c => c.ChildNumber))
+      <button class="test-panel-btn" data-demo="${DEMO_MAINS[0].children[0].ChildNumber}">一键:调拨货自动到货</button>
+      <span class="test-panel-tag" data-demo="YT2621000070481066U002">…066U002 自动到货</span>
+      <span class="test-panel-tag" data-demo="${PRE_ARRIVED_CHILD}">…066U003 已有到货(防重复)</span>
+      <span class="test-panel-tag" data-demo="YT2621000070481088U001">…088U001 目的仓≠本仓</span>
+    </div>
+  </div>
+  <div class="test-panel-group">
+    <div class="test-panel-label">正常签入(尺寸先填好;计费模式演示需录尺寸)</div>
+    <div class="test-panel-tags">
+      ${MAIN_ORDERS.flatMap(m => m.transitNo ? [] : m.children.filter(c => !c.abnormal).map(c => c.ChildNumber))
         .map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
     </div>
   </div>
   <div class="test-panel-group">
     <div class="test-panel-label">问题件(签入带异常标记)</div>
     <div class="test-panel-tags">
-      ${MAIN_ORDERS.flatMap(m => m.children.filter(c => c.abnormal).map(c => c.ChildNumber))
+      ${MAIN_ORDERS.flatMap(m => m.transitNo ? [] : m.children.filter(c => c.abnormal).map(c => c.ChildNumber))
         .map(no => `<span class="test-panel-tag" data-no="${no}">${no}</span>`).join('')}
     </div>
   </div>
@@ -639,7 +761,7 @@ testPanel.innerHTML = `
 `;
 document.body.appendChild(testPanel);
 
-// 演示面板点击:单号 → 填入并触发签入;模式切换 → 切换计费形态
+// 演示面板点击:单号 → 填入并触发签入;模式切换 → 切换计费形态;签入即到货 → 自动切非计费再扫
 testPanel.addEventListener('click', e => {
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) {
@@ -650,6 +772,18 @@ testPanel.addEventListener('click', e => {
     Helpers.toast(isCharge ? '已切换为计费网点(需录尺寸重量)' : '已切换为非计费网点(免录尺寸重量)');
     render();
     syncOversizePanel();
+    return;
+  }
+  // 签入即到货演示:不切网点模式(全部调拨货都适用);计费模式下自动预填尺寸保证签入成功
+  const demoBtn = e.target.closest('[data-demo]');
+  if (demoBtn) {
+    if (isCharge && (!lenInput.value || !widInput.value || !heiInput.value || !weightInput.value)) {
+      lenInput.value = '60'; widInput.value = '40'; heiInput.value = '35';
+      weightInput.value = '12.35';
+    }
+    syncOversizePanel();
+    scanInput.value = demoBtn.dataset.demo;
+    onScan();
     return;
   }
   if (e.target.closest('[data-reset]')) {
@@ -668,6 +802,7 @@ testPanel.addEventListener('click', e => {
       const is62 = m.WaybillNumber === 'YT2621000070480962';
       m.children.forEach((c, i) => {
         c.IsCheckIn = i < init;   // 前 init 箱预置已扫(64 主单无预置)
+        c.arrived = c.ChildNumber === PRE_ARRIVED_CHILD ? true : undefined;  // 恢复"已有到货记录"预置
         if (c.IsCheckIn) {
           c.Length = is62 ? '60' : '58';
           c.Width  = is62 ? '40' : '42';
