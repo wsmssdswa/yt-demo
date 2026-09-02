@@ -10,50 +10,97 @@
      CompeteBatchByBatchNo         完成批次签入
      RevokeScan                    撤销扫描
      /pda/CheckChargeOrg           校验当前网点是否计费网点(决定是否录尺寸重量)
-   原型为纯静态演示,数据在下方 MAIN_ORDERS 预置,交互 1:1 模拟代码行为。
+     原型为纯静态演示,数据在下方 MAIN_ORDERS 预置,交互 1:1 模拟代码行为。
+
+   推荐库位 × LNMS(2026-09 新需求):签入时经 LNMS 实时查「推荐调拨网点」,再以
+     签入网点+产品+调拨网点 匹配推荐库位规则(条件行留空=不限);命中多条按创建顺序取第一条的第一个库位。
+     LNMS 无返回/超时:静默降级——签入照常,带调拨网点条件的规则匹配不上,不限规则照常兜底。
 
    签入即到货(2026-08 新需求):有调拨任务的货,签入时自动登记到货(替代单独的到货扫描)
      适用范围:全部调拨货,不区分计费/非计费网点 — 两类网点都是"人工做一个动作、系统补全另一件":
        · 非计费网点:人工签入(采材积) + 系统自动到货
        · 计费网点:货已在源计费仓签过,目的仓只到货不重签;若经 PDA 签入,同样自动带出到货
      触发条件:① 调拨货(主单带中转单号 transitNo,对应 transfer_status=1)
-              ② 签入网点 == 调拨目的网点(destOrg;目的仓≠本仓时仅提示不拦截 — PDA 口径,
-                 过机签入按 Apollo 配置决定直接签入/落异常,原型只演 PDA)
-     防重复:该箱已有到货记录(arrived)则不再重复触发。
+              ② 该箱无到货记录(防重复)
+     错仓处理(2026-09-02 调整):目的仓≠本仓不弹窗、不拦截、不做配置 — 照常签入+自动到货,
+       系统按中转单聚合发飞书通知相关人员跟进(转运/改单/退回);到货网点=实际签入仓,
+       如实回传 OTS(整单到齐判断在 OTS 侧)。现场零打断,仅 toast 提示+记录橙标。
+
+   重量偏差强制拍照(2026-09 新需求):录入重量与预报重量相差 >30% 时,与超尺寸同一拍照框、
+     同一拦截口径(未拍照不允许签入,照片随签入绑定子单)。
+     预报重量生产取自 ord_child_order_info.predicted_weight;签入明细接口
+     GetCheckInDetailByOrderNo 当前未返回该字段 → 演示数据 PredictedWeight 为预置模拟,
+     真实实现需后端在签入链路补充预报重量。
+     与超尺寸差异:超尺寸录入尺寸当下即可判定(面板即时出现);重量偏差须等扫到子单号
+     才知道预报重量 → 扫码签入时判定,偏差超阈值先弹拍照框拦截,拍照后再扫放行。
    ============================================ */
 
 /* ---- 演示数据:批次 + 主单 + 子单 ----
    单号格式(AGENTS.md 规范):主单 = YT+16位数字;子单 = 主单+U+3位序号(U001起)
-   IsCheckIn=true 表示该箱已签入;abnormal 为问题件标题(生产由后端 ChildAbnormal 返回,'|' 分隔多行) */
+   IsCheckIn=true 表示该箱已签入;abnormal 为问题件标题(生产由后端 ChildAbnormal 返回,'|' 分隔多行)
+   productCode = 产品(LNMS 匹配推荐库位用);lnmsDestOrg = LNMS 返回的推荐调拨网点
+   (签入时实时查询:'' = LNMS 无返回/该票无推荐)
+   PredictedWeight = 预报重量(生产 ord_child_order_info.predicted_weight;签入明细接口当前未返回,
+   为新需求演示字段)。重量偏差演示件:62票U002,预报12.35kg,演示面板自动填25kg 触发 >30% */
 const BATCH_NO = 'B20260810001';
 const MAIN_ORDERS = [
   {
     WaybillNumber: 'YT2621000070480962', OrderPieces: 3, CheckInCount: 1, AbnormalCount: 0,
+    productCode: 'US-MATSU-REG', lnmsDestOrg: '上海仓',
     children: [
-      { ChildNumber: 'YT2621000070480962U001', IsCheckIn: true,  Length: '60',  Width: '40',  Height: '35',  Weight: '12.35' },
-      { ChildNumber: 'YT2621000070480962U002', IsCheckIn: false },
-      { ChildNumber: 'YT2621000070480962U003', IsCheckIn: false },
+      { ChildNumber: 'YT2621000070480962U001', IsCheckIn: true,  Length: '60',  Width: '40',  Height: '35',  Weight: '12.35', PredictedWeight: '12.35' },
+      { ChildNumber: 'YT2621000070480962U002', IsCheckIn: false, PredictedWeight: '12.35' },
+      { ChildNumber: 'YT2621000070480962U003', IsCheckIn: false, PredictedWeight: '12.35' },
     ],
   },
   {
     WaybillNumber: 'YT2621000070480963', OrderPieces: 3, CheckInCount: 1, AbnormalCount: 2,
+    productCode: 'US-MATSU-ELC', lnmsDestOrg: '',
     children: [
-      { ChildNumber: 'YT2621000070480963U001', IsCheckIn: true,  Length: '58',  Width: '42',  Height: '38',  Weight: '15.20' },
-      { ChildNumber: 'YT2621000070480963U002', IsCheckIn: false, abnormal: '申报不符|涉侵权' },
-      { ChildNumber: 'YT2621000070480963U003', IsCheckIn: false, abnormal: '与实物不符' },
+      { ChildNumber: 'YT2621000070480963U001', IsCheckIn: true,  Length: '58',  Width: '42',  Height: '38',  Weight: '15.20', PredictedWeight: '15.00' },
+      { ChildNumber: 'YT2621000070480963U002', IsCheckIn: false, abnormal: '申报不符|涉侵权', PredictedWeight: '15.00' },
+      { ChildNumber: 'YT2621000070480963U003', IsCheckIn: false, abnormal: '与实物不符', PredictedWeight: '15.00' },
     ],
   },
   {
     WaybillNumber: 'YT2621000070480964', OrderPieces: 1, CheckInCount: 0, AbnormalCount: 0,
+    productCode: 'US-HAIYUN-REG', lnmsDestOrg: '上海仓',
     children: [
-      { ChildNumber: 'YT2621000070480964U001', IsCheckIn: false },   // 超尺寸件:单边 300CM > 265
+      { ChildNumber: 'YT2621000070480964U001', IsCheckIn: false, PredictedWeight: '12.35' },   // 超尺寸件:单边 300CM > 265;该产品无启用规则 → 有调拨网点也暂无推荐库位
     ],
   },
 ];
+
+/* ---- 推荐库位规则(与 PC 配置页「调拨网点方案」演示数据同源,只列启用规则) ----
+   匹配口径 = 签入网点 + 条件行全部满足/满足其一(joiner,默认且;产品/调拨网点均为条件项,留空 = 不限);
+   LNMS 无返回时,带调拨网点条件的规则自然匹配不上,不限规则照常命中 */
+const LR_RULES = [
+  { og: 'GZ01', joiner: '且', conds: [{ item: 'product', values: ['US-MATSU-REG'] }, { item: 'destOrg', values: ['上海仓'] }],   locations: ['A-01-01', 'A-01-02'] },
+  { og: 'GZ01', joiner: '且', conds: [{ item: 'product', values: ['US-MATSU-REG'] }, { item: 'destOrg', values: ['洛杉矶仓'] }], locations: ['B-02-01'] },
+  { og: 'GZ01', joiner: '且', conds: [{ item: 'product', values: ['US-MATSU-ELC'] }],                                           locations: ['B-02-01', 'B-02-04'] },
+  // 海运普船(US-HAIYUN-REG)的规则在演示中为停用状态 → 不列入;64票签入时 LNMS 有推荐也无命中 → 暂无推荐库位
+];
+// LNMS 模拟开关:true = 无返回(签入照常,带调拨网点条件的规则匹配不上,不限规则照常兜底)
+let LNMS_DOWN = false;
+
+/* 签入时匹配推荐库位:命中多条按创建顺序取第一条的第一个库位(线上 order by id limit 1 的口径) */
+function matchRecommend(og, productCode, destOrg) {
+  const ctx = { product: productCode, destOrg };
+  const hit = r => {
+    const ok = r.conds.map(c => !!ctx[c.item] && c.values.includes(ctx[c.item]));
+    return r.joiner === '或' ? ok.some(Boolean) : ok.every(Boolean);
+  };
+  const rule = LR_RULES.find(r => r.og === og && hit(r));
+  return rule ? rule.locations[0] : '';
+}
 // 超尺寸阈值:任一边 > 265CM 必须上传照片(新需求,边界 [待确认:大于还是大于等于])
 const OVERSIZE_LIMIT = 265;
 // 超尺寸演示单号:点击演示时自动填 300*40*35 触发规则
 const OVERSIZE_NO = 'YT2621000070480964U001';
+// 重量偏差阈值:|录入-预报| / 预报 > 30% 必须上传照片(新需求,边界 [待确认:大于还是大于等于])
+const WEIGHT_DEV_PCT_LIMIT = 30;
+// 重量偏差演示单号(预报 12.35kg):点击演示时自动填重量 25kg(偏差 102%)触发规则
+const WEIGHT_DEV_NO = 'YT2621000070480962U002';
 // 无效单号(演示拒绝):非当前批次子单
 const INVALID_NO = 'YT2621000070480999U005';
 
@@ -108,15 +155,19 @@ document.getElementById('app').innerHTML = Layout.shell(`
           <span class="ci-lock-text">锁定</span>
         </label>
       </div>
-      <div class="ci-dim-label">重量(KG)：</div>
+      <div class="ci-dim-label ci-dim-label--row">
+        <span>重量(KG)：</span>
+        <!-- 预报重量参照:扫码框有该箱单号时显示(拦截后留框/手输单号未提交时可见),无则隐藏 -->
+        <span class="ci-pred-wt hidden" id="ciPredWt"></span>
+      </div>
       <div class="ci-dim-row">
         <input type="text" class="ci-weight-input" id="ciWeight" inputmode="decimal" placeholder="0.000" />
         <button class="ci-scale-btn" id="ciScaleBtn">连接电子称</button>
       </div>
 
-      <!-- 图片录入:长宽高/重量下方;尺寸任一边>265 时出现,必填(未拍照不允许扫描签入) -->
+      <!-- 图片录入:长宽高/重量下方;超尺寸 或 录入重量与预报相差>30% 时出现,必填(未拍照不允许扫描签入) -->
       <div class="ci-oversize-panel hidden" id="ciOversizePanel">
-        <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint">单边超${OVERSIZE_LIMIT}cm需要上传照片</span></div>
+        <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint" id="ciOversizeHint">单边超${OVERSIZE_LIMIT}cm需要上传照片</span></div>
         <div class="ci-oversize-photos" id="ciOversizePhotos"></div>
       </div>
     </div>
@@ -188,16 +239,7 @@ document.getElementById('app').innerHTML = Layout.shell(`
     </div>
   </div>
 
-  <!-- 目的仓不一致确认弹层(对齐线上"到货操作"弹窗:让用户选择是否继续) -->
-  <div class="ci-mask hidden" id="ciMismatchMask">
-    <div class="ci-confirm">
-      <div class="ci-confirm-text" id="ciMismatchText"></div>
-      <div class="ci-confirm-btns">
-        <button class="ci-confirm-btn ci-confirm-btn--cancel" id="ciMismatchCancel">取消签入</button>
-        <button class="ci-confirm-btn ci-confirm-btn--ok" id="ciMismatchOk">确认签入</button>
-      </div>
-    </div>
-  </div>
+  <!-- 目的仓不一致不再弹窗(2026-09-02:现场零打断,签入照常+自动到货,系统飞书通知跟进) -->
 
   <!-- 照片选择(拍照上传,隐藏 input) -->
   <input type="file" accept="image/*" capture="environment" class="hidden" id="ciPhotoInput" />
@@ -211,14 +253,14 @@ const modeTag    = $('ciModeTag'), modeText = $('ciModeText');
 const dimArea    = $('ciDimArea');
 const lenInput   = $('ciLen'), widInput = $('ciWid'), heiInput = $('ciHei');
 const weightInput= $('ciWeight'), lockChk = $('ciLock'), scaleBtn = $('ciScaleBtn');
+const predWtEl   = $('ciPredWt');
 const scanInput  = $('ciScanInput');
 const recCount   = $('ciRecCount');
 const emptyState = $('ciEmpty'), recordsEl = $('ciRecords');
 const revokeMask = $('ciRevokeMask'), revokeInput = $('ciRevokeInput');
 const abnMask    = $('ciAbnMask'), abnMain = $('ciAbnMain'), abnList = $('ciAbnList');
-const oversizePanel = $('ciOversizePanel'), oversizePhotos = $('ciOversizePhotos');
+const oversizePanel = $('ciOversizePanel'), oversizeHint = $('ciOversizeHint'), oversizePhotos = $('ciOversizePhotos');
 const photoInput = $('ciPhotoInput');
-const mismatchMask = $('ciMismatchMask'), mismatchText = $('ciMismatchText');
 const finishBtn  = $('ciFinishBtn');
 
 /* ---- 状态 ---- */
@@ -227,18 +269,17 @@ let locked = false;           // 尺寸锁定(锁定时长宽高禁用)
 let blueStatus = 3;           // 电子称:1=连接中 2=已连接 3=未连接
 let batchNumber = BATCH_NO;   // 当前批次号(首次扫描成功后由后端返回;原型预置演示批次)
 let currentTab = 0;           // 0=扫描详情 1=接收明细
-// 已签入记录 {scanCode, pkgVolume, pkgWeight, childAbnormal, imgs[]}
+// 已签入记录 {scanCode, pkgVolume, pkgWeight, childAbnormal, imgs[], recommend}
 // 初始预置与 MAIN_ORDERS 预置已扫(62U001/63U001)一致,保证扫描详情/接收明细/统计联动
 let scanRecords = [
-  { scanCode: 'YT2621000070480962U001', pkgVolume: '60*40*35', pkgWeight: '12.35', childAbnormal: null, imgs: [] },
-  { scanCode: 'YT2621000070480963U001', pkgVolume: '58*42*38', pkgWeight: '15.20', childAbnormal: null, imgs: [] },
+  { scanCode: 'YT2621000070480962U001', pkgVolume: '60*40*35', pkgWeight: '12.35', childAbnormal: null, imgs: [], predWt: '12.35', destOrgTip: '上海仓', recommend: 'A-01-01' },
+  { scanCode: 'YT2621000070480963U001', pkgVolume: '58*42*38', pkgWeight: '15.20', childAbnormal: null, imgs: [], predWt: '15.00', destOrgTip: '', recommend: 'B-02-01' },
 ];
 let expandMain = '';          // 接收明细当前展开的主单号
 let abnMainNo = '';           // 异常弹层当前主单号
 let photoTargetIdx = -1;      // 记录上"拍照"补图的目标记录索引
-let photoMode = '';           // 当前拍照目标:'oversize'=超尺寸拍照上传框 / 'record'=记录补图
+let photoMode = '';           // 当前拍照目标:'oversize'=强制拍照(超尺寸/重量偏差)上传框 / 'record'=记录补图
 let oversizeImgs = [];        // 超尺寸箱拍照上传框中的照片(上传完才允许扫描签入,签入后清空)
-let pendingMismatchScan = ''; // 目的仓不一致弹窗暂存的待签子单号(确认后继续签入,取消则丢弃)
 
 /* ---- 工具:数值格式化(复刻代码 floatText3:3位小数/9999.999上限) ---- */
 function fmtNum(text) {
@@ -261,7 +302,7 @@ function sortDims(a, b, c) {
   return { max: arr[2], middle: arr[1], min: arr[0] };
 }
 
-/* 图片录入(超尺寸必填):拍照框样式与扫描记录一致(虚线方框,上传显示缩略图,最多5张) */
+/* 图片录入(强制拍照必填):拍照框样式与扫描记录一致(虚线方框,上传显示缩略图,最多5张) */
 function renderOversizePanel() {
   oversizePhotos.innerHTML = oversizeImgs.map((src, j) => `
     <span class="ci-photo" style="background-image:url('${src}')">
@@ -269,12 +310,32 @@ function renderOversizePanel() {
     </span>`).join('')
     + (oversizeImgs.length < 5 ? `<button class="ci-photo-add">拍照</button>` : '');
 }
+/* 录入区预报重量参照(重量行右侧灰字):以扫码框当前子单为准,无单号/无预报则隐藏 */
+function renderPredWt() {
+  const hit = findChild(scanInput.value);
+  const pred = hit && hit.child.PredictedWeight ? hit.child.PredictedWeight : '';
+  predWtEl.textContent = pred ? `预报 ${pred}kg` : '';
+  predWtEl.classList.toggle('hidden', !pred);
+}
+
+/* 强制拍照面板(超尺寸 / 录入重量与预报重量相差>30%):显示与否按当前输入判定。
+   超尺寸录尺寸当下即可判;重量偏差需目标子单(预报重量跟箱走)→ 扫描签入时才补判
+   (扫码框有单号或拦截后,面板随即出现)。 */
 function syncOversizePanel() {
   const { max } = sortDims(lenInput.value || '0', widInput.value || '0', heiInput.value || '0');
-  const active = isCharge && max > OVERSIZE_LIMIT;
+  const isOversize = isCharge && max > OVERSIZE_LIMIT;
+  const devPct = weightDevPct(scanInput.value);
+  const isWeightDev = isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT;
+  const active = isOversize || isWeightDev;
   oversizePanel.classList.toggle('hidden', !active);
+  // 提示文案:命中哪条规则显示哪条(同时命中并列)
+  const reasons = [];
+  if (isOversize) reasons.push(`单边超${OVERSIZE_LIMIT}cm`);
+  if (isWeightDev) reasons.push(`与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%`);
+  oversizeHint.textContent = reasons.length ? reasons.join('、') + '需要上传照片' : '';
   renderOversizePanel();
   if (!active) { oversizeImgs = []; }
+  renderPredWt();   // 扫码框单号变化时同步刷新录入区预报参照
 }
 
 /* ---- 渲染:扫描详情 ---- */
@@ -289,18 +350,19 @@ function renderRecords() {
       <div class="ci-rec-top">
         <span class="ci-rec-no">${r.scanCode}</span>
         <span class="ci-rec-tags">
-          <span class="ci-rec-tag">已扫描</span>
-          ${r.arrivalDone ? '<span class="ci-rec-tag ci-rec-tag--arrival">已自动到货</span>' : ''}
-          ${r.orgMismatch ? '<span class="ci-rec-tag ci-rec-tag--warn">目的仓非本仓</span>' : ''}
+          ${r.arrivalDone ? `<span class="ci-rec-tag ${r.orgMismatch ? 'ci-rec-tag--mismatch' : 'ci-rec-tag--arrival'}">${r.orgMismatch ? '错仓·已到货' : '已自动到货'}</span>` : ''}
         </span>
       </div>
       ${isCharge ? `
       <div class="ci-rec-meta">
         <span>体积(CM)：${r.pkgVolume}</span>
         <span>重量(KG)：${r.pkgWeight}</span>
+        ${r.predWt ? `<span>预报(KG)：${r.predWt}</span>` : ''}
       </div>` : ''}
+      <div class="ci-rec-recommend${r.destOrgTip ? '' : ' ci-rec-recommend--hide'}">${r.destOrgTip ? `调拨网点：<b>${r.destOrgTip}</b>` : ''}</div>
+      <div class="ci-rec-recommend${r.recommend ? '' : ' ci-rec-recommend--none'}">推荐库位：${r.recommend ? `<b>${r.recommend}</b>` : '暂无推荐库位'}</div>
       ${r.transitNo ? `
-      <div class="ci-rec-transfer${r.orgMismatch ? ' ci-rec-transfer--warn' : ''}">${r.orgMismatch ? '⚠ ' : ''}中转单:${r.transitNo} · 目的仓:${r.destOrgName}${r.arrivalDone ? ' · 已到货' : ''}</div>` : ''}
+      <div class="ci-rec-transfer">中转单:${r.transitNo} · <span${r.orgMismatch ? ' class="ci-rec-dest--warn"' : ''}>目的仓:${r.destOrgName}</span></div>` : ''}
       ${r.childAbnormal ? `
       <div class="ci-rec-abn">
         <span class="ci-abn-icon">异</span>
@@ -424,6 +486,7 @@ scaleBtn.addEventListener('click', () => {
   }, 1500);
 });
 setScaleBtn();
+syncOversizePanel();   // 首渲染:按当前输入落定拍照框显隐与提示文案
 
 /* ---- 主单映射:子单号 → 主单号(子单 = 主单 + U + 3位序号) ---- */
 function findChild(subNo) {
@@ -432,6 +495,16 @@ function findChild(subNo) {
   if (!main) return null;
   const child = main.children.find(c => c.ChildNumber === subNo);
   return child ? { main, child } : null;
+}
+
+/* 录入重量 vs 预报重量偏差百分比(相对预报;预报缺失/为0 → null,不触发拍照) */
+function weightDevPct(code) {
+  const hit = findChild(code || '');
+  if (!hit || !hit.child.PredictedWeight) return null;
+  const pred = parseFloat(hit.child.PredictedWeight);
+  const wt = parseFloat(weightInput.value);
+  if (!(pred > 0) || !(wt > 0)) return null;
+  return Math.abs(wt - pred) / pred * 100;
 }
 
 /* ---- 签入扫描(复刻 onScan:先校验尺寸重量 → FBADeviceCheckInPDA → 入列表) ---- */
@@ -461,12 +534,18 @@ function onScan() {
     return;
   }
 
-  // 超尺寸强制拍照:录尺寸时拍照上传框已出现(尺寸任一边>265 即触发)。
+  // 强制拍照:超尺寸(任一边>265,录尺寸时拍照框已出现)或 录入重量与预报重量相差>30%
+  // (预报重量跟箱走,扫码才知道目标子单 → 扫描时补判,拦截后拍照框随即出现)。
   // 未上传照片 → 拦截签入(签入尚未发生,符合代码时序);已上传 → 照片随签入绑定。
   const { max } = sortDims(lenInput.value || '0', widInput.value || '0', heiInput.value || '0');
-  if (isCharge && max > OVERSIZE_LIMIT) {
+  const isOversize = isCharge && max > OVERSIZE_LIMIT;
+  const devPct = weightDevPct(code);
+  const isWeightDev = isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT;
+  if (isOversize || isWeightDev) {
     if (oversizeImgs.length === 0) {
-      Helpers.toast('单边超' + OVERSIZE_LIMIT + 'CM,请先在拍照框上传照片,再扫描签入');
+      Helpers.toast(isOversize
+        ? '单边超' + OVERSIZE_LIMIT + 'CM,请先在拍照框上传照片,再扫描签入'
+        : '录入重量与预报重量相差超' + WEIGHT_DEV_PCT_LIMIT + '%,请先在拍照框上传照片,再扫描签入');
       syncOversizePanel();
       return;
     }
@@ -474,16 +553,7 @@ function onScan() {
     return;
   }
 
-  // 目的仓不一致:调拨货目的仓≠当前网点 → 弹窗让用户选择(对齐线上"到货操作"弹窗交互)
-  if (hit.main.transitNo && hit.main.destOrg !== CUR_ORG) {
-    pendingMismatchScan = code;
-    mismatchText.textContent = '中转单' + hit.main.transitNo + '目的仓' + hit.main.destOrgName
-      + ',与当前网点不一致,是否确认签入';
-    mismatchMask.classList.remove('hidden');
-    return;
-  }
-
-  // 正常签入
+  // 正常签入(错仓调拨货同样走这里:照常签入+自动到货,系统另发飞书通知)
   doSignIn(code, [], { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
 }
 
@@ -491,6 +561,8 @@ function onScan() {
 function doSignIn(code, imgs, dims) {
   const { main, child } = findChild(code);
   const { max, middle, min } = sortDims(dims.L, dims.W, dims.H);
+  /* LNMS 推荐调拨网点:签入时实时查询(无返回/超时 = 空,静默不阻塞) */
+  const destOrgTip = LNMS_DOWN ? '' : (main.lnmsDestOrg || '');
   const rec = {
     scanCode: code,
     pkgVolume: `${max}*${middle}*${min}`,
@@ -499,6 +571,9 @@ function doSignIn(code, imgs, dims) {
       ? { IssueKindName: child.abnormal, FontColor: '#e64e58' }
       : null,
     imgs: imgs,
+    predWt: child.PredictedWeight || '',                    // 预报重量(留档对照;无预报的子单留空不显示)
+    destOrgTip,                                                  // LNMS 推荐调拨网点
+    recommend: matchRecommend(CUR_ORG, main.productCode, destOrgTip),   // 推荐库位(签入网点+产品+调拨网点匹配)
     // 签入即到货字段(渲染用)
     transitNo: main.transitNo || '',
     destOrgName: main.destOrgName || '',
@@ -510,18 +585,17 @@ function doSignIn(code, imgs, dims) {
   child.Length = dims.L; child.Width = dims.W; child.Height = dims.H;
   child.Weight = dims.Wt;
 
-  // ===== 签入即到货判断(全部调拨货适用,不区分网点类型;目的仓==本仓且未arrived才触发) =====
+  // ===== 签入即到货判断(全部调拨货适用,不区分网点类型;错仓照常到货,另发飞书通知) =====
   let toastMsg = '签入成功:' + code;
-  if (rec.orgMismatch) {
-    // 目的仓≠本仓:弹窗确认后放行,签入照常,但不自动到货(货不是调拨到本仓的)
-    toastMsg = '签入成功(已确认错仓):' + code;
-  } else if (main.transitNo) {
+  if (main.transitNo) {
     if (child.arrived) {
       toastMsg = '签入成功,该箱已有到货记录,未重复到货';
     } else {
       child.arrived = true;
       rec.arrivalDone = true;
-      toastMsg = '签入成功,已自动到货';
+      toastMsg = rec.orgMismatch
+        ? '签入成功,已自动到货(目的仓非本仓,已通知跟进)'
+        : '签入成功,已自动到货';
     }
   }
 
@@ -531,7 +605,8 @@ function doSignIn(code, imgs, dims) {
   }
   scanInput.value = '';
   render();
-  // 超尺寸箱签入后清空拍照框(每箱一照;锁尺寸连续扫时下一箱仍需拍照)
+  // 强制拍照箱签入后清空拍照框(每箱一照);面板随后按下一箱输入重新判定:
+  // 锁尺寸连续扫超尺寸箱 → 面板保留仍需拍照;重量偏差跟单号走,下一箱偏差不超则不再拦截
   oversizeImgs = [];
   renderOversizePanel();
   syncOversizePanel();
@@ -539,7 +614,7 @@ function doSignIn(code, imgs, dims) {
   Helpers.toast(toastMsg);
 }
 
-/* ---- 图片录入(超尺寸必填)交互:拍照为签入前置,上传完再扫描 ---- */
+/* ---- 图片录入(强制拍照必填)交互:拍照为签入前置,上传完再扫描 ---- */
 oversizePhotos.addEventListener('click', e => {
   const add = e.target.closest('.ci-photo-add');
   if (add) { photoMode = 'oversize'; photoInput.click(); return; }
@@ -550,7 +625,8 @@ oversizePhotos.addEventListener('click', e => {
   }
 });
 
-/* ---- 扫描输入:回车提交(扫码枪/实体键盘) ---- */
+/* ---- 扫描输入:回车提交(扫码枪/实体键盘);手输单号时同步刷新预报重量参照 ---- */
+scanInput.addEventListener('input', renderPredWt);
 scanInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); onScan(); }
 });
@@ -638,7 +714,7 @@ photoInput.addEventListener('change', () => {
   if (!photoInput.files || !photoInput.files[0]) { photoInput.value = ''; return; }
   const url = URL.createObjectURL(photoInput.files[0]);
   if (photoMode === 'oversize') {
-    // 超尺寸拍照上传框:照片先上传暂存,扫描签入时绑定到子单
+    // 强制拍照框(超尺寸/重量偏差):照片先上传暂存,扫描签入时绑定到子单
     oversizeImgs.push(url);
     renderOversizePanel();
     Helpers.toast('照片已上传,可扫描子单号签入');
@@ -673,33 +749,11 @@ finishBtn.addEventListener('click', () => {
   Helpers.toast('批次签入已完成');
 });
 
-/* ---- 目的仓不一致确认弹层:确认→继续签入(带错仓标记,不自动到货);取消→丢弃本次扫描 ---- */
-function doMismatchConfirm() {
-  const code = pendingMismatchScan;
-  closeMismatch();
-  if (!code) return;
-  // 计费模式下弹窗确认的签入同样要尺寸;非计费直接签(test-panel 演示已预填)
-  doSignIn(code, [], { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
-}
-function closeMismatch() {
-  pendingMismatchScan = '';
-  mismatchMask.classList.add('hidden');
-  scanInput.focus();
-}
-$('ciMismatchOk').addEventListener('click', doMismatchConfirm);
-$('ciMismatchCancel').addEventListener('click', () => {
-  closeMismatch();
-  scanInput.value = '';
-  Helpers.toast('已取消签入');
-});
-mismatchMask.addEventListener('click', e => { if (e.target === mismatchMask) { closeMismatch(); scanInput.value = ''; } });
-
 /* ---- 全局键盘:Escape 关弹层 ---- */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!revokeMask.classList.contains('hidden')) closeRevoke();
     if (!abnMask.classList.contains('hidden')) abnMask.classList.add('hidden');
-    if (!mismatchMask.classList.contains('hidden')) { closeMismatch(); scanInput.value = ''; }
   }
 });
 
@@ -724,12 +778,19 @@ testPanel.innerHTML = `
     </div>
   </div>
   <div class="test-panel-group">
+    <div class="test-panel-label">LNMS 推荐调拨网点(签入时实时查询)</div>
+    <div class="test-panel-tags">
+      <button class="test-panel-btn" data-lnms="1">正常返回</button>
+      <button class="test-panel-btn" data-lnms="0">无返回(降级)</button>
+    </div>
+  </div>
+  <div class="test-panel-group">
     <div class="test-panel-label">签入即到货(全部调拨货适用,不分网点类型)</div>
     <div class="test-panel-tags">
       <button class="test-panel-btn" data-demo="${DEMO_MAINS[0].children[0].ChildNumber}">一键:调拨货自动到货</button>
       <span class="test-panel-tag" data-demo="YT2621000070481066U002">…066U002 自动到货</span>
       <span class="test-panel-tag" data-demo="${PRE_ARRIVED_CHILD}">…066U003 已有到货(防重复)</span>
-      <span class="test-panel-tag" data-demo="YT2621000070481088U001">…088U001 目的仓≠本仓</span>
+      <span class="test-panel-tag" data-demo="YT2621000070481088U001">…088U001 错仓·飞书通知</span>
     </div>
   </div>
   <div class="test-panel-group">
@@ -753,6 +814,12 @@ testPanel.innerHTML = `
     </div>
   </div>
   <div class="test-panel-group">
+    <div class="test-panel-label">重量偏差件(录入与预报相差&gt;${WEIGHT_DEV_PCT_LIMIT}%需先拍照)</div>
+    <div class="test-panel-tags">
+      <span class="test-panel-tag" data-no="${WEIGHT_DEV_NO}">${WEIGHT_DEV_NO}(预报12.35kg,自动填25kg)</span>
+    </div>
+  </div>
+  <div class="test-panel-group">
     <div class="test-panel-label">无效单号(拒绝)</div>
     <div class="test-panel-tags">
       <span class="test-panel-tag" data-no="${INVALID_NO}">${INVALID_NO}</span>
@@ -763,6 +830,13 @@ document.body.appendChild(testPanel);
 
 // 演示面板点击:单号 → 填入并触发签入;模式切换 → 切换计费形态;签入即到货 → 自动切非计费再扫
 testPanel.addEventListener('click', e => {
+  // LNMS 模拟切换:无返回时,62票(规则带调拨网点条件)将显「暂无推荐库位」;63票(不限规则)照常兜底
+  const lnmsBtn = e.target.closest('[data-lnms]');
+  if (lnmsBtn) {
+    LNMS_DOWN = lnmsBtn.dataset.lnms === '0';
+    Helpers.toast(LNMS_DOWN ? '已模拟 LNMS 无返回:带调拨网点条件的规则匹配不上,不限规则照常' : '已模拟 LNMS 正常返回');
+    return;
+  }
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) {
     isCharge = modeBtn.dataset.mode === '1';
@@ -788,10 +862,18 @@ testPanel.addEventListener('click', e => {
   }
   if (e.target.closest('[data-reset]')) {
     batchNumber = BATCH_NO;
-    scanRecords = [
-      { scanCode: 'YT2621000070480962U001', pkgVolume: '60*40*35', pkgWeight: '12.35', childAbnormal: null, imgs: [] },
-      { scanCode: 'YT2621000070480963U001', pkgVolume: '58*42*38', pkgWeight: '15.20', childAbnormal: null, imgs: [] },
+    /* 预置已扫记录的推荐库位按当前 LNMS 状态实时计算,保持与签入计算口径一致 */
+    const preScan = [
+      { code: 'YT2621000070480962U001', vol: '60*40*35', wt: '12.35', main: 'YT2621000070480962' },
+      { code: 'YT2621000070480963U001', vol: '58*42*38', wt: '15.20', main: 'YT2621000070480963' },
     ];
+    scanRecords = preScan.map(p => {
+      const m = MAIN_ORDERS.find(x => x.WaybillNumber === p.main);
+      const tip = LNMS_DOWN ? '' : (m.lnmsDestOrg || '');
+      return { scanCode: p.code, pkgVolume: p.vol, pkgWeight: p.wt, childAbnormal: null, imgs: [],
+        predWt: m.children.find(c => c.ChildNumber === p.code).PredictedWeight || '',   // 与子单预置同源,防两处写死漂移
+        destOrgTip: tip, recommend: matchRecommend(CUR_ORG, m.productCode, tip) };
+    });
     expandMain = '';
     lenInput.value = widInput.value = heiInput.value = weightInput.value = '';
     oversizeImgs = [];
@@ -817,12 +899,13 @@ testPanel.addEventListener('click', e => {
   }
   const tag = e.target.closest('.test-panel-tag');
   if (!tag) return;
-  // 计费模式下自动预填一组尺寸,保证点击即成功(演示便利)
-  // 超尺寸件填 300*40*35(>265 触发拍照框);其余填 60*40*35
+  // 计费模式下自动预填一组尺寸,保证点击即成功(演示便利;输入框已有值则不覆盖,便于拦截后重扫放行)
+  // 超尺寸件填 300*40*35(>265 触发拍照框);重量偏差件填 60*40*35+25kg(与预报12.35相差102% 触发拍照框);其余填 60*40*35 + 12.35
   if (isCharge && (!lenInput.value || !widInput.value || !heiInput.value || !weightInput.value)) {
-    if (tag.dataset.no === OVERSIZE_NO) { lenInput.value = '300'; widInput.value = '40'; heiInput.value = '35'; }
-    else { lenInput.value = '60'; widInput.value = '40'; heiInput.value = '35'; }
-    weightInput.value = '12.35';
+    lenInput.value = tag.dataset.no === OVERSIZE_NO ? '300' : '60';
+    widInput.value = '40';
+    heiInput.value = '35';
+    weightInput.value = tag.dataset.no === WEIGHT_DEV_NO ? '25.000' : '12.35';
   }
   syncOversizePanel();
   scanInput.value = tag.dataset.no;

@@ -1973,6 +1973,16 @@
   color: #a5a5a5;
 }
 
+/* 推荐库位:签入时匹配推荐库位规则(签入网点+产品+LNMS调拨网点)带出;有值青色加粗,无匹配显「暂无推荐库位」 */
+.ci-rec-recommend {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #a5a5a5;
+}
+.ci-rec-recommend b { color: #008081; font-weight: 700; margin-left: 2px; }
+.ci-rec-recommend--none { color: #a5a5a5; }
+.ci-rec-recommend--hide { display: none; }
+
 /* 问题件标记 */
 .ci-rec-abn {
   display: flex;
@@ -2263,21 +2273,32 @@
   justify-content: center;
 }
 
+/* === PDA签入页·预报重量显示(check-in predicted weight) ===
+   录入区重量行右侧灰字=扫码框当前子单的预报重量(参照系,无单号隐藏);
+   扫描记录 meta 行「预报(KG)」=签入时留档对照,与录入区同一来源 */
+.ci-dim-label--row { display: flex; align-items: baseline; justify-content: space-between; }
+.ci-pred-wt {
+  font-size: 11px;
+  font-weight: 400;
+  color: #a5a5a5;
+}
+.ci-rec-meta { gap: 10px; }   /* 三个字段(体积/重量/预报)同行更紧,防挤溢出 */
+
 /* === PDA签入页·签入即到货扩展(check-in arrival) ===
    已自动到货=主色青标签;目的仓非本仓=橙警示;调拨信息行灰字,徽标紫与异常红/OK青区分 */
 .ci-rec-tags {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 .ci-rec-tag--arrival {
   color: #fff;
   background: #00A99D;
 }
-.ci-rec-tag--warn {
-  color: #b26a00;
-  background: #fff3e0;
+.ci-rec-tag--mismatch {
+  color: #fff;
+  background: #e69b00;
 }
 .ci-rec-transfer {
   margin-top: 6px;
@@ -2285,7 +2306,11 @@
   line-height: 1.5;
   color: #8a8a8a;
 }
-.ci-rec-transfer--warn { color: #e69b00; }
+/* 错仓件:目的仓名称橙色加粗醒目 */
+.ci-rec-dest--warn {
+  color: #e69b00;
+  font-weight: 600;
+}
 /* 接收明细:调拨主单信息行(紧跟主单头部,-6px 收紧间距) */
 .ci-main-transit {
   display: flex;
@@ -2306,34 +2331,6 @@
   border-radius: 999px;
   flex-shrink: 0;
 }
-
-/* === PDA签入页·目的仓不一致确认弹窗(对齐线上"到货操作"弹窗:文案居中+双文字按钮) === */
-.ci-confirm {
-  width: 320px;
-  background: #fff;
-  border-radius: 14px;
-  padding: 26px 22px 10px;
-  text-align: center;
-}
-.ci-confirm-text {
-  font-size: 17px;
-  color: #333;
-  line-height: 1.6;
-}
-.ci-confirm-btns {
-  display: flex;
-  margin-top: 20px;
-}
-.ci-confirm-btn {
-  flex: 1;
-  height: 44px;
-  font-size: 16px;
-  font-weight: 600;
-  background: none;
-}
-.ci-confirm-btn:active { opacity: .6; }
-.ci-confirm-btn--cancel { color: #666; }
-.ci-confirm-btn--ok { color: #00A99D; }
 
 /* ============================================================
    箱标补打(label-reprint) — 对齐线上 PDA LabelReprint 页

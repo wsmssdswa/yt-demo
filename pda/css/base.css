@@ -162,8 +162,13 @@ input { font-family: inherit; }
 .test-panel {
   position: fixed;
   top: 40px;
-  left: calc(50% + 205px);        /* 设备宽390/2 + 边框/留白 ≈ 205,贴在设备右侧 */
-  width: 220px;
+  right: 24px;                      /* 右缘对齐留白,面板加宽时向左伸展,不挤压设备 */
+  width: max(200px, min(360px, calc(50vw - 246px)));
+  /* 宽度:宽屏放大到 360px,让长单号标签一行放下、分组少换行;视口变窄时随
+     calc(50vw - 246px) 收缩,保证面板左缘始终不遮住居中的设备框(390px 宽);
+     极窄(<841px 视口)整体隐藏见下方媒体查询 */
+  max-height: calc(100vh - 64px);   /* 分组多、内容超高时面板内滚动,底部演示入口可达 */
+  overflow-y: auto;
   background: #fff;
   border-radius: 10px;
   padding: 14px;
