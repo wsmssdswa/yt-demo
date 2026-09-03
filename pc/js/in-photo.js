@@ -418,7 +418,7 @@ const PhotoPage = {
       <div class="exp-fail-box">
         <div class="exp-fail-box--title">⚠ ${failed.length} 张下载失败(zip 内为成功的 ${ok} 张)</div>
         <div class="exp-fail-box--list">
-          ${failed.map(f => `<div class="exp-fail-box--item">${Helpers.esc(f.name)} <span class="exp-fail-box--reason">下载超时</span></div>`).join('')}
+          ${failed.map(f => `<div class="exp-fail-box--item">${Helpers.esc(f.name)}</div>`).join('')}
         </div>
         <button class="btn" style="margin-top:6px;" onclick="PhotoPage.copyFailNumbers()">📋 复制失败子单号</button>
       </div>` : '';

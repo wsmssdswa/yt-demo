@@ -773,7 +773,6 @@
 .exp-fail-box--title { font-size: 12px; color: #CF1322; font-weight: bold; margin-bottom: 6px; }
 .exp-fail-box--list { max-height: 110px; overflow-y: auto; background: #fff; border: 1px solid #FFCCC7; border-radius: 3px; padding: 4px 8px; }
 .exp-fail-box--item { font-family: Consolas, monospace; font-size: 12px; color: #444; line-height: 1.9; }
-.exp-fail-box--reason { color: #CF1322; margin-left: 6px; }
 
 /* === 库位推荐规则配置页(wh-loc-rule · 线上还原版) === */
 .col--check { text-align: center; }
