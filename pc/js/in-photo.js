@@ -254,7 +254,7 @@ function exportModal(plan) {
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="PhotoPage.closeExport()">取消</button>
-          <button class="btn btn--primary" onclick="PhotoPage.startExport()" ${(n === 0 || overLimit) ? 'disabled' : ''}>开始导出</button>
+          <button class="btn btn--primary" onclick="PhotoPage.startExport()" ${plan.files.length === 0 ? 'disabled' : ''}>开始导出</button>
         </div>
       </div>
     </div>
