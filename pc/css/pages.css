@@ -772,32 +772,15 @@
 .photo-demo--title { font-size: 12px; font-weight: bold; color: #333; }
 .photo-demo--panel .btn { width: 100%; text-align: left; font-size: 12px; }
 .photo-demo--tip { font-size: 11px; color: #999; line-height: 1.5; }
-
-/* === 拍照记录上传页:后台导出浮条 === */
-.exp-float {
-  position: fixed; right: 18px; bottom: 88px; z-index: 901;
-  display: flex; align-items: center; gap: 8px;
-  background: #fff; border: 1px solid #B7DEDC; border-radius: 18px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.15); padding: 8px 14px;
-  width: 250px; cursor: pointer;
-}
-.exp-float:hover { border-color: #00A99D; }
-.exp-float--ico { font-size: 16px; color: #00706A; }
-.exp-float--body { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.exp-float--txt { font-size: 12px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.exp-float--bar { display: block; height: 4px; background: #E6F7F5; border-radius: 2px; overflow: hidden; }
-.exp-float--bar span { display: block; height: 100%; background: #00A99D; transition: width .18s linear; }
-.exp-float--done { border-color: #B7EB8F; background: #F6FFED; }
-
 /* === 拍照记录上传页:部分失败状态与失败清单 === */
-.exp-float--warn { border-color: #FFD591; background: #FFF7E6; }
+
 .exp-fail-box { margin-top: 10px; border: 1px solid #FFA39E; background: #FFF1F0; border-radius: 4px; padding: 8px 12px; text-align: left; }
 .exp-fail-box--title { font-size: 12px; color: #CF1322; font-weight: bold; margin-bottom: 6px; }
 .exp-fail-box--list { max-height: 110px; overflow-y: auto; background: #fff; border: 1px solid #FFCCC7; border-radius: 3px; padding: 4px 8px; }
 .exp-fail-box--item { font-family: Consolas, monospace; font-size: 12px; color: #444; line-height: 1.9; }
 .exp-fail-box--reason { color: #CF1322; margin-left: 6px; }
 
-/* === 库位推荐规则配置页(wh-loc-rule) === */
+/* === 库位推荐规则配置页(wh-loc-rule · 线上还原版) === */
 .col--check { text-align: center; }
 .col--check input { cursor: pointer; }
 .lrb-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; cursor: pointer; }
@@ -806,21 +789,18 @@
 .lrb-tag { display: inline-flex; align-items: center; gap: 4px; background: #E8F4FF; border: 1px solid #A9D2F5; color: #1C5FA8; border-radius: 3px; font-size: 11px; padding: 1px 6px; }
 .lrb-tag b { cursor: pointer; color: #888; font-weight: normal; }
 .lrb-tag b:hover { color: #CF1322; }
-.lrb-tag--cond { background: #F6FFED; border-color: #B7EB8F; color: #389E0D; }
 .abn-tag--ok { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }
 .abn-tag:not([class*="abn-status"]):not(.abn-tag--ok) { background: #F5F5F5; color: #888; border: 1px solid #D9D9D9; }
 .lrb-loc-count { font-size: 12px; color: #666; margin-bottom: 8px; }
 .lrb-loc-list { max-height: 260px; overflow-y: auto; border: 1px solid #E5EAF0; border-radius: 4px; }
 .lrb-loc-item { padding: 5px 12px; font-size: 12px; font-family: Consolas, monospace; color: #333; border-bottom: 1px solid #F0F3F7; }
 .lrb-loc-item:last-child { border-bottom: none; }
+/* 匹配条件列(标签化,多条件行间显示连接词;空=不限) */
 .lr-cond-cell { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.lr-cond { display: inline-block; background: #F0F5FF; border: 1px solid #ADC6FF; color: #2F54EB; border-radius: 3px; font-size: 11px; padding: 1px 6px; }
-.lr-cond--base { background: #EEF1F5; border-color: #D3DAE3; color: #5B6B84; }
-.lr-cond-hit { font-size: 11px; color: #8C8C8C; margin-left: 4px; }
-.lr-cond-group-title { font-size: 12px; font-weight: 600; color: #5B6B84; margin: 10px 0 4px; padding-left: 2px; border-left: 3px solid #00A99D; padding-left: 8px; }
-.lr-help-step { font-size: 12px; color: #444; line-height: 1.9; }
-.lr-help-step b { color: #00817F; }
-.lr-help-note { margin-top: 10px; font-size: 12px; color: #D46B08; background: #FFF7E6; border: 1px solid #FFD591; border-radius: 4px; padding: 6px 10px; }
+.lr-chip { display: inline-flex; align-items: center; gap: 4px; background: #F0F5FF; border: 1px solid #ADC6FF; color: #2F54EB; border-radius: 3px; font-size: 11px; padding: 1px 6px; }
+.lr-chip b { font-weight: 600; }
+.lr-chip--none { background: #F5F5F5; border-color: #D9D9D9; color: #999; }
+/* 编辑弹窗条件行:复用分拣 sb-cond-box/sb-crow/sb-msel/sb-rule-preview 系列样式,本页不另定义 */
 
 /* === B2B分拣管理页(in-b2b-sort) === */
 .sb-toolbar-note { margin-left: 10px; font-size: 11px; color: #8C8C8C; }
@@ -947,3 +927,8 @@
 .cr-cond-grid .sel { width: 100%; box-sizing: border-box; }
 .cr-cond-grid .cr-empty { text-align: center; color: #999; padding: 10px; cursor: default; }
 .sb-rule-preview { margin-top: 10px; font-size: 12px; color: #1F4E79; background: #F0F7FF; border: 1px solid #C9E0F5; border-radius: 4px; padding: 7px 10px; line-height: 1.6; word-break: break-all; }
+
+/* === 说明弹窗步骤样式(lr-help-*):wh-loc-rule 已不用,现由 b-sort-scheme / b-sort-chute-rule / in-b2b-sort 说明弹窗复用 === */
+.lr-help-step { font-size: 12px; color: #444; line-height: 1.9; }
+.lr-help-step b { color: #00817F; }
+.lr-help-note { margin-top: 10px; font-size: 12px; color: #D46B08; background: #FFF7E6; border: 1px solid #FFD591; border-radius: 4px; padding: 6px 10px; }
