@@ -255,7 +255,6 @@ function exportModal(plan) {
         <div class="rw-modal-body">
           <div class="exp-sum">
             <div>导出范围:当前查询结果 <b>${plan.total}</b> 条记录</div>
-            <div>可导出图片:<b class="check-ok-text">${n}</b> 张${plan.dupCount > 0 ? `<span style="color:#888;">(同一子单多张按 -1、-2 顺序编号)</span>` : ''}</div>
           </div>
           ${overLimit ? `
           <div class="exp-alert exp-alert--block">
