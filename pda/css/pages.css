@@ -2289,17 +2289,19 @@
 }
 .ci-rec-meta { gap: 10px; }   /* 三个字段(体积/重量/预报)同行更紧,防挤溢出 */
 
-/* === PDA签入页·重量确认抽屉(check-in weight-dev sheet) ===
-   扫码发现偏差>30% 从底部弹出:三列对照(录入/预报/偏差)+拍照框+确认签入/取消;
-   模态锁定该单,照片点确认时才绑定 */
-.ci-mask--sheet { align-items: flex-end; }
-.ci-dialog--dev {
-  width: 100%;
-  border-radius: 14px 14px 0 0;
-  padding: 10px 14px 16px;
+/* === PDA签入页·重量确认内联卡(check-in weight-dev card) ===
+   扫码发现偏差>30% 在扫码区上方展开(不弹浮层):三列对照+拍照框+确认签入;
+   重量实时联动(相符自动收起),×放下该箱解锁;软锁防照片错绑 */
+.ci-devcard {
+  margin: 8px 12px 0;
+  background: #fff;
+  border-radius: 10px;
+  border-left: 4px solid #e64e58;
+  padding: 12px 12px 14px;
   position: relative;
+  flex-shrink: 0;
 }
-.ci-sheet-close {
+.ci-devcard-close {
   position: absolute;
   top: 8px;
   right: 10px;
@@ -2313,14 +2315,26 @@
   text-align: center;
   padding: 0;
 }
-.ci-sheet-close:active { background: #e2e2e2; }
-.ci-sheet-grip {
-  width: 36px;
-  height: 4px;
-  background: #e0e0e0;
-  border-radius: 2px;
-  margin: 0 auto 10px;
+.ci-devcard-close:active { background: #e2e2e2; }
+.ci-devcard-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding-right: 30px;
 }
+.ci-devcard-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+}
+.ci-devcard-no {
+  font-size: 11px;
+  color: #a5a5a5;
+  font-family: Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+.ci-devcard-ok { margin-top: 10px; }
 .ci-dev-compare {
   display: flex;
   gap: 6px;
