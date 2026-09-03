@@ -745,11 +745,6 @@
 /* === 拍照记录上传页:导出图片弹窗 === */
 .photo-export .exp-sum   { font-size: 12px; color: #333; line-height: 2; margin-bottom: 8px; }
 .photo-export .check-ok-text { color: #389E0D; font-weight: bold; }
-.photo-export .exp-preview {
-  max-height: 180px; overflow-y: auto; background: #FAFBFC;
-  border: 1px solid #E3E8EE; border-radius: 4px; padding: 6px 10px;
-}
-.photo-export .exp-file  { font-family: Consolas, monospace; font-size: 12px; color: #444; line-height: 1.9; }
 .photo-export .exp-bar   { height: 14px; background: #F0F2F5; border: 1px solid #D9D9D9; border-radius: 7px; overflow: hidden; }
 .photo-export .exp-bar--in { height: 100%; background: #00A99D; transition: width .18s linear; }
 .photo-export .exp-alert { font-size: 12px; line-height: 1.9; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; }

@@ -241,9 +241,6 @@ function buildExportPlan() {
 function exportModal(plan) {
   const n = plan.files.length;
   const overLimit = n > EXPORT_LIMIT;
-  const preview = plan.files.slice(0, 8).map(f =>
-    `<div class="exp-file">📄 ${Helpers.esc(f.name)}</div>`).join('') +
-    (n > 8 ? `<div class="exp-file" style="color:#999;">… 其余 ${n - 8} 个文件</div>` : '');
   return `
     <div class="rw-modal" id="expModal">
       <div class="rw-modal-mask" onclick="PhotoPage.closeExport()"></div>
@@ -261,7 +258,6 @@ function exportModal(plan) {
             <b>本次导出共 ${n} 张,超过单次上限 ${EXPORT_LIMIT} 张,已拦截。</b><br/>
             请缩小查询范围(如按单号批量查询、缩短时间范围)后分批导出。
           </div>` : ''}
-          <div class="exp-preview" style="${overLimit ? 'display:none;' : ''}">${preview || '<div style="color:#999;padding:8px 0;">当前结果无可导出图片</div>'}</div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="PhotoPage.closeExport()">取消</button>
