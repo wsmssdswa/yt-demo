@@ -26,16 +26,16 @@
        系统按中转单聚合发飞书通知相关人员跟进(转运/改单/退回);到货网点=实际签入仓,
        如实回传 OTS(整单到齐判断在 OTS 侧)。现场零打断,仅 toast 提示+记录橙标。
 
-   重量偏差强制拍照(2026-09 新需求):录入重量与预报重量相差 >30% 时,扫码后页面展开「重量确认」
-     内联卡(不弹浮层):录入/预报/偏差对照 + 拍照框,点「确认签入」直接完成(照片此时才绑定子单,不需重扫)。
-     卡片随重量实时联动:改到相符自动收起解锁(称错修正一步到位);×放下该箱(照片丢弃、解锁,可扫
-     其他箱——强制力在签入卡口,该箱再扫时仍需拍照,放下≠绕过);卡开着时扫其他单被拒(软锁防照片错绑)。
+   重量偏差强制拍照(2026-09 新需求):录入重量与预报重量相差 >30% 时,扫码后从底部弹「重量确认」
+     抽屉:录入/预报/偏差对照 + 拍照框,点「确认签入」直接完成(照片此时才绑定子单,不需重扫);
+     ×关闭丢弃弹窗照片回到称重;抽屉模态锁定该单,未处理完扫其他单被拒(防照片错绑)。
      预报重量生产取自 ord_child_order_info.predicted_weight;签入明细接口
      GetCheckInDetailByOrderNo 当前未返回该字段 → 演示数据 PredictedWeight 为预置模拟,
      真实实现需后端在签入链路补充预报重量。
      与超尺寸差异:超尺寸录尺寸当下即可判定(嵌入式拍照框,拍照→扫码,线上已实现不动);
-     重量偏差须扫码才知道预报 → 内联卡承载(扫码后页面展开,无浮层)。
-     双规则同箱:超尺寸照片即偏差照片(同箱一照两用,超尺寸分支先行,不重复展开)。
+     重量偏差须扫码才知道预报 → 抽屉承载(扫描后逐单确认)。
+     双规则同箱(超尺寸+偏差):超尺寸已传照片也仍弹抽屉提醒,并带出已传照片(可补拍/删除,
+     确认时一并绑定)——重量偏差必须显式确认,不因超尺寸已拍照而跳过。
    ============================================ */
 
 /* ---- 演示数据:批次 + 主单 + 子单 ----
@@ -180,16 +180,20 @@ document.getElementById('app').innerHTML = Layout.shell(`
       </div>
     </div>
 
-    <!-- 重量确认内联卡(方案一):扫码发现偏差>30% 时在扫码区上方展开,不弹浮层。
-         卡片随重量输入实时联动:改到相符(≤30%)自动收起解锁;×放下该箱(照片丢弃,
-         解锁可扫其他箱——强制力在签入卡口,放下≠绕过,再扫该箱时仍需拍照) -->
-    <div class="ci-devcard hidden" id="ciDevCard">
-      <button class="ci-devcard-close" id="ciDevClose">×</button>
-      <div class="ci-devcard-head"><span class="ci-devcard-title">重量确认</span><span class="ci-devcard-no" id="ciDevNo"></span></div>
-      <div class="ci-dev-compare" id="ciDevCompare"></div>
-      <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint">与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%需要上传照片</span></div>
-      <div class="ci-oversize-photos ci-dev-photos" id="ciDevPhotos"></div>
-      <button class="ci-dialog-btn ci-dialog-btn--ok ci-dialog-btn--full ci-devcard-ok" id="ciDevOk">确认签入</button>
+    <!-- 重量确认抽屉:扫码发现偏差>30% 从底部弹出(模态);双规则同箱(超尺寸+偏差)时,
+         超尺寸已上传的照片自动带出(可补拍/删除),确认时一并绑定;×关闭丢弃弹窗照片回到称重 -->
+    <div class="ci-mask ci-mask--sheet hidden" id="ciDevMask">
+      <div class="ci-dialog ci-dialog--dev">
+        <button class="ci-sheet-close" id="ciDevClose">×</button>
+        <div class="ci-sheet-grip"></div>
+        <div class="ci-dialog-title">重量确认</div>
+        <div class="ci-dev-compare" id="ciDevCompare"></div>
+        <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint">与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%需要上传照片</span></div>
+        <div class="ci-oversize-photos ci-dev-photos" id="ciDevPhotos"></div>
+        <div class="ci-dialog-btns">
+          <button class="ci-dialog-btn ci-dialog-btn--ok ci-dialog-btn--full" id="ciDevOk">确认签入</button>
+        </div>
+      </div>
     </div>
 
     <!-- 双 Tab:扫描详情 / 接收明细 -->
@@ -279,7 +283,7 @@ const recCount   = $('ciRecCount');
 const emptyState = $('ciEmpty'), recordsEl = $('ciRecords');
 const revokeMask = $('ciRevokeMask'), revokeInput = $('ciRevokeInput');
 const abnMask    = $('ciAbnMask'), abnMain = $('ciAbnMain'), abnList = $('ciAbnList');
-const devCard = $('ciDevCard'), devNo = $('ciDevNo'), devCompare = $('ciDevCompare'),
+const devMask = $('ciDevMask'), devCompare = $('ciDevCompare'),
       devPhotos = $('ciDevPhotos'), devOk = $('ciDevOk'), devClose = $('ciDevClose');
 const oversizePanel = $('ciOversizePanel'), oversizeHint = $('ciOversizeHint'), oversizePhotos = $('ciOversizePhotos');
 const photoInput = $('ciPhotoInput');
@@ -301,10 +305,10 @@ let scanRecords = [
 let expandMain = '';          // 接收明细当前展开的主单号
 let abnMainNo = '';           // 异常弹层当前主单号
 let photoTargetIdx = -1;      // 记录上"拍照"补图的目标记录索引
-let photoMode = '';           // 当前拍照目标:'oversize'=超尺寸拍照上传框 / 'dev'=偏差内联卡 / 'record'=记录补图
+let photoMode = '';           // 当前拍照目标:'oversize'=超尺寸拍照上传框 / 'dev'=重量确认抽屉 / 'record'=记录补图
 let oversizeImgs = [];        // 超尺寸箱拍照上传框中的照片(上传完才允许扫描签入,签入后清空)
-let devPending = '';          // 偏差内联卡锁定的子单号(卡开着不能扫其他单,防照片错绑)
-let devImgs = [];             // 偏差内联卡本地暂存照片(点「确认签入」时才绑定子单;关闭即丢弃)
+let devPending = '';          // 重量确认抽屉锁定的子单号(抽屉开着不能扫其他单,防照片错绑)
+let devImgs = [];             // 重量确认抽屉照片(双规则时含带出的超尺寸照片;点「确认签入」时才绑定子单;关闭即丢弃)
 
 /* ---- 工具:数值格式化(复刻代码 floatText3:3位小数/9999.999上限) ---- */
 function fmtNum(text) {
@@ -344,7 +348,7 @@ function renderPredWt() {
 }
 
 /* 超尺寸拍照面板:仅超尺寸(任一边>265)触发——录尺寸当下即可判定,拍照后再扫码。
-   重量偏差不走此面板:预报重量跟箱走,扫码才知道 → 扫码后展开「重量确认」内联卡逐单处理。
+   重量偏差不走此面板:预报重量跟箱走,扫码才知道 → 扫码后弹「重量确认」抽屉逐单处理。
    (扫码框单号同时偏差超时,面板文案并列提示,告知一照两用) */
 function syncOversizePanel() {
   const { max } = sortDims(lenInput.value || '0', widInput.value || '0', heiInput.value || '0');
@@ -355,7 +359,7 @@ function syncOversizePanel() {
   const reasons = [];
   if (isOversize) reasons.push(`单边超${OVERSIZE_LIMIT}cm`);
   if (isOversize && isWeightDev) reasons.push(`与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%`);
-  oversizeHint.textContent = reasons.length ? reasons.join('、') + '需要上传照片' + (isWeightDev ? '(一照两用)' : '') : '';
+  oversizeHint.textContent = reasons.length ? reasons.join('、') + '需要上传照片' + (isWeightDev ? '(扫码后仍需重量确认)' : '') : '';
   renderOversizePanel();
   if (!isOversize) { oversizeImgs = []; }
 }
@@ -481,7 +485,7 @@ document.querySelectorAll('.ci-tab').forEach(tab => {
 
 /* ---- 尺寸输入:实时格式化 + 超尺寸拍照框联动 + 锁定开关 ---- */
 [lenInput, widInput, heiInput, weightInput].forEach(input => {
-  input.addEventListener('input', () => { input.value = fmtNum(input.value); syncOversizePanel(); syncDevCard(); });
+  input.addEventListener('input', () => { input.value = fmtNum(input.value); syncOversizePanel(); });
 });
 lockChk.addEventListener('change', () => {
   locked = lockChk.checked;
@@ -540,8 +544,8 @@ function onScan() {
   const code = scanInput.value.trim();
   if (!code) return;
 
-  // 偏差卡软锁:该单未处理完前不许扫其他单(照片只属于锁定单,防照片错绑;×可放下该箱解锁)
-  if (!devCard.classList.contains('hidden')) {
+  // 偏差抽屉模态锁:该单未处理完前不许扫其他单(照片只属于锁定单,防照片错绑)
+  if (!devMask.classList.contains('hidden')) {
     if (code !== devPending) Helpers.toast('请先处理当前偏差件:' + devPending + '(拍照签入或取消)');
     scanInput.select();
     return;
@@ -570,23 +574,28 @@ function onScan() {
   }
 
   // 超尺寸强制拍照(线上原交互,不动):录尺寸时拍照框已出现,未拍照拦截,拍了随签入绑定。
-  // 双规则同箱(超尺寸+偏差):照片按子单绑定,超尺寸照片即偏差照片,一照两用,不重复展开。
+  // 双规则同箱(超尺寸+偏差):超尺寸已传照片也仍弹重量确认抽屉提醒,并带出已传照片
+  // (可补拍/删除,确认时一并绑定)——重量偏差必须显式确认,不因超尺寸已拍照而跳过。
   const { max } = sortDims(lenInput.value || '0', widInput.value || '0', heiInput.value || '0');
+  const devPct = weightDevPct(code);
+  const isWeightDev = isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT;
   if (isCharge && max > OVERSIZE_LIMIT) {
     if (oversizeImgs.length === 0) {
       Helpers.toast('单边超' + OVERSIZE_LIMIT + 'CM,请先在拍照框上传照片,再扫描签入');
       syncOversizePanel();
       return;
     }
+    if (isWeightDev) {
+      openDevDialog(code, devPct, oversizeImgs.slice());   // 双规则:带出超尺寸已传照片
+      return;
+    }
     doSignIn(code, oversizeImgs.slice(), { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
     return;
   }
 
-  // 重量偏差(纯偏差场景):扫码才发现(预报重量跟箱走)→ 弹「重量偏差确认」弹窗,
-  // 锁定该单拍照确认,不用重扫;取消=丢弃照片回到称重(称错了重称)
-  const devPct = weightDevPct(code);
-  if (isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT) {
-    openDevCard(code, devPct);
+  // 纯重量偏差(尺寸正常):扫码才发现(预报重量跟箱走)→ 弹重量确认抽屉,空照片起步
+  if (isWeightDev) {
+    openDevDialog(code, devPct, []);
     return;
   }
 
@@ -606,13 +615,12 @@ function renderDevPhotos() {
     + (devImgs.length < 5 ? `<button class="ci-photo-add">拍照</button>` : '');
   devOk.classList.toggle('ci-dialog-btn--disabled', devImgs.length === 0);
 }
-function openDevCard(code, devPct) {
+function openDevDialog(code, devPct, seedImgs) {
   devPending = code;
-  devImgs = [];
-  devNo.textContent = code;
+  devImgs = (seedImgs || []).slice();   // 双规则带出超尺寸已传照片(拷贝:弹窗内删改不影响嵌入式框)
   renderDevCompare(devPct);
   renderDevPhotos();
-  devCard.classList.remove('hidden');
+  devMask.classList.remove('hidden');
 }
 function renderDevCompare(devPct) {
   devCompare.innerHTML = `
@@ -620,31 +628,21 @@ function renderDevCompare(devPct) {
     <div class="ci-dev-item"><span>预报重量(KG)</span><b>${findChild(devPending).child.PredictedWeight}</b></div>
     <div class="ci-dev-item ci-dev-item--warn"><span>偏差</span><b>${devPct >= 0 ? '+' : ''}${devPct.toFixed(1)}%</b></div>`;
 }
-function closeDevCard() {
-  devCard.classList.add('hidden');
+function closeDevDialog() {
+  devMask.classList.add('hidden');
   devPending = '';
   devImgs = [];
   scanInput.select();
 }
-/* 重量实时联动:卡开着时改重量即时重判——相符(≤30%/预报失效)自动收起解锁,回车即签;
-   仍超差则刷新对照数值,拍照流程继续(称错修正一步到位,不用关卡重扫) */
-function syncDevCard() {
-  if (devCard.classList.contains('hidden') || !devPending) return;
-  const devPct = weightDevPct(devPending);
-  const over = devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT;
-  if (!over) {
-    closeDevCard();
-    Helpers.toast('重量已与预报相符,可直接签入');
-  } else {
-    renderDevCompare(devPct);
-  }
-}
-devClose.addEventListener('click', () => { closeDevCard(); Helpers.toast('已放下该箱,照片已丢弃;可扫其他箱,该箱再扫时仍需拍照确认'); });
+devClose.addEventListener('click', () => {
+  closeDevDialog();
+  Helpers.toast('已关闭,弹窗内照片已丢弃;可重新称重后再扫');
+});
 devOk.addEventListener('click', () => {
   if (devImgs.length === 0) { Helpers.toast('请先上传至少1张照片'); return; }
   const code = devPending;
-  const imgs = devImgs.slice();   // 先取快照:closeDevCard 会清空暂存
-  closeDevCard();
+  const imgs = devImgs.slice();   // 先取快照:closeDevDialog 会清空暂存
+  closeDevDialog();
   doSignIn(code, imgs, { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
 });
 devPhotos.addEventListener('click', e => {
@@ -858,7 +856,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!revokeMask.classList.contains('hidden')) closeRevoke();
     if (!abnMask.classList.contains('hidden')) abnMask.classList.add('hidden');
-    if (!devCard.classList.contains('hidden')) { closeDevCard(); Helpers.toast('已放下该箱,照片已丢弃;可扫其他箱,该箱再扫时仍需拍照确认'); }
+    if (!devMask.classList.contains('hidden')) { closeDevDialog(); Helpers.toast('已关闭,弹窗内照片已丢弃;可重新称重后再扫'); }
   }
 });
 
@@ -967,7 +965,7 @@ testPanel.addEventListener('click', e => {
   }
   if (e.target.closest('[data-reset]')) {
     batchNumber = BATCH_NO;
-    if (!devCard.classList.contains('hidden')) closeDevCard();   // 偏差卡开着则一并关闭还原
+    if (!devMask.classList.contains('hidden')) closeDevDialog();   // 偏差抽屉开着则一并关闭还原
     /* 预置已扫记录的推荐库位按当前 LNMS 状态实时计算,保持与签入计算口径一致 */
     const preScan = [
       { code: 'YT2621000070480962U001', vol: '60*40*35', wt: '12.35', main: 'YT2621000070480962' },
