@@ -251,10 +251,10 @@ document.getElementById('app').innerHTML = Layout.shell(`
   <!-- 重量偏差确认弹层:扫码发现录入与预报相差>30% 时弹出,锁定该单逐单处理。
        模态:未拍照确认/取消前不能扫其他单(防照片错绑);照片本地暂存,
        点「确认签入」时才带子单号上传绑定(对齐线上超尺寸 暂存→签入统一上传 的时序) -->
-  <div class="ci-mask hidden" id="ciDevMask">
+  <div class="ci-mask ci-mask--sheet hidden" id="ciDevMask">
     <div class="ci-dialog ci-dialog--dev">
-      <div class="ci-dialog-title">重量偏差确认</div>
-      <div class="ci-dialog-tip" id="ciDevSub"></div>
+      <div class="ci-sheet-grip"></div>
+      <div class="ci-dialog-title">重量确认</div>
       <div class="ci-dev-compare" id="ciDevCompare"></div>
       <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint">与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%需要上传照片</span></div>
       <div class="ci-oversize-photos ci-dev-photos" id="ciDevPhotos"></div>
@@ -283,7 +283,7 @@ const recCount   = $('ciRecCount');
 const emptyState = $('ciEmpty'), recordsEl = $('ciRecords');
 const revokeMask = $('ciRevokeMask'), revokeInput = $('ciRevokeInput');
 const abnMask    = $('ciAbnMask'), abnMain = $('ciAbnMain'), abnList = $('ciAbnList');
-const devMask = $('ciDevMask'), devSub = $('ciDevSub'), devCompare = $('ciDevCompare'),
+const devMask = $('ciDevMask'), devCompare = $('ciDevCompare'),
       devPhotos = $('ciDevPhotos'), devOk = $('ciDevOk'), devCancel = $('ciDevCancel');
 const oversizePanel = $('ciOversizePanel'), oversizeHint = $('ciOversizeHint'), oversizePhotos = $('ciOversizePhotos');
 const photoInput = $('ciPhotoInput');
@@ -613,9 +613,6 @@ function renderDevPhotos() {
 function openDevDialog(code, devPct) {
   devPending = code;
   devImgs = [];
-  const pred = parseFloat(findChild(code).child.PredictedWeight);
-  const wt = parseFloat(weightInput.value);
-  devSub.textContent = '子单号:' + code + '(与预报重量相差超' + WEIGHT_DEV_PCT_LIMIT + '%,需拍照确认后签入)';
   devCompare.innerHTML = `
     <div class="ci-dev-item"><span>录入重量(KG)</span><b>${weightInput.value}</b></div>
     <div class="ci-dev-item"><span>预报重量(KG)</span><b>${findChild(code).child.PredictedWeight}</b></div>

@@ -2289,10 +2289,22 @@
 }
 .ci-rec-meta { gap: 10px; }   /* 三个字段(体积/重量/预报)同行更紧,防挤溢出 */
 
-/* === PDA签入页·重量偏差确认弹窗(check-in weight-dev dialog) ===
-   扫码发现偏差>30% 弹出:三列对照(录入/预报/偏差)+拍照框+确认签入/取消;
+/* === PDA签入页·重量确认抽屉(check-in weight-dev sheet) ===
+   扫码发现偏差>30% 从底部弹出:三列对照(录入/预报/偏差)+拍照框+确认签入/取消;
    模态锁定该单,照片点确认时才绑定 */
-.ci-dialog--dev { width: 330px; }
+.ci-mask--sheet { align-items: flex-end; }
+.ci-dialog--dev {
+  width: 100%;
+  border-radius: 14px 14px 0 0;
+  padding: 10px 14px 16px;
+}
+.ci-sheet-grip {
+  width: 36px;
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  margin: 0 auto 10px;
+}
 .ci-dev-compare {
   display: flex;
   gap: 6px;
