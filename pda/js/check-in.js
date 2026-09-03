@@ -26,13 +26,15 @@
        系统按中转单聚合发飞书通知相关人员跟进(转运/改单/退回);到货网点=实际签入仓,
        如实回传 OTS(整单到齐判断在 OTS 侧)。现场零打断,仅 toast 提示+记录橙标。
 
-   重量偏差强制拍照(2026-09 新需求):录入重量与预报重量相差 >30% 时,与超尺寸同一拍照框、
-     同一拦截口径(未拍照不允许签入,照片随签入绑定子单)。
+   重量偏差强制拍照(2026-09 新需求):录入重量与预报重量相差 >30% 时,扫码后弹「重量偏差确认」
+     弹窗逐单处理:显示录入/预报/偏差对照 + 拍照框,点「确认签入」直接完成(照片此时才绑定子单,
+     不需重扫);弹窗模态锁定该单,未处理完扫其他单被拒(防照片错绑);取消丢弃照片回到称重。
      预报重量生产取自 ord_child_order_info.predicted_weight;签入明细接口
      GetCheckInDetailByOrderNo 当前未返回该字段 → 演示数据 PredictedWeight 为预置模拟,
      真实实现需后端在签入链路补充预报重量。
-     与超尺寸差异:超尺寸录入尺寸当下即可判定(面板即时出现);重量偏差须等扫到子单号
-     才知道预报重量 → 扫码签入时判定,偏差超阈值先弹拍照框拦截,拍照后再扫放行。
+     与超尺寸差异:超尺寸录尺寸当下即可判定(嵌入式拍照框,拍照→扫码,线上已实现不动);
+     重量偏差须扫码才知道预报 → 弹窗承载(扫描后逐单处理,对齐仓库现场偏好)。
+     双规则同箱:超尺寸照片即偏差照片(同箱一照两用,超尺寸分支先行,不重复弹窗)。
    ============================================ */
 
 /* ---- 演示数据:批次 + 主单 + 子单 ----
@@ -163,6 +165,11 @@ document.getElementById('app').innerHTML = Layout.shell(`
       <div class="ci-dim-row">
         <input type="text" class="ci-weight-input" id="ciWeight" inputmode="decimal" placeholder="0.000" />
         <button class="ci-scale-btn" id="ciScaleBtn">连接电子称</button>
+        <label class="ci-switch">
+          <input type="checkbox" id="ciWeightLock" />
+          <span class="ci-switch-slider"></span>
+          <span class="ci-lock-text">锁定</span>
+        </label>
       </div>
 
       <!-- 图片录入:长宽高/重量下方;超尺寸 或 录入重量与预报相差>30% 时出现,必填(未拍照不允许扫描签入) -->
@@ -241,6 +248,23 @@ document.getElementById('app').innerHTML = Layout.shell(`
 
   <!-- 目的仓不一致不再弹窗(2026-09-02:现场零打断,签入照常+自动到货,系统飞书通知跟进) -->
 
+  <!-- 重量偏差确认弹层:扫码发现录入与预报相差>30% 时弹出,锁定该单逐单处理。
+       模态:未拍照确认/取消前不能扫其他单(防照片错绑);照片本地暂存,
+       点「确认签入」时才带子单号上传绑定(对齐线上超尺寸 暂存→签入统一上传 的时序) -->
+  <div class="ci-mask hidden" id="ciDevMask">
+    <div class="ci-dialog ci-dialog--dev">
+      <div class="ci-dialog-title">重量偏差确认</div>
+      <div class="ci-dialog-tip" id="ciDevSub"></div>
+      <div class="ci-dev-compare" id="ciDevCompare"></div>
+      <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint">与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%需要上传照片</span></div>
+      <div class="ci-oversize-photos ci-dev-photos" id="ciDevPhotos"></div>
+      <div class="ci-dialog-btns">
+        <button class="ci-dialog-btn ci-dialog-btn--cancel" id="ciDevCancel">取消(重新称重)</button>
+        <button class="ci-dialog-btn ci-dialog-btn--ok" id="ciDevOk">确认签入</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 照片选择(拍照上传,隐藏 input) -->
   <input type="file" accept="image/*" capture="environment" class="hidden" id="ciPhotoInput" />
 `);
@@ -252,13 +276,15 @@ const $ = id => document.getElementById(id);
 const modeTag    = $('ciModeTag'), modeText = $('ciModeText');
 const dimArea    = $('ciDimArea');
 const lenInput   = $('ciLen'), widInput = $('ciWid'), heiInput = $('ciHei');
-const weightInput= $('ciWeight'), lockChk = $('ciLock'), scaleBtn = $('ciScaleBtn');
+const weightInput= $('ciWeight'), lockChk = $('ciLock'), scaleBtn = $('ciScaleBtn'), weightLockChk = $('ciWeightLock');
 const predWtEl   = $('ciPredWt');
 const scanInput  = $('ciScanInput');
 const recCount   = $('ciRecCount');
 const emptyState = $('ciEmpty'), recordsEl = $('ciRecords');
 const revokeMask = $('ciRevokeMask'), revokeInput = $('ciRevokeInput');
 const abnMask    = $('ciAbnMask'), abnMain = $('ciAbnMain'), abnList = $('ciAbnList');
+const devMask = $('ciDevMask'), devSub = $('ciDevSub'), devCompare = $('ciDevCompare'),
+      devPhotos = $('ciDevPhotos'), devOk = $('ciDevOk'), devCancel = $('ciDevCancel');
 const oversizePanel = $('ciOversizePanel'), oversizeHint = $('ciOversizeHint'), oversizePhotos = $('ciOversizePhotos');
 const photoInput = $('ciPhotoInput');
 const finishBtn  = $('ciFinishBtn');
@@ -266,6 +292,7 @@ const finishBtn  = $('ciFinishBtn');
 /* ---- 状态 ---- */
 let isCharge = true;          // 当前网点是否计费网点(CheckChargeOrg 返回 IsChargeOrg)
 let locked = false;           // 尺寸锁定(锁定时长宽高禁用)
+let weightLocked = false;     // 重量锁定(独立于尺寸锁定:锁定时电子称不覆盖、签入成功不清空重量)
 let blueStatus = 3;           // 电子称:1=连接中 2=已连接 3=未连接
 let batchNumber = BATCH_NO;   // 当前批次号(首次扫描成功后由后端返回;原型预置演示批次)
 let currentTab = 0;           // 0=扫描详情 1=接收明细
@@ -278,8 +305,10 @@ let scanRecords = [
 let expandMain = '';          // 接收明细当前展开的主单号
 let abnMainNo = '';           // 异常弹层当前主单号
 let photoTargetIdx = -1;      // 记录上"拍照"补图的目标记录索引
-let photoMode = '';           // 当前拍照目标:'oversize'=强制拍照(超尺寸/重量偏差)上传框 / 'record'=记录补图
+let photoMode = '';           // 当前拍照目标:'oversize'=超尺寸拍照上传框 / 'dev'=偏差确认弹窗 / 'record'=记录补图
 let oversizeImgs = [];        // 超尺寸箱拍照上传框中的照片(上传完才允许扫描签入,签入后清空)
+let devPending = '';          // 偏差确认弹窗锁定的子单号(弹窗打开期间不能扫其他单)
+let devImgs = [];             // 偏差弹窗本地暂存照片(点「确认签入」时才绑定子单;取消即丢弃)
 
 /* ---- 工具:数值格式化(复刻代码 floatText3:3位小数/9999.999上限) ---- */
 function fmtNum(text) {
@@ -318,24 +347,21 @@ function renderPredWt() {
   predWtEl.classList.toggle('hidden', !pred);
 }
 
-/* 强制拍照面板(超尺寸 / 录入重量与预报重量相差>30%):显示与否按当前输入判定。
-   超尺寸录尺寸当下即可判;重量偏差需目标子单(预报重量跟箱走)→ 扫描签入时才补判
-   (扫码框有单号或拦截后,面板随即出现)。 */
+/* 超尺寸拍照面板:仅超尺寸(任一边>265)触发——录尺寸当下即可判定,拍照后再扫码。
+   重量偏差不走此面板:预报重量跟箱走,扫码才知道 → 扫码后弹「重量偏差确认」弹窗逐单处理。
+   (扫码框单号同时偏差超时,面板文案并列提示,告知一照两用) */
 function syncOversizePanel() {
   const { max } = sortDims(lenInput.value || '0', widInput.value || '0', heiInput.value || '0');
   const isOversize = isCharge && max > OVERSIZE_LIMIT;
+  oversizePanel.classList.toggle('hidden', !isOversize);
   const devPct = weightDevPct(scanInput.value);
   const isWeightDev = isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT;
-  const active = isOversize || isWeightDev;
-  oversizePanel.classList.toggle('hidden', !active);
-  // 提示文案:命中哪条规则显示哪条(同时命中并列)
   const reasons = [];
   if (isOversize) reasons.push(`单边超${OVERSIZE_LIMIT}cm`);
-  if (isWeightDev) reasons.push(`与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%`);
-  oversizeHint.textContent = reasons.length ? reasons.join('、') + '需要上传照片' : '';
+  if (isOversize && isWeightDev) reasons.push(`与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%`);
+  oversizeHint.textContent = reasons.length ? reasons.join('、') + '需要上传照片' + (isWeightDev ? '(一照两用)' : '') : '';
   renderOversizePanel();
-  if (!active) { oversizeImgs = []; }
-  renderPredWt();   // 扫码框单号变化时同步刷新录入区预报参照
+  if (!isOversize) { oversizeImgs = []; }
 }
 
 /* ---- 渲染:扫描详情 ---- */
@@ -359,7 +385,7 @@ function renderRecords() {
         <span>重量(KG)：${r.pkgWeight}</span>
         ${r.predWt ? `<span>预报(KG)：${r.predWt}</span>` : ''}
       </div>` : ''}
-      <div class="ci-rec-recommend${r.destOrgTip ? '' : ' ci-rec-recommend--hide'}">${r.destOrgTip ? `调拨网点：<b>${r.destOrgTip}</b>` : ''}</div>
+      <div class="ci-rec-recommend${r.destOrgTip ? '' : ' ci-rec-recommend--hide'}">${r.destOrgTip ? `推荐调拨：<b>${r.destOrgTip}</b>` : ''}</div>
       <div class="ci-rec-recommend${r.recommend ? '' : ' ci-rec-recommend--none'}">推荐库位：${r.recommend ? `<b>${r.recommend}</b>` : '暂无推荐库位'}</div>
       ${r.transitNo ? `
       <div class="ci-rec-transfer">中转单:${r.transitNo} · <span${r.orgMismatch ? ' class="ci-rec-dest--warn"' : ''}>目的仓:${r.destOrgName}</span></div>` : ''}
@@ -410,7 +436,7 @@ function renderRecv() {
         <div class="ci-main-transit">
           <span class="ci-transit-badge">调拨</span>
           <span>中转单:${m.transitNo}</span>
-          <span>目的仓:${m.destOrgName}(${m.destOrg})</span>
+          <span>目的仓:${m.destOrgName}</span>
         </div>` : ''}
         ${m.AbnormalCount > 0 ? `
         <div class="ci-main-abn" data-abn="${m.WaybillNumber}">
@@ -424,8 +450,8 @@ function renderRecv() {
               <span class="ci-child-no">${c.ChildNumber}</span>
               ${c.IsCheckIn
                 ? `${c.Length ? `<span class="ci-child-kv">体积(CM)：${c.Length}*${c.Width}*${c.Height}　重量(KG)：${c.Weight}</span>` : ''}
-                   <span class="ci-child-state ci-child-state--ok">${c.arrived ? '已扫描·已到货' : '已扫描'}</span>`
-                : `<span class="ci-child-state">${c.arrived ? '已有到货·未签入' : '未扫描'}</span>`}
+                   <span class="ci-child-state">已扫描</span>`
+                : `<span class="ci-child-state">未扫描</span>`}
             </div>`).join('')}
         </div>` : ''}
       </div>`;
@@ -468,6 +494,12 @@ lockChk.addEventListener('change', () => {
     i.classList.toggle('ci-dim-input--locked', locked);
   });
 });
+/* ---- 重量锁定:独立于尺寸锁定;锁定时输入禁用、电子称不覆盖、签入成功不清空(复刻 isWeightLocked) ---- */
+weightLockChk.addEventListener('change', () => {
+  weightLocked = weightLockChk.checked;
+  weightInput.disabled = weightLocked;
+  weightInput.classList.toggle('ci-dim-input--locked', weightLocked);
+});
 
 /* ---- 电子称(模拟蓝牙秤:连接→自动回传重量;复刻代码 WeightUtil) ---- */
 function setScaleBtn() {
@@ -481,7 +513,7 @@ scaleBtn.addEventListener('click', () => {
   blueStatus = 1; setScaleBtn();
   setTimeout(() => {
     blueStatus = 2; setScaleBtn();
-    weightInput.value = '12.350';   // 模拟电子称回传重量
+    if (!weightLocked) weightInput.value = '12.350';   // 模拟电子称回传重量(重量锁定时不覆盖)
     Helpers.toast('电子称已连接,重量已回传');
   }, 1500);
 });
@@ -512,6 +544,13 @@ function onScan() {
   const code = scanInput.value.trim();
   if (!code) return;
 
+  // 偏差弹窗模态锁:该单未处理完前不许扫其他单(照片只属于锁定单,防错绑)
+  if (!devMask.classList.contains('hidden')) {
+    if (code !== devPending) Helpers.toast('请先处理当前偏差件:' + devPending + '(拍照签入或取消)');
+    scanInput.select();
+    return;
+  }
+
   // 校验:计费网点必须录尺寸重量,且不能为 0(复刻代码 EmptyPrompt/ZeroPrompt)
   if (isCharge) {
     const L = lenInput.value, W = widInput.value, H = heiInput.value, Wt = weightInput.value;
@@ -534,18 +573,12 @@ function onScan() {
     return;
   }
 
-  // 强制拍照:超尺寸(任一边>265,录尺寸时拍照框已出现)或 录入重量与预报重量相差>30%
-  // (预报重量跟箱走,扫码才知道目标子单 → 扫描时补判,拦截后拍照框随即出现)。
-  // 未上传照片 → 拦截签入(签入尚未发生,符合代码时序);已上传 → 照片随签入绑定。
+  // 超尺寸强制拍照(线上原交互,不动):录尺寸时拍照框已出现,未拍照拦截,拍了随签入绑定。
+  // 双规则同箱(超尺寸+偏差):照片按子单绑定,超尺寸照片即偏差照片,一照两用,不重复弹窗。
   const { max } = sortDims(lenInput.value || '0', widInput.value || '0', heiInput.value || '0');
-  const isOversize = isCharge && max > OVERSIZE_LIMIT;
-  const devPct = weightDevPct(code);
-  const isWeightDev = isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT;
-  if (isOversize || isWeightDev) {
+  if (isCharge && max > OVERSIZE_LIMIT) {
     if (oversizeImgs.length === 0) {
-      Helpers.toast(isOversize
-        ? '单边超' + OVERSIZE_LIMIT + 'CM,请先在拍照框上传照片,再扫描签入'
-        : '录入重量与预报重量相差超' + WEIGHT_DEV_PCT_LIMIT + '%,请先在拍照框上传照片,再扫描签入');
+      Helpers.toast('单边超' + OVERSIZE_LIMIT + 'CM,请先在拍照框上传照片,再扫描签入');
       syncOversizePanel();
       return;
     }
@@ -553,9 +586,63 @@ function onScan() {
     return;
   }
 
+  // 重量偏差(纯偏差场景):扫码才发现(预报重量跟箱走)→ 弹「重量偏差确认」弹窗,
+  // 锁定该单拍照确认,不用重扫;取消=丢弃照片回到称重(称错了重称)
+  const devPct = weightDevPct(code);
+  if (isCharge && devPct !== null && devPct > WEIGHT_DEV_PCT_LIMIT) {
+    openDevDialog(code, devPct);
+    return;
+  }
+
   // 正常签入(错仓调拨货同样走这里:照常签入+自动到货,系统另发飞书通知)
   doSignIn(code, [], { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
 }
+
+/* ---- 重量偏差确认弹窗:锁定该单逐单处理 ----
+   打开:记录锁定单号+对照信息,照片清零本地暂存;
+   确认签入:照片≥1 才可点 → 带子单号随签入绑定(演示直接绑定;生产为 点确认→上传→签入,失败回滚);
+   取消:丢弃暂存照片,弹窗关闭,扫码框保留单号 → 改重量重扫 或 扫其他单 */
+function renderDevPhotos() {
+  devPhotos.innerHTML = devImgs.map((src, j) => `
+    <span class="ci-photo" style="background-image:url('${src}')">
+      <i class="ci-oversize-del" data-p="${j}">×</i>
+    </span>`).join('')
+    + (devImgs.length < 5 ? `<button class="ci-photo-add">拍照</button>` : '');
+  devOk.classList.toggle('ci-dialog-btn--disabled', devImgs.length === 0);
+}
+function openDevDialog(code, devPct) {
+  devPending = code;
+  devImgs = [];
+  const pred = parseFloat(findChild(code).child.PredictedWeight);
+  const wt = parseFloat(weightInput.value);
+  devSub.textContent = '子单号:' + code + '(与预报重量相差超' + WEIGHT_DEV_PCT_LIMIT + '%,需拍照确认后签入)';
+  devCompare.innerHTML = `
+    <div class="ci-dev-item"><span>录入重量(KG)</span><b>${weightInput.value}</b></div>
+    <div class="ci-dev-item"><span>预报重量(KG)</span><b>${findChild(code).child.PredictedWeight}</b></div>
+    <div class="ci-dev-item ci-dev-item--warn"><span>偏差</span><b>${devPct >= 0 ? '+' : ''}${devPct.toFixed(1)}%</b></div>`;
+  renderDevPhotos();
+  devMask.classList.remove('hidden');
+}
+function closeDevDialog() {
+  devMask.classList.add('hidden');
+  devPending = '';
+  devImgs = [];
+  scanInput.select();
+}
+devCancel.addEventListener('click', () => { closeDevDialog(); Helpers.toast('已取消,照片已丢弃;可重新称重后再扫'); });
+devOk.addEventListener('click', () => {
+  if (devImgs.length === 0) { Helpers.toast('请先上传至少1张照片'); return; }
+  const code = devPending;
+  const imgs = devImgs.slice();   // 先取快照:closeDevDialog 会清空暂存
+  closeDevDialog();
+  doSignIn(code, imgs, { L: lenInput.value, W: widInput.value, H: heiInput.value, Wt: weightInput.value });
+});
+devPhotos.addEventListener('click', e => {
+  const add = e.target.closest('.ci-photo-add');
+  if (add) { photoMode = 'dev'; photoInput.click(); return; }
+  const del = e.target.closest('.ci-oversize-del');
+  if (del) { devImgs.splice(Number(del.dataset.p), 1); renderDevPhotos(); }
+});
 
 // 执行签入(复刻 FBADeviceCheckInPDA 成功后:记录入列表 + 更新接收明细 + 清空尺寸)
 function doSignIn(code, imgs, dims) {
@@ -599,17 +686,20 @@ function doSignIn(code, imgs, dims) {
     }
   }
 
-  // 未锁定 → 清空尺寸重量,方便连续扫下一箱(复刻代码 setPackLength('') 等)
+  // 未锁定 → 清空尺寸,方便连续扫下一箱;重量独立锁定(复刻代码:尺寸 setPackLength('') 等,重量看 isWeightLocked)
   if (!locked) {
-    [lenInput, widInput, heiInput, weightInput].forEach(i => i.value = '');
+    [lenInput, widInput, heiInput].forEach(i => i.value = '');
+  }
+  if (!weightLocked) {
+    weightInput.value = '';
   }
   scanInput.value = '';
   render();
-  // 强制拍照箱签入后清空拍照框(每箱一照);面板随后按下一箱输入重新判定:
-  // 锁尺寸连续扫超尺寸箱 → 面板保留仍需拍照;重量偏差跟单号走,下一箱偏差不超则不再拦截
+  // 超尺寸箱签入后清空拍照框(每箱一照);面板随后按下一箱输入重新判定(锁尺寸连续扫仍需拍照)
   oversizeImgs = [];
   renderOversizePanel();
   syncOversizePanel();
+  renderPredWt();   // 扫码框已清空 → 录入区预报参照随之隐藏
   scanInput.focus();
   Helpers.toast(toastMsg);
 }
@@ -714,10 +804,14 @@ photoInput.addEventListener('change', () => {
   if (!photoInput.files || !photoInput.files[0]) { photoInput.value = ''; return; }
   const url = URL.createObjectURL(photoInput.files[0]);
   if (photoMode === 'oversize') {
-    // 强制拍照框(超尺寸/重量偏差):照片先上传暂存,扫描签入时绑定到子单
+    // 超尺寸拍照框:照片先本地暂存,扫描签入时带子单号上传绑定
     oversizeImgs.push(url);
     renderOversizePanel();
     Helpers.toast('照片已上传,可扫描子单号签入');
+  } else if (photoMode === 'dev') {
+    // 偏差确认弹窗:照片本地暂存,点「确认签入」时才绑定锁定单(取消即丢弃)
+    devImgs.push(url);
+    renderDevPhotos();
   } else {
     // 记录补图:签入成功后的留档照片(生产:imgBindingToCodeWithFile,子单最多5张)
     const rec = scanRecords[photoTargetIdx];
@@ -754,6 +848,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!revokeMask.classList.contains('hidden')) closeRevoke();
     if (!abnMask.classList.contains('hidden')) abnMask.classList.add('hidden');
+    if (!devMask.classList.contains('hidden')) { closeDevDialog(); Helpers.toast('已取消,照片已丢弃;可重新称重后再扫'); }
   }
 });
 
@@ -814,7 +909,7 @@ testPanel.innerHTML = `
     </div>
   </div>
   <div class="test-panel-group">
-    <div class="test-panel-label">重量偏差件(录入与预报相差&gt;${WEIGHT_DEV_PCT_LIMIT}%需先拍照)</div>
+    <div class="test-panel-label">重量偏差件(扫码后弹窗确认,预报12.35kg,自动填25kg)</div>
     <div class="test-panel-tags">
       <span class="test-panel-tag" data-no="${WEIGHT_DEV_NO}">${WEIGHT_DEV_NO}(预报12.35kg,自动填25kg)</span>
     </div>
@@ -862,6 +957,7 @@ testPanel.addEventListener('click', e => {
   }
   if (e.target.closest('[data-reset]')) {
     batchNumber = BATCH_NO;
+    if (!devMask.classList.contains('hidden')) closeDevDialog();   // 偏差弹窗开着则一并关闭还原
     /* 预置已扫记录的推荐库位按当前 LNMS 状态实时计算,保持与签入计算口径一致 */
     const preScan = [
       { code: 'YT2621000070480962U001', vol: '60*40*35', wt: '12.35', main: 'YT2621000070480962' },

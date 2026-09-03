@@ -1822,7 +1822,12 @@
   margin-left: 4px;
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;
 }
+.ci-switch .ci-lock-text { white-space: nowrap; }
+/* 重量行:电子称按钮不压缩,保证右侧锁定开关完整展示 */
+.ci-dim-row .ci-scale-btn { flex-shrink: 0; }
+.ci-dim-row .ci-weight-input { min-width: 0; }
 .ci-switch input { display: none; }
 .ci-switch-slider {
   width: 38px; height: 22px;
@@ -2276,13 +2281,46 @@
 /* === PDA签入页·预报重量显示(check-in predicted weight) ===
    录入区重量行右侧灰字=扫码框当前子单的预报重量(参照系,无单号隐藏);
    扫描记录 meta 行「预报(KG)」=签入时留档对照,与录入区同一来源 */
-.ci-dim-label--row { display: flex; align-items: baseline; justify-content: space-between; }
+.ci-dim-label--row { display: flex; align-items: baseline; gap: 8px; }
 .ci-pred-wt {
   font-size: 11px;
   font-weight: 400;
   color: #a5a5a5;
 }
 .ci-rec-meta { gap: 10px; }   /* 三个字段(体积/重量/预报)同行更紧,防挤溢出 */
+
+/* === PDA签入页·重量偏差确认弹窗(check-in weight-dev dialog) ===
+   扫码发现偏差>30% 弹出:三列对照(录入/预报/偏差)+拍照框+确认签入/取消;
+   模态锁定该单,照片点确认时才绑定 */
+.ci-dialog--dev { width: 330px; }
+.ci-dev-compare {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+.ci-dev-item {
+  flex: 1;
+  background: #F5F5F5;
+  border-radius: 6px;
+  padding: 6px 4px;
+  text-align: center;
+}
+.ci-dev-item span {
+  display: block;
+  font-size: 11px;
+  color: #999;
+}
+.ci-dev-item b {
+  font-size: 14px;
+  color: #333;
+}
+.ci-dev-item--warn b { color: #e64e58; }
+.ci-dev-photos { margin: 8px 0 4px; }
+.ci-dialog-btn--disabled {
+  background: #c5c5c5 !important;
+  color: #fff !important;
+  pointer-events: none;
+}
 
 /* === PDA签入页·签入即到货扩展(check-in arrival) ===
    已自动到货=主色青标签;目的仓非本仓=橙警示;调拨信息行灰字,徽标紫与异常红/OK青区分 */
