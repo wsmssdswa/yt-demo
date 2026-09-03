@@ -253,14 +253,14 @@ document.getElementById('app').innerHTML = Layout.shell(`
        点「确认签入」时才带子单号上传绑定(对齐线上超尺寸 暂存→签入统一上传 的时序) -->
   <div class="ci-mask ci-mask--sheet hidden" id="ciDevMask">
     <div class="ci-dialog ci-dialog--dev">
+      <button class="ci-sheet-close" id="ciDevClose">×</button>
       <div class="ci-sheet-grip"></div>
       <div class="ci-dialog-title">重量确认</div>
       <div class="ci-dev-compare" id="ciDevCompare"></div>
       <div class="ci-oversize-label"><span class="ci-required">*</span>图片<span class="ci-oversize-hint">与预报重量相差超${WEIGHT_DEV_PCT_LIMIT}%需要上传照片</span></div>
       <div class="ci-oversize-photos ci-dev-photos" id="ciDevPhotos"></div>
       <div class="ci-dialog-btns">
-        <button class="ci-dialog-btn ci-dialog-btn--cancel" id="ciDevCancel">取消(重新称重)</button>
-        <button class="ci-dialog-btn ci-dialog-btn--ok" id="ciDevOk">确认签入</button>
+        <button class="ci-dialog-btn ci-dialog-btn--ok ci-dialog-btn--full" id="ciDevOk">确认签入</button>
       </div>
     </div>
   </div>
@@ -284,7 +284,7 @@ const emptyState = $('ciEmpty'), recordsEl = $('ciRecords');
 const revokeMask = $('ciRevokeMask'), revokeInput = $('ciRevokeInput');
 const abnMask    = $('ciAbnMask'), abnMain = $('ciAbnMain'), abnList = $('ciAbnList');
 const devMask = $('ciDevMask'), devCompare = $('ciDevCompare'),
-      devPhotos = $('ciDevPhotos'), devOk = $('ciDevOk'), devCancel = $('ciDevCancel');
+      devPhotos = $('ciDevPhotos'), devOk = $('ciDevOk'), devClose = $('ciDevClose');
 const oversizePanel = $('ciOversizePanel'), oversizeHint = $('ciOversizeHint'), oversizePhotos = $('ciOversizePhotos');
 const photoInput = $('ciPhotoInput');
 const finishBtn  = $('ciFinishBtn');
@@ -626,7 +626,7 @@ function closeDevDialog() {
   devImgs = [];
   scanInput.select();
 }
-devCancel.addEventListener('click', () => { closeDevDialog(); Helpers.toast('已取消,照片已丢弃;可重新称重后再扫'); });
+devClose.addEventListener('click', () => { closeDevDialog(); Helpers.toast('已关闭,照片已丢弃;可重新称重后再扫'); });
 devOk.addEventListener('click', () => {
   if (devImgs.length === 0) { Helpers.toast('请先上传至少1张照片'); return; }
   const code = devPending;
@@ -845,7 +845,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!revokeMask.classList.contains('hidden')) closeRevoke();
     if (!abnMask.classList.contains('hidden')) abnMask.classList.add('hidden');
-    if (!devMask.classList.contains('hidden')) { closeDevDialog(); Helpers.toast('已取消,照片已丢弃;可重新称重后再扫'); }
+    if (!devMask.classList.contains('hidden')) { closeDevDialog(); Helpers.toast('已关闭,照片已丢弃;可重新称重后再扫'); }
   }
 });
 

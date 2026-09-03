@@ -2297,7 +2297,23 @@
   width: 100%;
   border-radius: 14px 14px 0 0;
   padding: 10px 14px 16px;
+  position: relative;
 }
+.ci-sheet-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #f2f2f2;
+  color: #666;
+  font-size: 15px;
+  line-height: 26px;
+  text-align: center;
+  padding: 0;
+}
+.ci-sheet-close:active { background: #e2e2e2; }
 .ci-sheet-grip {
   width: 36px;
   height: 4px;
