@@ -747,9 +747,6 @@
 .photo-export .check-ok-text { color: #389E0D; font-weight: bold; }
 .photo-export .exp-bar   { height: 14px; background: #F0F2F5; border: 1px solid #D9D9D9; border-radius: 7px; overflow: hidden; }
 .photo-export .exp-bar--in { height: 100%; background: #00A99D; transition: width .18s linear; }
-.photo-export .exp-alert { font-size: 12px; line-height: 1.9; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; }
-.photo-export .exp-alert--warn  { background: #FFF7E6; border: 1px solid #FFD591; color: #D46B08; }
-.photo-export .exp-alert--block { background: #FFF1F0; border: 1px solid #FFA39E; color: #CF1322; }
 
 /* === 拍照记录上传页:演示面板(悬浮球,默认收起,不影响页面主体) === */
 .photo-demo { position: fixed; right: 18px; bottom: 46px; z-index: 900; }

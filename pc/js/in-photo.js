@@ -239,8 +239,6 @@ function buildExportPlan() {
 }
 
 function exportModal(plan) {
-  const n = plan.files.length;
-  const overLimit = n > EXPORT_LIMIT;
   return `
     <div class="rw-modal" id="expModal">
       <div class="rw-modal-mask" onclick="PhotoPage.closeExport()"></div>
@@ -253,11 +251,6 @@ function exportModal(plan) {
           <div class="exp-sum">
             <div>导出范围:当前查询结果 <b>${plan.total}</b> 条记录</div>
           </div>
-          ${overLimit ? `
-          <div class="exp-alert exp-alert--block">
-            <b>本次导出共 ${n} 张,超过单次上限 ${EXPORT_LIMIT} 张,已拦截。</b><br/>
-            请缩小查询范围(如按单号批量查询、缩短时间范围)后分批导出。
-          </div>` : ''}
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="PhotoPage.closeExport()">取消</button>
@@ -381,7 +374,12 @@ const PhotoPage = {
   lastPlan: null,       /* { plan, failed } 完成结果,复制失败单号用 */
   demoFail: false,      /* 演示面板场景④:模拟部分下载失败 */
   openExport() {
-    document.body.insertAdjacentHTML('beforeend', exportModal(buildExportPlan()));
+    const plan = buildExportPlan();
+    if (plan.files.length > EXPORT_LIMIT) {
+      Helpers.toast(`导出数量不能超过${EXPORT_LIMIT},请缩小范围后重新导出`);
+      return;
+    }
+    document.body.insertAdjacentHTML('beforeend', exportModal(plan));
   },
   startExport() {
     const plan = buildExportPlan();
