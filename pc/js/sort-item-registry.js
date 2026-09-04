@@ -52,10 +52,18 @@ const SortItemRegistry = {
       }
     } catch (e) { /* file:// 个别环境禁 localStorage,回退种子 */ }
     if (!list) list = SIR_DEFAULT_ITEMS.map(i => JSON.parse(JSON.stringify(i)));
-    /* 归一化:ops 缺失/含非法值 → 按数据类型重建默认全集(兼容旧版中文 ops 存档) */
+    /* 归一化:项结构校验 + ops 缺失/含非法值 → 按数据类型重建默认全集(兼容旧版中文 ops 存档) */
+    list = list.filter(it => it && typeof it === 'object' && it.key && it.type);
     list.forEach(it => {
-      const legal = (it.ops || []).every(c => SIR_OP_MAP[c]);
-      if (!legal) it.ops = SIR_OPS_BY_TYPE[it.type === 'num' ? 'num' : 'enum'].slice();
+      const opsArr = Array.isArray(it.ops) ? it.ops : [];
+      if (!opsArr.every(c => SIR_OP_MAP[c])) {
+        it.ops = SIR_OPS_BY_TYPE[it.type === 'num' ? 'num' : 'enum'].slice();
+      }
+      if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
+        it.valSource = it.type === 'num'
+          ? { kind: 'none', note: '数值输入,无可选值' }
+          : { kind: 'manual', values: [] };
+      }
     });
     return list;
   },
