@@ -4,18 +4,21 @@
    规则编辑器(分拣分组方案 / 格口规则 / B2B分拣管理)的验证字段下拉从注册表读取。
    本页演示:
      · 新增分拣项免发版——保存后到规则页刷新,下拉即出现新验证字段
-     · 被规则引用的项锁定(运行时取值/数据类型/运算符集禁改,弹窗内直接禁用)
-     · 运算符集按数据类型给默认全集,收窄能力预留、本期不开放(只读展示)
+     · 不选数据类型:值形态由绑定的运行字段性质自动推导(数值/编码清单),
+       运算符从真实系统 12 个里自由勾选
+     · 被规则引用的项锁定(运行时取值/运算符/可选值禁改,弹窗内直接禁用)
      · localStorage 存配置(纯静态跨页共享),「重置默认」恢复系统内置种子
    ============================================ */
 
-/* ---- 数据类型与默认运算符(第一期不可改) ---- */
-const siTypeName = t => t === 'num' ? '数值' : '枚举';
+/* ---- 值形态(内部推导,不劳用户选) ---- */
+const siTypeName = t => t === 'num' ? '数值' : (t === 'str' ? '文本' : '编码清单');
 const siValSourceText = it => {
   const vs = it.valSource;
-  if (it.type === 'num') return '无(数值输入)';
+  if (SIR_bindKindOf(it.bindSource) === 'num') return '数值直接输入';
+  if (!vs) return '无';
   if (vs.kind === 'manual') return `手工清单(${(vs.values || []).length} 项)`;
-  return `接口数据源·${vs.apiKey || ''}(${vs.note || ''})`;
+  if (vs.kind === 'api') return `接口数据源·${vs.apiKey || ''}(${vs.note || ''})`;
+  return '无';
 };
 
 /* ---- 列表行 ---- */
@@ -33,7 +36,7 @@ function siListHtml() {
       <td class="col--check"><input type="checkbox" onclick="event.stopPropagation()" /></td>
       <td>${it.name}</td>
       <td class="col--code">${it.fieldName}</td>
-      <td>${siTypeName(it.type)}</td>
+      <td>${siTypeName(SIR_typeOf(it))}</td>
       <td>${siOpsCell(it)}</td>
       <td>${it.bindSource}${pending}</td>
       <td>${siValSourceText(it)}</td>
@@ -53,7 +56,7 @@ function siGrid() {
           <col style="width:60px" /><col style="min-width:150px" /><col style="min-width:160px" />
           <col style="min-width:150px" /><col style="width:80px" /><col style="width:70px" />
           <col style="width:70px" /><col style="width:130px" /></colgroup>
-        <thead><tr><th></th><th>中文名</th><th>field_name</th><th>数据类型</th>
+        <thead><tr><th></th><th>中文名</th><th>field_name</th><th>值形态</th>
           <th title="该分拣项在规则行里可选的验证类型">运算符集</th>
           <th title="签入时这票货的值从哪里拿">运行时取值</th>
           <th title="配规则时内容下拉的候选项来源">编辑器可选值</th>
@@ -68,13 +71,18 @@ function siGrid() {
    编辑弹窗(排版对齐系统配置弹窗惯例)
    区块: ① 基本信息 ② 取值定义(数据类型/运算符集/运行时取值) ③ 编辑器可选值
    ============================================ */
-function siOpsChipsHtml(it) {
-  const cur = (it && it.ops) || [];
-  if (!cur.length) return '<span class="si-dim">—</span>';
-  return cur.map(c => {
-    const o = SIR_OP_MAP[c];
-    return `<span class="sb-chip" title="${o ? o.expr : ''}">${o ? o.label : c}</span>`;
-  }).join('');
+/* 运算符勾选网格:真实系统 12 个全列(checkbox) */
+function siOpsCheckHtml() {
+  const cur = SiPage.draft.ops || [];
+  const kind = SIR_bindKindOf(SiPage.draft.bindSource);
+  return SIR_OPS.map(o => `
+    <label class="si-op-item ${o.kinds.includes(kind) ? '' : 'si-op-item--faint'}"
+      title="${o.expr}${o.kinds.includes(kind) ? '' : '(与本字段性质不太匹配,谨慎选用)'}">
+      <input type="checkbox" ${cur.includes(o.code) ? 'checked' : ''}
+        onchange="SiPage.toggleOp('${o.code}', this.checked)" />
+      <span class="si-op-lbl">${o.label}</span>
+      <span class="si-op-expr">${o.expr}</span>
+    </label>`).join('');
 }
 
 /* 手工清单:小表格(code / 显示名 / 删除) */
@@ -120,24 +128,18 @@ function siEditModal() {
           </div>
 
           <div class="si-sec-title">取值定义</div>
-          <div class="rw-form-row">
-            <label class="rw-form-label"><span class="rw-req">*</span>数据类型</label>
-            <select class="sel rw-form-ipt" id="siFType" style="width:220px" onchange="SiPage.changeType()">
-              <option value="enum">枚举</option>
-              <option value="num">数值</option>
-            </select>
-            <div class="si-dim" style="margin-left:10px" id="siFTypeTip">枚举=按清单取值;数值=数值条件(主单件数等)</div>
-          </div>
-          <div class="rw-form-row">
-            <label class="rw-form-label">运算符集</label>
-            <div style="flex:1;padding-top:4px" id="siFOps"></div>
-            <div class="si-dim" style="width:200px;text-align:right">按数据类型给默认全集,收窄预留、本期不开放</div>
+          <div class="rw-form-row" style="align-items:flex-start">
+            <label class="rw-form-label"><span class="rw-req">*</span>运算符</label>
+            <div style="flex:1">
+              <div class="si-op-grid" id="siFOps"></div>
+              <div class="si-dim">真实系统 12 个运算符全部可选;数值字段默认勾比较/区间,编码字段默认勾 包含/匹配;自由增减</div>
+            </div>
           </div>
           <div class="rw-form-row">
             <label class="rw-form-label"><span class="rw-req">*</span>运行时取值</label>
-            <select class="sel rw-form-ipt" id="siFBind" style="width:320px"
-              onchange="SiPage.draft.bindSource=this.value"></select>
-            <div class="si-dim" style="margin-left:10px">签入时这票货的值从哪拿(白名单字段)</div>
+            <select class="sel rw-form-ipt" id="siFBind" style="width:360px"
+              onchange="SiPage.onBindChange(this)"></select>
+            <div class="si-dim" style="margin-left:10px" id="siBindTip">签入时这票货的值从哪拿;字段性质决定值形态(数值/编码清单)</div>
           </div>
 
           <div class="si-sec-title">编辑器可选值</div>
@@ -162,11 +164,12 @@ function siOpsCell(it) {
   return `<span title="${full}">${it.ops.length} 个</span>`;
 }
 
-/* 编辑器可选值区(按类型联动渲染) */
+/* 编辑器可选值区(按绑定字段性质联动:num=数值直接输入;str=编码清单(手工/接口)) */
 function siValBodyHtml() {
   const d = SiPage.draft;
-  if (d.type === 'num') {
-    return `<div class="si-val-static">数值型分拣项无可选值,配规则时「内容」为数值输入框</div>`;
+  const kind = SIR_bindKindOf(d.bindSource);
+  if (kind === 'num') {
+    return `<div class="si-val-static">该字段为数值性质,配规则时「内容」直接填数值(无需值清单);已默认勾选比较/区间类运算符</div>`;
   }
   const vs = d.valSource;
   const isManual = vs.kind === 'manual';
@@ -220,11 +223,11 @@ const SiPage = {
   /* 列表工具栏 */
   addNew() {
     this.editingKey = null;
+    const bind0 = SIR_BIND_SOURCES[0].name;   /* 默认绑 product_code(str 性质) */
     this.draft = {
-      key: '', name: '', fieldName: '', type: 'enum',
-      ops: SIR_OPS_BY_TYPE.enum.slice(), bindSource: '订单属性字段 product_code',
-      valSource: { kind: 'manual', values: [] }, refCount: 0, status: 1,
-      updateUser: '庄亚运', updateTime: Helpers.nowTime(),
+      key: '', name: '', fieldName: '', bindSource: bind0,
+      ops: SIR_OPS_BY_KIND.str.slice(), valSource: { kind: 'manual', values: [] },
+      refCount: 0, status: 1, updateUser: '庄亚运', updateTime: Helpers.nowTime(),
     };
     this.openEditForm('新增分拣项', false);
   },
@@ -240,19 +243,18 @@ const SiPage = {
     document.getElementById('siFName').value = this.draft.name;
     document.getElementById('siFField').value = this.draft.fieldName;
     document.getElementById('siFField').disabled = !!this.editingKey;   /* field_name 保存后不可改 */
-    document.getElementById('siFType').value = this.draft.type;
-    document.getElementById('siFType').disabled = locked;
     document.getElementById('siFBind').disabled = locked;
     const lockNote = document.getElementById('siLockNote');
     if (locked) {
       lockNote.style.display = '';
-      lockNote.innerHTML = `🔒 被 ${this.draft.refCount} 条规则引用:数据类型 / 运算符集 / 运行时取值已锁定,如需调整请先在规则中摘除;中文名仍可修改`;
+      lockNote.innerHTML = `🔒 被 ${this.draft.refCount} 条规则引用:运行时取值 / 运算符 / 可选值已锁定,如需调整请先在规则中摘除;中文名仍可修改`;
     } else {
       lockNote.style.display = 'none';
     }
     this.renderForm();
     if (locked) {
-      /* 被引用锁定:编辑器可选值区(radio/值表/接口源)一并禁用 */
+      /* 被引用锁定:运算符勾选与编辑器可选值区(radio/值表/接口源)一并禁用 */
+      document.getElementById('siFOps').querySelectorAll('input').forEach(el => { el.disabled = true; });
       document.getElementById('siValBody').querySelectorAll('input,select,button').forEach(el => { el.disabled = true; });
     }
     document.getElementById('siEditMask').style.display = 'flex';
@@ -261,28 +263,31 @@ const SiPage = {
 
   renderForm() {
     const d = this.draft;
-    document.getElementById('siFOps').innerHTML = siOpsChipsHtml(d);
+    document.getElementById('siFOps').innerHTML = siOpsCheckHtml();
     document.getElementById('siFBind').innerHTML = SIR_BIND_SOURCES.map(s =>
-      `<option value="${s.name}" ${d.bindSource === s.name ? 'selected' : ''}>${s.name}</option>`).join('');
+      `<option value="${s.name}" ${d.bindSource === s.name ? 'selected' : ''}
+         ${s.kind === 'num' ? 'title="数值性质:内容直接填数值"' : 'title="编码性质:配值清单后下拉选值"'}>${s.name}</option>`).join('');
     document.getElementById('siValBody').innerHTML = siValBodyHtml();
   },
-  changeType() {
-    const t = document.getElementById('siFType').value;
-    const old = this.draft;
-    this.draft.type = t;
-    this.draft.ops = SIR_OPS_BY_TYPE[t].slice();
-    /* 数值→枚举:给回手工清单空表;枚举→数值:切 none */
-    if (t === 'num') {
-      this.draft.valSource = { kind: 'none', note: '数值输入,无可选值' };
-    } else if (!old.valSource || old.valSource.kind === 'none') {
-      this.draft.valSource = { kind: 'manual', values: [] };
-    }
+  toggleOp(code, on) {
+    const ops = this.draft.ops;
+    if (on) { if (!ops.includes(code)) ops.push(code); }
+    else { const i = ops.indexOf(code); if (i >= 0) ops.splice(i, 1); }
+  },
+  /* 运行时取值变更:值形态由字段性质自动推导,运算符重置为该性质默认集(可再自由勾) */
+  onBindChange(sel) {
+    const kind = SIR_bindKindOf(sel.value);
+    this.draft.bindSource = sel.value;
+    this.draft.ops = SIR_OPS_BY_KIND[kind].slice();
+    this.draft.valSource = kind === 'num'
+      ? { kind: 'none', note: '数值输入,无可选值' }
+      : { kind: 'manual', values: [] };
     this.renderForm();
   },
   setValKind(kind) {
     const d = this.draft;
     if (kind === 'manual' && (!d.valSource.values)) d.valSource.values = [];
-    d.valSource.kind = kind;
+    d.valSource = { kind, values: d.valSource.values || [], apiKey: 'product', note: '产品主数据(SPMS 同步)' };
     this.renderForm();
   },
   /* 手工清单行编辑 */
@@ -304,8 +309,10 @@ const SiPage = {
     const name = document.getElementById('siFName').value.trim();
     if (!name) { Helpers.toast('请填写中文名'); return; }
     const d = this.draft;
-    /* 手工清单校验:至少一行且 code 非空不重复 */
-    if (d.type === 'enum' && d.valSource.kind === 'manual') {
+    if (!d.ops.length) { Helpers.toast('请至少勾选一个运算符'); return; }
+    const kind = SIR_bindKindOf(d.bindSource);
+    /* 编码字段手工清单校验:至少一行且 code 非空不重复 */
+    if (kind === 'str' && d.valSource.kind === 'manual') {
       const rows = d.valSource.values || [];
       const nonEmpty = rows.filter(r => (r.code || '').trim());
       const codes = nonEmpty.map(r => r.code.trim());
@@ -324,10 +331,10 @@ const SiPage = {
       const it = list.find(i => i.key === this.editingKey);
       if (!it) return;
       if (it.refCount > 0) {
-        /* 锁定项 UI 已禁用类型/取值/运算符/可选值,此处兜底:只允许中文名变更 */
-        const lockedF = ['type', 'bindSource', 'ops', 'valSource'];
+        /* 锁定项 UI 已禁用绑定/运算符/可选值,此处兜底:只允许中文名变更 */
+        const lockedF = ['bindSource', 'ops', 'valSource'];
         if (lockedF.some(f => JSON.stringify(d[f]) !== JSON.stringify(it[f]))) {
-          Helpers.toast('该项被规则引用,不允许修改类型/取值/运算符/可选值;请先在规则中摘除'); return;
+          Helpers.toast('该项被规则引用,不允许修改运行时取值/运算符/可选值;请先在规则中摘除'); return;
         }
         it.name = name;
       } else {

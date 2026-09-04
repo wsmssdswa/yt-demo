@@ -951,3 +951,18 @@
 #siValBody .grid td { padding: 3px 4px; }
 #siValBody .grid input.ipt { height: 24px; box-sizing: border-box; }
 #siFType:disabled, #siFBind:disabled { background: #F5F5F5; color: #999; cursor: not-allowed; }
+
+/* ============================================
+   b-sort-item 运算符勾选网格(去数据类型后)
+   ============================================ */
+.si-op-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; }
+.si-op-item {
+  display: flex; align-items: center; gap: 5px; font-size: 12px;
+  padding: 3px 6px; border: 1px solid #E3E9F0; border-radius: 4px;
+  background: #FAFCFE; cursor: pointer; user-select: none;
+}
+.si-op-item:hover { border-color: #00A99D; }
+.si-op-item--faint { opacity: .55; }
+.si-op-item input { margin: 0; }
+.si-op-lbl { color: #333; }
+.si-op-expr { color: #8C8C8C; font-size: 11px; font-family: Consolas, monospace; }

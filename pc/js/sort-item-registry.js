@@ -52,16 +52,18 @@ const SortItemRegistry = {
       }
     } catch (e) { /* file:// 个别环境禁 localStorage,回退种子 */ }
     if (!list) list = SIR_DEFAULT_ITEMS.map(i => JSON.parse(JSON.stringify(i)));
-    /* 归一化:项结构校验 + ops 缺失/含非法值 → 按数据类型重建默认全集(兼容旧版中文 ops 存档) */
-    list = list.filter(it => it && typeof it === 'object' && it.key && it.type);
+    /* 归一化:项结构校验 + 值形态(type)由绑字段性质推导 + ops 缺失/非法按字段性质重建默认全集 */
+    list = list.filter(it => it && typeof it === 'object' && it.key && it.bindSource);
     list.forEach(it => {
+      it.type = SIR_typeOf(it);
+      const kind = SIR_bindKindOf(it.bindSource);
       const opsArr = Array.isArray(it.ops) ? it.ops : [];
       /* 空数组 every 恒 true:需显式判空,否则默认种子(无 ops)会跳过重建 */
       if (!opsArr.length || !opsArr.every(c => SIR_OP_MAP[c])) {
-        it.ops = SIR_OPS_BY_TYPE[it.type === 'num' ? 'num' : 'enum'].slice();
+        it.ops = SIR_OPS_BY_KIND[kind].slice();
       }
       if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
-        it.valSource = it.type === 'num'
+        it.valSource = kind === 'num'
           ? { kind: 'none', note: '数值输入,无可选值' }
           : { kind: 'manual', values: [] };
       }
@@ -159,41 +161,51 @@ function SIR_valText(itemDef, c, ctrl) {
   return `${itemDef.label} ${opLabel} ${body}`;
 }
 
-/* 供配置页展示:运算符集按类型的默认全集(第一期不可改,预留) */
-/* 全局运算符字典(2026-09-04 用户提供,真实系统全集 12 个):
-   code=存储标识, label=中文名, expr=符号/关键字, kinds=适用数据类型, ctrl=值控件形态
-   ctrl: num=数值单值 / range=数值区间(起止双值) / eq=枚举单选 / in=枚举多选 / text=文本(关键字/前后缀) */
+/* ---- 全局运算符字典(2026-09-04 用户提供,真实系统全集 12 个) ----
+   code=存储标识, label=中文名, expr=符号/关键字, kinds=适用字段性质, ctrl=值控件形态
+   ctrl: num=数值单值 / range=数值区间(起止双值) / eq=单选 / in=多选 / text=文本(关键字/前后缀) */
 const SIR_OPS = [
   { code: 'GT',        label: '大于',         expr: '>',        kinds: ['num'],  ctrl: 'num' },
-  { code: 'EQ',        label: '等于',         expr: '=',        kinds: ['num', 'enum'], ctrl: 'eq' },
-  { code: 'IN',        label: '包含',         expr: 'IN',       kinds: ['enum'], ctrl: 'in' },
+  { code: 'EQ',        label: '等于',         expr: '=',        kinds: ['num', 'str'], ctrl: 'eq' },
+  { code: 'IN',        label: '包含',         expr: 'IN',       kinds: ['str'], ctrl: 'in' },
   { code: 'BETWEEN',   label: '区间-左开右闭', expr: 'BETWEEN',  kinds: ['num'],  ctrl: 'range' },
   { code: 'LT',        label: '小于',         expr: '<',        kinds: ['num'],  ctrl: 'num' },
   { code: 'LE',        label: '小于等于',      expr: '<=',       kinds: ['num'],  ctrl: 'num' },
   { code: 'GE',        label: '大于等于',      expr: '>=',       kinds: ['num'],  ctrl: 'num' },
   { code: 'INTERVAL',  label: '区间-左闭右闭', expr: 'INTERVAL', kinds: ['num'],  ctrl: 'range' },
-  { code: 'KWMATCH',   label: '关键字匹配',    expr: 'KWMATCH',  kinds: ['enum'], ctrl: 'text' },
-  { code: 'MATCHSTART',label: '匹配开始字符',  expr: 'MATCHSTART', kinds: ['enum'], ctrl: 'text' },
-  { code: 'MATCHEND',  label: '匹配结束字符',  expr: 'MATCHEND', kinds: ['enum'], ctrl: 'text' },
-  { code: 'NE',        label: '不等于',        expr: '<>',      kinds: ['num', 'enum'], ctrl: 'eq' },
+  { code: 'KWMATCH',   label: '关键字匹配',    expr: 'KWMATCH',  kinds: ['str'], ctrl: 'text' },
+  { code: 'MATCHSTART',label: '匹配开始字符',  expr: 'MATCHSTART', kinds: ['str'], ctrl: 'text' },
+  { code: 'MATCHEND',  label: '匹配结束字符',  expr: 'MATCHEND', kinds: ['str'], ctrl: 'text' },
+  { code: 'NE',        label: '不等于',        expr: '<>',      kinds: ['num', 'str'], ctrl: 'eq' },
 ];
 const SIR_OP_MAP = {};
 SIR_OPS.forEach(o => { SIR_OP_MAP[o.code] = o; });
-const SIR_OP_CTRL_TEXT = {
-  num: '数值(单值)', range: '数值(起止区间)', eq: '枚举(单选)',
-  in: '枚举(多选)', text: '文本(关键字)',
-};
-/* 类型 → 默认运算符集(按 SIR_OPS 定义顺序裁剪 kinds 匹配) */
-const SIR_OPS_BY_TYPE = {
-  enum: SIR_OPS.filter(o => o.kinds.includes('enum')).map(o => o.code),
-  num: SIR_OPS.filter(o => o.kinds.includes('num')).map(o => o.code),
-};
+
+/* 供配置页展示:字段性质决定值形态与默认运算符集
+   kind: num=数值直接输入 / str=编码清单或文本 */
 const SIR_BIND_SOURCES = [
-  { code: 'order:product_code', name: '订单属性字段 product_code' },
-  { code: 'order:server_channel_code', name: '订单属性字段 server_channel_code' },
-  { code: 'order:order_pieces', name: '订单属性字段 order_pieces' },
-  { code: 'order:weight', name: '订单属性字段 重量(kg)' },
-  { code: 'order:volume', name: '订单属性字段 材积(CBM)' },
-  { code: 'result:b2b_exception_type', name: '签入结果字段 b2b_exception_type' },
-  { code: 'pending', name: '待开发字段(需数据侧确认)' },
+  { code: 'order:product_code', name: '订单属性字段 product_code', kind: 'str' },
+  { code: 'order:server_channel_code', name: '订单属性字段 server_channel_code', kind: 'str' },
+  { code: 'order:order_pieces', name: '订单属性字段 order_pieces', kind: 'num' },
+  { code: 'order:weight', name: '订单属性字段 重量(kg)', kind: 'num' },
+  { code: 'order:volume', name: '订单属性字段 材积(CBM)', kind: 'num' },
+  { code: 'result:b2b_exception_type', name: '签入结果字段 b2b_exception_type', kind: 'str' },
+  { code: 'pending', name: '待开发字段(需数据侧确认)', kind: 'str' },
 ];
+/* 字段性质 → 默认运算符集(可再勾选调整;数值=比较+区间,编码=值集+文本匹配) */
+const SIR_OPS_BY_KIND = {
+  num: SIR_OPS.filter(o => o.kinds.includes('num')).map(o => o.code),
+  str: SIR_OPS.filter(o => o.kinds.includes('str')).map(o => o.code),
+};
+/* 注册项值形态内部推导:type 不再由用户选择——绑字段性质 num → 数值;否则看可选值(有清单=enum,无清单=文本 str) */
+const SIR_typeOf = it => {
+  if (it.type === 'num' || it.type === 'enum') return it.type;   /* 旧存档兼容:已有 type 保留 */
+  const bs = SIR_BIND_SOURCES.find(s => s.name === it.bindSource);
+  if (bs && bs.kind === 'num') return 'num';
+  if (!it.valSource || it.valSource.kind === 'none') return 'str';
+  return 'enum';
+};
+const SIR_bindKindOf = bindName => {
+  const bs = SIR_BIND_SOURCES.find(s => s.name === bindName);
+  return bs ? bs.kind : 'str';
+};
