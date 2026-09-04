@@ -34,7 +34,7 @@ function siListHtml() {
       <td>${it.name}</td>
       <td class="col--code">${it.fieldName}</td>
       <td>${siTypeName(it.type)}</td>
-      <td>${it.ops.join(' / ')}</td>
+      <td>${siOpsCell(it)}</td>
       <td>${it.bindSource}${pending}</td>
       <td>${siValSourceText(it)}</td>
       <td class="col--code">${it.refCount}</td>
@@ -71,7 +71,10 @@ function siGrid() {
 function siOpsChipsHtml(it) {
   const cur = (it && it.ops) || [];
   if (!cur.length) return '<span class="si-dim">—</span>';
-  return cur.map(op => `<span class="sb-chip">${op}</span>`).join('');
+  return cur.map(c => {
+    const o = SIR_OP_MAP[c];
+    return `<span class="sb-chip" title="${o ? o.expr : ''}">${o ? o.label : c}</span>`;
+  }).join('');
 }
 
 /* 手工清单:小表格(code / 显示名 / 删除) */
@@ -148,6 +151,15 @@ function siEditModal() {
       </div>
     </div>
   `;
+}
+
+/* 列表运算符列:数量 + 悬浮全量(真实系统 12 运算符,label 较长不宜整列平铺) */
+function siOpsCell(it) {
+  const full = it.ops.map(c => {
+    const o = SIR_OP_MAP[c];
+    return o ? `${o.label} ${o.expr}` : c;
+  }).join('；');
+  return `<span title="${full}">${it.ops.length} 个</span>`;
 }
 
 /* 编辑器可选值区(按类型联动渲染) */

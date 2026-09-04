@@ -34,19 +34,20 @@ function sbBuildChutes() {
   byNo('41').exc = 'CF 格口已满转投';
   byNo('42').master = 'YT2621061500004421';               /* 异常口:多件跟随 */
   byNo('42').exc = 'CIF 签入失败';
-  /* 预置货型分组规则(同类货一片口) */
+  /* 预置货型分组规则(同类货一片口;op=运算符 code,见注册表 SIR_OPS 全局 12 运算符) */
   const ruleElecSea = [
-    { item: 'product', op: '包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC'] },
-    { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
+    { item: 'product', op: 'IN', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC'] },
+    { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
-  const ruleMg = [ { item: 'product', op: '包含', values: ['US-MATSU-MG', 'US-HAIYUN-MG'] } ];
+  const ruleMg = [ { item: 'product', op: 'IN', values: ['US-MATSU-MG', 'US-HAIYUN-MG'] } ];
+  /* 非带电海运:真实运算符无"不包含",用罗列表达(海运系普货/敏货+卡派普货) */
   const ruleNoElec = [
-    { item: 'product', op: '不包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC', 'US-KONGYUN-ELC'] },
-    { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
+    { item: 'product', op: 'IN', values: ['US-MATSU-REG', 'US-MATSU-MG', 'US-HAIYUN-REG', 'US-HAIYUN-MG', 'US-KAPAI-REG'] },
+    { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
-  const ruleCif = [ { item: 'exception', op: '包含', values: ['CIF'] } ];
-  const ruleDest = [ { item: 'destOrg', op: '包含', values: ['DE-FRA', 'UK-LON'] } ];
-  const rulePieces = [ { item: 'pieces', op: '大于', values: ['5'] } ];
+  const ruleCif = [ { item: 'exception', op: 'IN', values: ['CIF'] } ];
+  const ruleDest = [ { item: 'destOrg', op: 'IN', values: ['DE-FRA', 'UK-LON'] } ];
+  const rulePieces = [ { item: 'pieces', op: 'GT', values: ['5'] } ];
   const cp = r => r.map(c => ({ ...c, values: c.values.slice() }));
   ['03', '04', '21', '22'].forEach(n => { byNo(n).conds = cp(ruleElecSea); });
   ['05', '06', '23', '24'].forEach(n => { byNo(n).conds = cp(ruleMg); });
@@ -92,29 +93,30 @@ const sbNameOf = (item, code) => {
 
 /* ---- 工具 ---- */
 const sbAttrColor = a => a === '单件' ? '#2E7D32' : (a === '多件' ? '#1565C0' : '#C62828');
+/* 条件行 → 压缩摘要(卡片徽标用) */
 function sbRuleSummary(c) {
   return c.conds.map(x => {
     const def = sbItemDef(x.item);
-    if (def.type === 'num') return `${def.label}${x.op}${x.values[0] || ''}`;
-    return `${def.label}${x.op === '包含' ? '含' : '不含'}${x.values.length}`;
+    return SIR_valSummary(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${c.joiner} `);
 }
+/* 条件行 → 完整文本(title 悬浮/日志用) */
 function sbRuleTitle(c) {
-  return c.conds.map((x, i) =>
-    (i > 0 ? ` ${c.joiner} ` : '') +
-    `${sbItemDef(x.item).label}${x.op} ${x.values.map(v => sbNameOf(x.item, v)).join('、')}`).join('');
+  return c.conds.map(x => {
+    const def = sbItemDef(x.item);
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
+  }).join(` ${c.joiner} `);
 }
-/* 规则重叠检测(演示级简化:仅比对双方均为「包含」的条件项值交集;含「不包含」的组合不判断) */
+/* 规则重叠检测(演示级简化:仅比对双方同字段均为 IN 的值交集;含其它运算符的组合不判断) */
 function sbConflictGroups() {
   const conf = SB_CHUTES.filter(c => c.conds.length);
   const res = [];
   for (let i = 0; i < conf.length; i++) {
     for (let j = i + 1; j < conf.length; j++) {
       const a = conf[i], b = conf[j];
-      if (a.conds.some(x => x.op === '不包含') || b.conds.some(x => x.op === '不包含')) continue;
+      if (a.conds.some(x => x.op !== 'IN') || b.conds.some(x => x.op !== 'IN')) continue;
       for (const ca of a.conds) {
-        if (ca.op !== '包含') continue;
-        const cb = b.conds.find(x => x.item === ca.item && x.op === '包含');
+        const cb = b.conds.find(x => x.item === ca.item && x.op === 'IN');
         if (!cb) continue;
         const inter = ca.values.filter(v => cb.values.includes(v));
         if (inter.length) { res.push({ a: a.no, b: b.no, item: ca.item, vals: inter }); break; }
@@ -295,32 +297,62 @@ function sbFitChips(idx) {
     '<span class="sb-msel-ph">选择值(可多选)</span>');
 }
 
+/* 内容值控件:按运算符形态渲染(in=多选 / eq=枚举单选 / num=数值 / range=双值区间 / text=文本) */
+function sbValCtrlHtml(c, idx) {
+  const def = sbItemDef(c.item);
+  const ctrl = SIR_ctrlOf(def.type, c.op);
+  if (ctrl === 'num') {
+    return `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
+      value="${c.values[0] || ''}" oninput="SbPage.onNumInput(${idx}, this.value)" />`;
+  }
+  if (ctrl === 'range') {
+    return `<div style="flex:1;display:flex;align-items:center;gap:4px;min-width:0">
+      <input type="number" class="ipt" style="flex:1;min-width:0" placeholder="起始值"
+        value="${c.values[0] || ''}" oninput="SbPage.onRangeInput(${idx}, 0, this.value)" />
+      <span style="color:#999">~</span>
+      <input type="number" class="ipt" style="flex:1;min-width:0" placeholder="结束值"
+        value="${c.values[1] || ''}" oninput="SbPage.onRangeInput(${idx}, 1, this.value)" />
+    </div>`;
+  }
+  if (ctrl === 'text') {
+    return `<input class="ipt" style="flex:1;min-width:0" placeholder="填写匹配文本,如 US-"
+      value="${c.values[0] || ''}" oninput="SbPage.onTextInput(${idx}, this.value)" />`;
+  }
+  if (ctrl === 'eq') {
+    const opts = ['<option value="">请选择</option>'].concat((def.values || []).map(v =>
+      `<option value="${v.code}" ${c.values[0] === v.code ? 'selected' : ''}>${v.name}</option>`)).join('');
+    return `<select class="sel" style="flex:1;min-width:0" onchange="SbPage.onEqInput(${idx}, this.value)">${opts}</select>`;
+  }
+  /* in:多选下拉 */
+  return `<div class="sb-msel" id="sbValBox_${idx}">
+      <div class="sb-msel-toggle" onclick="SbPage.toggleValDrop(${idx}, event)">
+        <span class="sb-msel-chips" id="sbValChips_${idx}"></span>
+        <span class="sb-msel-arrow">▾</span>
+      </div>
+      <div class="sb-msel-drop" id="sbValDrop_${idx}">
+        <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SbPage.renderValDrop(${idx})" />
+        <div class="sb-msel-list" id="sbValList_${idx}"></div>
+      </div>
+    </div>`;
+}
+
 function sbCondRowHtml(c, idx) {
   const def = sbItemDef(c.item);
   const usedItems = SbPage.editConds.map(x => x.item);
   const itemOpts = SB_COND_ITEMS.map(d =>
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
-  const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
-  /* 数值字段(主单件数)内容=数值输入框;枚举字段=多选下拉 */
-  const valHtml = def.type === 'num'
-    ? `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
-         value="${c.values[0] || ''}" oninput="SbPage.onNumInput(${idx}, this.value)" />`
-    : `<div class="sb-msel" id="sbValBox_${idx}">
-        <div class="sb-msel-toggle" onclick="SbPage.toggleValDrop(${idx}, event)">
-          <span class="sb-msel-chips" id="sbValChips_${idx}"></span>
-          <span class="sb-msel-arrow">▾</span>
-        </div>
-        <div class="sb-msel-drop" id="sbValDrop_${idx}">
-          <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SbPage.renderValDrop(${idx})" />
-          <div class="sb-msel-list" id="sbValList_${idx}"></div>
-        </div>
-      </div>`;
+  /* 运算符下拉:value=code, 文案=中文名(悬浮英文符号/关键字) */
+  const opOpts = def.ops.map(code => {
+    const o = SIR_opOf(code);
+    return `<option value="${code}" ${code === c.op ? 'selected' : ''}
+      ${o ? `title="${o.expr}"` : ''}>${o ? o.label : code}</option>`;
+  }).join('');
   return `
     <div class="sb-crow">
       <select class="sel sb-crow-item" onchange="SbPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
-      <select class="sel sb-crow-op" onchange="SbPage.editConds[${idx}].op = this.value;sbRenderPreview()">${opOpts}</select>
-      ${valHtml}
+      <select class="sel sb-crow-op" onchange="SbPage.onOpChange(${idx}, this.value)">${opOpts}</select>
+      ${sbValCtrlHtml(c, idx)}
       <button class="sb-crow-del" onclick="SbPage.removeCond(${idx})" title="删除该条件">✕</button>
     </div>
   `;
@@ -331,8 +363,7 @@ function sbRulePreviewText() {
   if (!SbPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
   const body = SbPage.editConds.map(x => {
     const def = sbItemDef(x.item);
-    if (def.type === 'num') return `${def.label}${x.op} ${x.values.length ? x.values[0] : '(未填数值)'}`;
-    return `${def.label}${x.op} ${x.values.length ? x.values.map(v => sbNameOf(x.item, v)).join('、') : '(未选值)'}`;
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${SbPage.editJoiner} `);
   return `落口规则:${body}`;
 }
@@ -491,8 +522,12 @@ const SbPage = {
   saveRule() {
     const c = SB_CHUTES.find(x => x.no === this.ruleNo);
     if (!c) return;
-    const incomplete = this.editConds.some(x => !x.item || !x.op || !x.values.length);
-    if (incomplete) { Helpers.toast('每行条件需选择值/填写数值;删光条件行保存=恢复默认池'); return; }
+    const incomplete = this.editConds.some(x => {
+      if (!x.item || !x.op) return true;
+      const def = sbItemDef(x.item);
+      return !SIR_valOk(x, SIR_ctrlOf(def.type, x.op));
+    });
+    if (incomplete) { Helpers.toast('每行条件需填全内容(区间需起止两个数值);删光条件行保存=恢复默认池'); return; }
     const isClear = this.editConds.length === 0;
     c.conds = this.editConds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
     c.joiner = this.editJoiner;
@@ -520,9 +555,34 @@ const SbPage = {
     this.editConds[idx] = { item: key, op: def.ops[0], values: [] };
     this.refreshCondBox();
   },
-  /* 数值字段(主单件数)内容输入 */
+  /* 运算符切换:值结构随运算符形态变化,重置并重渲染该行 */
+  onOpChange(idx, code) {
+    this.editConds[idx].op = code;
+    this.editConds[idx].values = [];
+    this.refreshCondBox();
+  },
+  /* 数值输入(单值运算符:GT/LT/GE/LE/EQ/NE 用于数值字段) */
   onNumInput(idx, v) {
     this.editConds[idx].values = v === '' ? [] : [v];
+    sbRenderPreview();
+  },
+  /* 区间输入(起止双值:BETWEEN/INTERVAL) */
+  onRangeInput(idx, slot, v) {
+    const c = this.editConds[idx];
+    const arr = c.values.slice();
+    while (arr.length < 2) arr.push('');
+    arr[slot] = v;
+    c.values = arr;
+    sbRenderPreview();
+  },
+  /* 文本匹配输入(KWMATCH/MATCHSTART/MATCHEND) */
+  onTextInput(idx, v) {
+    this.editConds[idx].values = v === '' ? [] : [v];
+    sbRenderPreview();
+  },
+  /* 枚举单选(EQ/NE 用于枚举字段) */
+  onEqInput(idx, code) {
+    this.editConds[idx].values = code ? [code] : [];
     sbRenderPreview();
   },
   refreshCondBox() {

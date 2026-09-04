@@ -34,7 +34,7 @@ const CR_CHANNELS = [
 const CR_COND_ITEMS = SortItemRegistry.buildCondItems({ product: CR_PRODUCTS, channel: CR_CHANNELS });
 /* 兜底:预置规则引用的 key 若被注册表停用/删除,按原名展示不崩 */
 const crItemDef = k => CR_COND_ITEMS.find(d => d.key === k)
-  || { key: k, label: `(已停用)${k}`, type: 'enum', ops: ['包含'], values: [] };
+  || { key: k, label: `(已停用)${k}`, type: 'enum', ops: ['IN'], values: [] };
 const crNameOf = (item, code) => {
   const def = crItemDef(item);
   if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */
@@ -53,20 +53,21 @@ function crBuildChutes() {
   }
   const byNo = n => list.find(c => c.no === n);
   byNo('03').conds = [
-    { item: 'product', op: '包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC'] },
-    { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
+    { item: 'product', op: 'IN', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC'] },
+    { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
   byNo('04').conds = byNo('03').conds.map(c => ({ ...c, values: c.values.slice() }));
-  byNo('05').conds = [ { item: 'product', op: '包含', values: ['US-MATSU-MG', 'US-HAIYUN-MG'] } ];
+  byNo('05').conds = [ { item: 'product', op: 'IN', values: ['US-MATSU-MG', 'US-HAIYUN-MG'] } ];
   byNo('06').conds = byNo('05').conds.map(c => ({ ...c, values: c.values.slice() }));
+  /* 非带电海运:真实运算符无"不包含",用罗列表达 */
   byNo('11').conds = [
-    { item: 'product', op: '不包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC', 'US-KONGYUN-ELC'] },
-    { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
+    { item: 'product', op: 'IN', values: ['US-MATSU-REG', 'US-MATSU-MG', 'US-HAIYUN-REG', 'US-HAIYUN-MG', 'US-KAPAI-REG'] },
+    { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
   byNo('12').conds = byNo('11').conds.map(c => ({ ...c, values: c.values.slice() }));
-  byNo('09').conds = [ { item: 'destOrg', op: '包含', values: ['DE-FRA', 'UK-LON'] } ];
+  byNo('09').conds = [ { item: 'destOrg', op: 'IN', values: ['DE-FRA', 'UK-LON'] } ];
   byNo('10').conds = byNo('09').conds.map(c => ({ ...c, values: c.values.slice() }));
-  byNo('13').conds = [ { item: 'pieces', op: '大于', values: ['5'] } ];
+  byNo('13').conds = [ { item: 'pieces', op: 'GT', values: ['5'] } ];
   byNo('14').conds = byNo('13').conds.map(c => ({ ...c, values: c.values.slice() }));
   return list;
 }
@@ -92,28 +93,27 @@ const crLogAdd = (no, action, detail) =>
 function crRuleSummary(c) {
   return c.conds.map(x => {
     const def = crItemDef(x.item);
-    if (def.type === 'num') return `${def.label}${x.op}${x.values[0] || ''}`;
-    return `${def.label}${x.op === '包含' ? '含' : '不含'}${x.values.length}`;
+    return SIR_valSummary(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${c.joiner} `);
 }
 function crRuleTitle(c) {
-  return c.conds.map((x, i) =>
-    (i > 0 ? ` ${c.joiner} ` : '') +
-    `${crItemDef(x.item).label}${x.op} ${x.values.map(v => crNameOf(x.item, v)).join('、')}`).join('');
+  return c.conds.map(x => {
+    const def = crItemDef(x.item);
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
+  }).join(` ${c.joiner} `);
 }
 
-/* ---- 规则重叠检测(演示级简化:仅比对双方均为「包含」的条件项值交集;
-        任一方含「不包含」条件的组合不做判断) ---- */
+/* ---- 规则重叠检测(演示级简化:仅比对双方同字段均为 IN 的值交集;
+        含其它运算符的组合不做判断) ---- */
 function crConflictGroups() {
   const conf = CR_CHUTES.filter(c => c.conds.length);
   const res = [];
   for (let i = 0; i < conf.length; i++) {
     for (let j = i + 1; j < conf.length; j++) {
       const a = conf[i], b = conf[j];
-      if (a.conds.some(x => x.op === '不包含') || b.conds.some(x => x.op === '不包含')) continue;
+      if (a.conds.some(x => x.op !== 'IN') || b.conds.some(x => x.op !== 'IN')) continue;
       for (const ca of a.conds) {
-        if (ca.op !== '包含') continue;
-        const cb = b.conds.find(x => x.item === ca.item && x.op === '包含');
+        const cb = b.conds.find(x => x.item === ca.item && x.op === 'IN');
         if (!cb) continue;
         const inter = ca.values.filter(v => cb.values.includes(v));
         if (inter.length) { res.push({ a: a.no, b: b.no, item: ca.item, vals: inter }); break; }
@@ -229,32 +229,62 @@ function crFitChips(idx) {
     '<span class="sb-msel-ph">选择值(可多选)</span>');
 }
 
+/* 内容值控件:按运算符形态渲染(in=多选 / eq=枚举单选 / num=数值 / range=双值区间 / text=文本) */
+function crValCtrlHtml(c, idx) {
+  const def = crItemDef(c.item);
+  const ctrl = SIR_ctrlOf(def.type, c.op);
+  if (ctrl === 'num') {
+    return `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
+      value="${c.values[0] || ''}" oninput="CrPage.onNumInput(${idx}, this.value)" />`;
+  }
+  if (ctrl === 'range') {
+    return `<div style="flex:1;display:flex;align-items:center;gap:4px;min-width:0">
+      <input type="number" class="ipt" style="flex:1;min-width:0" placeholder="起始值"
+        value="${c.values[0] || ''}" oninput="CrPage.onRangeInput(${idx}, 0, this.value)" />
+      <span style="color:#999">~</span>
+      <input type="number" class="ipt" style="flex:1;min-width:0" placeholder="结束值"
+        value="${c.values[1] || ''}" oninput="CrPage.onRangeInput(${idx}, 1, this.value)" />
+    </div>`;
+  }
+  if (ctrl === 'text') {
+    return `<input class="ipt" style="flex:1;min-width:0" placeholder="填写匹配文本,如 US-"
+      value="${c.values[0] || ''}" oninput="CrPage.onTextInput(${idx}, this.value)" />`;
+  }
+  if (ctrl === 'eq') {
+    const opts = ['<option value="">请选择</option>'].concat((def.values || []).map(v =>
+      `<option value="${v.code}" ${c.values[0] === v.code ? 'selected' : ''}>${v.name}</option>`)).join('');
+    return `<select class="sel" style="flex:1;min-width:0" onchange="CrPage.onEqInput(${idx}, this.value)">${opts}</select>`;
+  }
+  /* in:多选下拉 */
+  return `<div class="sb-msel" id="crValBox_${idx}">
+      <div class="sb-msel-toggle" onclick="CrPage.toggleValDrop(${idx}, event)">
+        <span class="sb-msel-chips" id="crValChips_${idx}"></span>
+        <span class="sb-msel-arrow">▾</span>
+      </div>
+      <div class="sb-msel-drop" id="crValDrop_${idx}">
+        <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="CrPage.renderValDrop(${idx})" />
+        <div class="sb-msel-list" id="crValList_${idx}"></div>
+      </div>
+    </div>`;
+}
+
 function crCondRowHtml(c, idx) {
   const def = crItemDef(c.item);
   const usedItems = CrPage.editConds.map(x => x.item);
   const itemOpts = CR_COND_ITEMS.map(d =>
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
-  const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
-  /* 数值字段(主单件数)内容=数值输入框;枚举字段=多选下拉 */
-  const valHtml = def.type === 'num'
-    ? `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
-         value="${c.values[0] || ''}" oninput="CrPage.onNumInput(${idx}, this.value)" />`
-    : `<div class="sb-msel" id="crValBox_${idx}">
-        <div class="sb-msel-toggle" onclick="CrPage.toggleValDrop(${idx}, event)">
-          <span class="sb-msel-chips" id="crValChips_${idx}"></span>
-          <span class="sb-msel-arrow">▾</span>
-        </div>
-        <div class="sb-msel-drop" id="crValDrop_${idx}">
-          <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="CrPage.renderValDrop(${idx})" />
-          <div class="sb-msel-list" id="crValList_${idx}"></div>
-        </div>
-      </div>`;
+  /* 运算符下拉:value=code, 文案=中文名(悬浮英文符号/关键字) */
+  const opOpts = def.ops.map(code => {
+    const o = SIR_opOf(code);
+    return `<option value="${code}" ${code === c.op ? 'selected' : ''}
+      ${o ? `title="${o.expr}"` : ''}>${o ? o.label : code}</option>`;
+  }).join('');
   return `
     <div class="sb-crow">
       <select class="sel sb-crow-item" onchange="CrPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
-      <select class="sel sb-crow-op" onchange="CrPage.editConds[${idx}].op = this.value;crRenderPreview()">${opOpts}</select>
-      ${valHtml}
+      <select class="sel sb-crow-op" onchange="CrPage.onOpChange(${idx}, this.value)">${opOpts}</select>
+      ${crValCtrlHtml(c, idx)}
       <button class="sb-crow-del" onclick="CrPage.removeCond(${idx})" title="删除该条件">✕</button>
     </div>
   `;
@@ -265,8 +295,7 @@ function crRulePreviewText() {
   if (!CrPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
   const body = CrPage.editConds.map(x => {
     const def = crItemDef(x.item);
-    if (def.type === 'num') return `${def.label}${x.op} ${x.values.length ? x.values[0] : '(未填数值)'}`;
-    return `${def.label}${x.op} ${x.values.length ? x.values.map(v => crNameOf(x.item, v)).join('、') : '(未选值)'}`;
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${CrPage.editJoiner} `);
   return `落口规则:${body}`;
 }
@@ -373,7 +402,7 @@ function crHelpModal() {
           <div class="lr-help-step"><b>③ 多口命中:</b>一票货同时命中多个口的规则时,按格口号顺序落第一个空闲口(⚠ 页面对「包含」值有交集的口给出重叠提示,无优先级仲裁)</div>
           <div class="lr-help-step"><b>④ 同类多口:</b>一类货需要多个格口时,需逐口配置相同规则;后续规则变更(如产品清单更新)需对每个口重新配置</div>
           <div class="lr-help-step"><b>⑤ 异常口:</b>可配规则(用「异常类型」验证字段区分不同异常);异常件未命中方案时落首个空闲异常口</div>
-          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道/异常类型/调拨目的仓/主单件数;枚举字段验证类型为 包含/不包含,主单件数为数值条件,验证类型为 大于/大于等于/小于/小于等于/等于);值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
+          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道/异常类型/调拨目的仓/主单件数);验证类型=运算符集(全局 12 个:大于/等于/包含 IN/区间-左开右闭 BETWEEN/小于/小于等于/大于等于/区间-左闭右闭 INTERVAL/关键字匹配/匹配开始字符/匹配结束字符/不等于,按分拣项数据类型给适用集,内容控件随运算符变化);值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="document.getElementById('crHelpMask').style.display='none'">知道了</button>
@@ -421,12 +450,16 @@ const CrPage = {
   closeEdit() { document.getElementById('crEditMask').style.display = 'none'; },
 
   saveRule() {
-    const incomplete = this.editConds.some(c => !c.item || !c.op || !c.values.length);
-    if (incomplete) { Helpers.toast('每行条件需选择值/填写数值;删光条件行保存=恢复默认池'); return; }
+    const incomplete = this.editConds.some(c => {
+      if (!c.item || !c.op) return true;
+      const def = crItemDef(c.item);
+      return !SIR_valOk(c, SIR_ctrlOf(def.type, c.op));
+    });
+    if (incomplete) { Helpers.toast('每行条件需填全内容(区间需起止两个数值);删光条件行保存=恢复默认池'); return; }
     const isClear = this.editConds.length === 0;
     const summary = this.editConds.map(c => {
       const def = crItemDef(c.item);
-      return def.type === 'num' ? `${def.label}${c.op}${c.values[0] || ''}` : `${def.label}${c.op}${c.values.length}项`;
+      return SIR_valSummary(def, c, SIR_ctrlOf(def.type, c.op));
     }).join(` ${this.editJoiner} `);
     this.editChutes.forEach(no => {
       const c = CR_CHUTES.find(x => x.no === no);
@@ -459,9 +492,34 @@ const CrPage = {
     this.editConds[idx] = { item: key, op: def.ops[0], values: [] };
     this.refreshCondBox();
   },
-  /* 数值字段(主单件数)内容输入 */
+  /* 运算符切换:值结构随运算符形态变化,重置并重渲染该行 */
+  onOpChange(idx, code) {
+    this.editConds[idx].op = code;
+    this.editConds[idx].values = [];
+    this.refreshCondBox();
+  },
+  /* 数值输入(单值运算符:GT/LT/GE/LE/EQ/NE 用于数值字段) */
   onNumInput(idx, v) {
     this.editConds[idx].values = v === '' ? [] : [v];
+    crRenderPreview();
+  },
+  /* 区间输入(起止双值:BETWEEN/INTERVAL) */
+  onRangeInput(idx, slot, v) {
+    const c = this.editConds[idx];
+    const arr = c.values.slice();
+    while (arr.length < 2) arr.push('');
+    arr[slot] = v;
+    c.values = arr;
+    crRenderPreview();
+  },
+  /* 文本匹配输入(KWMATCH/MATCHSTART/MATCHEND) */
+  onTextInput(idx, v) {
+    this.editConds[idx].values = v === '' ? [] : [v];
+    crRenderPreview();
+  },
+  /* 枚举单选(EQ/NE 用于枚举字段) */
+  onEqInput(idx, code) {
+    this.editConds[idx].values = code ? [code] : [];
     crRenderPreview();
   },
   refreshCondBox() {

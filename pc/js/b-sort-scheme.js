@@ -31,7 +31,7 @@ const SS_CHANNELS = [
 const SS_COND_ITEMS = SortItemRegistry.buildCondItems({ product: SS_PRODUCTS, channel: SS_CHANNELS });
 /* 兜底:预置规则引用的 key 若被注册表停用/删除,按原名展示不崩 */
 const ssItemDef = k => SS_COND_ITEMS.find(d => d.key === k)
-  || { key: k, label: `(已停用)${k}`, type: 'enum', ops: ['包含'], values: [] };
+  || { key: k, label: `(已停用)${k}`, type: 'enum', ops: ['IN'], values: [] };
 
 /* ---- 演示数据:格口应用明细(与分拣管理页同源副本;invalid=方案换版格口失效) ---- */
 const SS_APPLIES = [
@@ -75,37 +75,37 @@ const SS_LOGS = [
 const ssLogAdd = (schemeId, action, detail) =>
   SS_LOGS.unshift({ schemeId, time: Helpers.nowTime(), action, detail, user: '庄亚运' });
 
-/* ---- 演示数据:分组方案(与分拣管理页同源副本) ---- */
+/* ---- 演示数据:分组方案(与分拣管理页同源副本;op=运算符 code,见注册表 SIR_OPS) ---- */
 const SS_SCHEMES = [
   { id: 1, code: 'GS-001', name: '带电×海运',
     conds: [
-      { item: 'product', op: '包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC'] },
-      { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
+      { item: 'product', op: 'IN', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC'] },
+      { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
     ], joiner: '且', status: 1, updateUser: '庄亚运', updateTime: '2026-08-24 10:22:41' },
   { id: 2, code: 'GS-002', name: '敏货类',
-    conds: [ { item: 'product', op: '包含', values: ['US-MATSU-MG', 'US-HAIYUN-MG'] } ], joiner: '且',
+    conds: [ { item: 'product', op: 'IN', values: ['US-MATSU-MG', 'US-HAIYUN-MG'] } ], joiner: '且',
     status: 1, updateUser: '庄亚运', updateTime: '2026-08-23 16:05:12' },
   { id: 3, code: 'GS-003', name: '美森批量件',
     conds: [
-      { item: 'channel', op: '包含', values: ['MATSU-EXP', 'MATSU-KUAI'] },
-      { item: 'product', op: '包含', values: ['US-MATSU-REG'] },
+      { item: 'channel', op: 'IN', values: ['MATSU-EXP', 'MATSU-KUAI'] },
+      { item: 'product', op: 'IN', values: ['US-MATSU-REG'] },
     ], joiner: '或', status: 0, updateUser: '李丽', updateTime: '2026-08-22 11:40:03' },
   { id: 4, code: 'GS-004', name: '普货类',
-    conds: [ { item: 'product', op: '包含', values: ['US-MATSU-REG', 'US-HAIYUN-REG'] } ], joiner: '且',
+    conds: [ { item: 'product', op: 'IN', values: ['US-MATSU-REG', 'US-HAIYUN-REG'] } ], joiner: '且',
     status: 1, updateUser: '王强', updateTime: '2026-08-10 09:00:00' },
   { id: 5, code: 'GS-005', name: '非带电海运',
     conds: [
-      { item: 'product', op: '不包含', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC', 'US-KAPAI-ELC', 'US-KONGYUN-ELC'] },
-      { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
+      { item: 'product', op: 'IN', values: ['US-MATSU-REG', 'US-MATSU-MG', 'US-HAIYUN-REG', 'US-HAIYUN-MG', 'US-KAPAI-REG'] },
+      { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
     ], joiner: '且', status: 1, updateUser: '李丽', updateTime: '2026-08-25 09:15:20' },
   { id: 6, code: 'GS-006', name: '签入失败件',
-    conds: [ { item: 'exception', op: '包含', values: ['CIF'] } ], joiner: '且',
+    conds: [ { item: 'exception', op: 'IN', values: ['CIF'] } ], joiner: '且',
     status: 1, updateUser: '庄亚运', updateTime: '2026-08-26 10:00:00' },
   { id: 7, code: 'GS-007', name: '欧洲仓件',
-    conds: [ { item: 'destOrg', op: '包含', values: ['DE-FRA', 'UK-LON'] } ], joiner: '且',
+    conds: [ { item: 'destOrg', op: 'IN', values: ['DE-FRA', 'UK-LON'] } ], joiner: '且',
     status: 1, updateUser: '庄亚运', updateTime: '2026-08-26 14:20:00' },
   { id: 8, code: 'GS-008', name: '大票多件',
-    conds: [ { item: 'pieces', op: '大于', values: ['5'] } ], joiner: '且',
+    conds: [ { item: 'pieces', op: 'GT', values: ['5'] } ], joiner: '且',
     status: 1, updateUser: '王强', updateTime: '2026-08-26 15:10:00' },
 ];
 
@@ -113,18 +113,20 @@ const SS_SCHEMES = [
 function ssCondsCell(sc) {
   return sc.conds.map((c, i) => {
     const def = ssItemDef(c.item);
+    const opLbl = (SIR_opOf(c.op) || {}).label || c.op;
     const vals = c.values.length > 2
-      ? `<span class="sb-chip ${c.op === '不包含' ? 'sb-chip--not' : ''}" title="${c.values.join('、')}">${c.values[0]} 等${c.values.length}项</span>`
-      : c.values.map(v => `<span class="sb-chip ${c.op === '不包含' ? 'sb-chip--not' : ''}">${v}</span>`).join('');
+      ? `<span class="sb-chip" title="${c.values.join('、')}">${c.values[0]} 等${c.values.length}项</span>`
+      : c.values.map(v => `<span class="sb-chip">${v}</span>`).join('');
     const join = i > 0 ? `<span class="sb-chip-join sb-chip-join--hl">${sc.joiner}</span>` : '';
-    return `${join}<span class="sb-cond-op ${c.op === '不包含' ? 'sb-cond-op--not' : ''}">${def.label} ${c.op}</span>${vals}`;
+    return `${join}<span class="sb-cond-op">${def.label} ${opLbl}</span>${vals}`;
   }).join('');
 }
 /* 条件列悬浮全文(纯文本) */
 function ssCondsTitle(sc) {
-  return sc.conds.map((c, i) =>
-    (i > 0 ? ` ${sc.joiner} ` : '') +
-    `${ssItemDef(c.item).label}${c.op} ${c.values.join('、')}`).join('');
+  return sc.conds.map(c => {
+    const def = ssItemDef(c.item);
+    return SIR_valText(def, c, SIR_ctrlOf(def.type, c.op));
+  }).join(` ${sc.joiner} `);
 }
 
 /* ---- 列表 ---- */
@@ -191,35 +193,65 @@ function ssFitChips(idx) {
   }), '<span class="sb-msel-ph">选择值(可多选)</span>');
 }
 
+/* 内容值控件:按运算符形态渲染(表格单元格内;in=多选 / eq=枚举单选 / num=数值 / range=双值区间 / text=文本) */
+function ssValCtrlHtml(c, idx) {
+  const def = ssItemDef(c.item);
+  const ctrl = SIR_ctrlOf(def.type, c.op);
+  if (ctrl === 'num') {
+    return `<input type="number" class="ipt" style="width:100%" placeholder="填写数值"
+      value="${c.values[0] || ''}" oninput="SsPage.onNumInput(${idx}, this.value)" />`;
+  }
+  if (ctrl === 'range') {
+    return `<div style="display:flex;align-items:center;gap:4px">
+      <input type="number" class="ipt" style="flex:1;min-width:0" placeholder="起始"
+        value="${c.values[0] || ''}" oninput="SsPage.onRangeInput(${idx}, 0, this.value)" />
+      <span style="color:#999">~</span>
+      <input type="number" class="ipt" style="flex:1;min-width:0" placeholder="结束"
+        value="${c.values[1] || ''}" oninput="SsPage.onRangeInput(${idx}, 1, this.value)" />
+    </div>`;
+  }
+  if (ctrl === 'text') {
+    return `<input class="ipt" style="width:100%" placeholder="匹配文本,如 US-"
+      value="${c.values[0] || ''}" oninput="SsPage.onTextInput(${idx}, this.value)" />`;
+  }
+  if (ctrl === 'eq') {
+    const opts = ['<option value="">请选择</option>'].concat((def.values || []).map(v =>
+      `<option value="${v.code}" ${c.values[0] === v.code ? 'selected' : ''}>${v.name}</option>`)).join('');
+    return `<select class="sel" style="width:100%" onchange="SsPage.onEqInput(${idx}, this.value)">${opts}</select>`;
+  }
+  /* in:多选下拉 */
+  return `<div class="sb-msel" id="ssValBox_${idx}">
+      <div class="sb-msel-toggle" onclick="SsPage.toggleValDrop(${idx}, event)">
+        <span class="sb-msel-chips" id="ssValChips_${idx}"></span>
+        <span class="sb-msel-arrow">▾</span>
+      </div>
+      <div class="sb-msel-drop" id="ssValDrop_${idx}">
+        <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SsPage.renderValDrop(${idx})" />
+        <div class="sb-msel-list" id="ssValList_${idx}"></div>
+      </div>
+    </div>`;
+}
+
 function ssCondRowHtml(c, idx) {
   const def = ssItemDef(c.item);
   const usedItems = SsPage.editConds.map(x => x.item);
   const itemOpts = SS_COND_ITEMS.map(d =>
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
-  const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
-  /* 数值字段(主单件数)内容=数值输入框;枚举字段=多选下拉 */
-  const valHtml = def.type === 'num'
-    ? `<input type="number" class="ipt" style="width:100%" placeholder="填写数值"
-         value="${c.values[0] || ''}" oninput="SsPage.onNumInput(${idx}, this.value)" />`
-    : `<div class="sb-msel" id="ssValBox_${idx}">
-        <div class="sb-msel-toggle" onclick="SsPage.toggleValDrop(${idx}, event)">
-          <span class="sb-msel-chips" id="ssValChips_${idx}"></span>
-          <span class="sb-msel-arrow">▾</span>
-        </div>
-        <div class="sb-msel-drop" id="ssValDrop_${idx}">
-          <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SsPage.renderValDrop(${idx})" />
-          <div class="sb-msel-list" id="ssValList_${idx}"></div>
-        </div>
-      </div>`;
+  /* 运算符下拉:value=code, 文案=中文名(悬浮英文符号/关键字) */
+  const opOpts = def.ops.map(code => {
+    const o = SIR_opOf(code);
+    return `<option value="${code}" ${code === c.op ? 'selected' : ''}
+      ${o ? `title="${o.expr}"` : ''}>${o ? o.label : code}</option>`;
+  }).join('');
   return `
     <tr class="${SsPage.rowSel.has(idx) ? 'is-cur' : ''}">
       <td class="col--check"><input type="checkbox" ${SsPage.rowSel.has(idx) ? 'checked' : ''}
         onchange="SsPage.checkRow(${idx}, this.checked)" /></td>
       <td class="col--num">${idx + 1}</td>
       <td><select class="sel" onchange="SsPage.onItemChange(${idx}, this.value)">${itemOpts}</select></td>
-      <td><select class="sel" onchange="SsPage.editConds[${idx}].op = this.value">${opOpts}</select></td>
-      <td>${valHtml}</td>
+      <td><select class="sel" onchange="SsPage.onOpChange(${idx}, this.value)">${opOpts}</select></td>
+      <td>${ssValCtrlHtml(c, idx)}</td>
     </tr>
   `;
 }
@@ -345,7 +377,7 @@ function ssHelpModal() {
           <div class="lr-help-step"><b>④ 兜底:</b>分组挂载的口全满、或应用因分拣方案换版失效 → 一律<b>转异常口</b>,不回退默认</div>
           <div class="lr-help-step"><b>⑤ 未命中:</b>未命中任何分组的货走默认分拣(未挂方案的格口,按单件/多件分配,与现状一致)</div>
           <div class="lr-help-step"><b>⑥ 删除保护:</b>已被格口挂载的分组不允许删除,请先在各分拣机看板摘除</div>
-          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道/异常类型/调拨目的仓/主单件数;枚举字段验证类型为 包含/不包含,主单件数为数值条件,验证类型为 大于/大于等于/小于/小于等于/等于),值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
+          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道/异常类型/调拨目的仓/主单件数);验证类型=运算符集(全局 12 个:大于/等于/包含 IN/区间-左开右闭 BETWEEN/小于/小于等于/大于等于/区间-左闭右闭 INTERVAL/关键字匹配/匹配开始字符/匹配结束字符/不等于,按分拣项数据类型给适用集,内容控件随运算符变化),值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="document.getElementById('ssHelpMask').style.display='none'">知道了</button>
@@ -432,14 +464,18 @@ const SsPage = {
   saveEdit() {
     const name = document.getElementById('ssFName').value.trim();
     if (!name) { Helpers.toast('请填写方案名称'); return; }
-    const incomplete = this.editConds.some(c => !c.item || !c.op || !c.values.length);
+    const incomplete = this.editConds.some(c => {
+      if (!c.item || !c.op) return true;
+      const def = ssItemDef(c.item);
+      return !SIR_valOk(c, SIR_ctrlOf(def.type, c.op));
+    });
     if (!this.editConds.length || incomplete) {
-      Helpers.toast('请至少配置一行完整条件(条件项/运算符/值或数值)'); return;
+      Helpers.toast('请至少配置一行完整条件(内容按运算符填全,区间需起止两值)'); return;
     }
     const conds = this.editConds.map(c => ({ item: c.item, op: c.op, values: c.values.slice() }));
     const condSummary = conds.map(c => {
       const def = ssItemDef(c.item);
-      return def.type === 'num' ? `${def.label}${c.op}${c.values[0] || ''}` : `${def.label}${c.op}${c.values.length}项`;
+      return SIR_valSummary(def, c, SIR_ctrlOf(def.type, c.op));
     }).join(` ${this.editJoiner} `);
     if (this.editingId > 0) {
       const s = SS_SCHEMES.find(x => x.id === this.editingId);
@@ -500,9 +536,31 @@ const SsPage = {
     this.editConds[idx] = { item: key, op: def.ops[0], values: [] };
     this.refreshCondBox();
   },
-  /* 数值字段(主单件数)内容输入 */
+  /* 运算符切换:值结构随运算符形态变化,重置并重渲染该行 */
+  onOpChange(idx, code) {
+    this.editConds[idx].op = code;
+    this.editConds[idx].values = [];
+    this.refreshCondBox();
+  },
+  /* 数值输入(单值运算符:GT/LT/GE/LE/EQ/NE 用于数值字段) */
   onNumInput(idx, v) {
     this.editConds[idx].values = v === '' ? [] : [v];
+  },
+  /* 区间输入(起止双值:BETWEEN/INTERVAL) */
+  onRangeInput(idx, slot, v) {
+    const c = this.editConds[idx];
+    const arr = c.values.slice();
+    while (arr.length < 2) arr.push('');
+    arr[slot] = v;
+    c.values = arr;
+  },
+  /* 文本匹配输入(KWMATCH/MATCHSTART/MATCHEND) */
+  onTextInput(idx, v) {
+    this.editConds[idx].values = v === '' ? [] : [v];
+  },
+  /* 枚举单选(EQ/NE 用于枚举字段) */
+  onEqInput(idx, code) {
+    this.editConds[idx].values = code ? [code] : [];
   },
   refreshCondBox() {
     document.getElementById('ssCondBox').innerHTML = ssCondRowsHtml();
