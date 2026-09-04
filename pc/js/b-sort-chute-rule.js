@@ -34,14 +34,26 @@ const CR_EXCEPTIONS = [
   { code: 'CIF', name: '签入失败' },
   { code: 'CF',  name: '格口已满' },
 ];
+const CR_DESTS = [
+  { code: 'US-LAX', name: '洛杉矶仓' },
+  { code: 'US-EWR', name: '新泽西仓' },
+  { code: 'US-ORD', name: '芝加哥仓' },
+  { code: 'US-ATL', name: '亚特兰大仓' },
+  { code: 'DE-FRA', name: '德国仓' },
+  { code: 'UK-LON', name: '英国仓' },
+];
 const CR_COND_ITEMS = [
   { key: 'product', label: '产品', ops: ['包含', '不包含'], values: CR_PRODUCTS },
   { key: 'channel', label: '渠道', ops: ['包含', '不包含'], values: CR_CHANNELS },
   { key: 'exception', label: '异常类型', ops: ['包含', '不包含'], values: CR_EXCEPTIONS },
+  { key: 'destOrg', label: '调拨目的仓', ops: ['包含', '不包含'], values: CR_DESTS },
+  { key: 'pieces', label: '主单件数', type: 'num', ops: ['大于', '大于等于', '小于', '小于等于', '等于'] },
 ];
 const crItemDef = k => CR_COND_ITEMS.find(d => d.key === k);
 const crNameOf = (item, code) => {
-  const v = crItemDef(item).values.find(x => x.code === code);
+  const def = crItemDef(item);
+  if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */
+  const v = def.values.find(x => x.code === code);
   return v ? v.name : code;
 };
 
@@ -67,12 +79,20 @@ function crBuildChutes() {
     { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
   byNo('12').conds = byNo('11').conds.map(c => ({ ...c, values: c.values.slice() }));
+  byNo('09').conds = [ { item: 'destOrg', op: '包含', values: ['DE-FRA', 'UK-LON'] } ];
+  byNo('10').conds = byNo('09').conds.map(c => ({ ...c, values: c.values.slice() }));
+  byNo('13').conds = [ { item: 'pieces', op: '大于', values: ['5'] } ];
+  byNo('14').conds = byNo('13').conds.map(c => ({ ...c, values: c.values.slice() }));
   return list;
 }
 const CR_CHUTES = crBuildChutes();
 
 /* ---- 演示数据:格口规则变更日志(每口一条;批量操作每口一条) ---- */
 const CR_LOGS = [
+  { no: '13', time: '2026-08-26 15:10:00', user: '王强',   action: '配置', detail: '主单件数大于5' },
+  { no: '14', time: '2026-08-26 15:12:20', user: '王强',   action: '配置', detail: '主单件数大于5(同 13 号口)' },
+  { no: '09', time: '2026-08-26 14:20:00', user: '庄亚运', action: '配置', detail: '调拨目的仓包含2项' },
+  { no: '10', time: '2026-08-26 14:22:35', user: '庄亚运', action: '配置', detail: '调拨目的仓包含2项(同 09 号口)' },
   { no: '03', time: '2026-08-24 10:30:11', user: '庄亚运', action: '配置', detail: '产品包含3项 且 渠道包含2项' },
   { no: '04', time: '2026-08-24 10:32:40', user: '庄亚运', action: '配置', detail: '产品包含3项 且 渠道包含2项(同 03 号口)' },
   { no: '05', time: '2026-08-23 09:00:00', user: '王强',   action: '配置', detail: '产品包含2项' },
@@ -85,7 +105,11 @@ const crLogAdd = (no, action, detail) =>
 
 /* ---- 规则摘要 / 悬浮全文 ---- */
 function crRuleSummary(c) {
-  return c.conds.map(x => `${crItemDef(x.item).label}${x.op === '包含' ? '含' : '不含'}${x.values.length}`).join(` ${c.joiner} `);
+  return c.conds.map(x => {
+    const def = crItemDef(x.item);
+    if (def.type === 'num') return `${def.label}${x.op}${x.values[0] || ''}`;
+    return `${def.label}${x.op === '包含' ? '含' : '不含'}${x.values.length}`;
+  }).join(` ${c.joiner} `);
 }
 function crRuleTitle(c) {
   return c.conds.map((x, i) =>
@@ -227,11 +251,11 @@ function crCondRowHtml(c, idx) {
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
   const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
-  return `
-    <div class="sb-crow">
-      <select class="sel sb-crow-item" onchange="CrPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
-      <select class="sel sb-crow-op" onchange="CrPage.editConds[${idx}].op = this.value">${opOpts}</select>
-      <div class="sb-msel" id="crValBox_${idx}">
+  /* 数值字段(主单件数)内容=数值输入框;枚举字段=多选下拉 */
+  const valHtml = def.type === 'num'
+    ? `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
+         value="${c.values[0] || ''}" oninput="CrPage.onNumInput(${idx}, this.value)" />`
+    : `<div class="sb-msel" id="crValBox_${idx}">
         <div class="sb-msel-toggle" onclick="CrPage.toggleValDrop(${idx}, event)">
           <span class="sb-msel-chips" id="crValChips_${idx}"></span>
           <span class="sb-msel-arrow">▾</span>
@@ -240,18 +264,25 @@ function crCondRowHtml(c, idx) {
           <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="CrPage.renderValDrop(${idx})" />
           <div class="sb-msel-list" id="crValList_${idx}"></div>
         </div>
-      </div>
+      </div>`;
+  return `
+    <div class="sb-crow">
+      <select class="sel sb-crow-item" onchange="CrPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
+      <select class="sel sb-crow-op" onchange="CrPage.editConds[${idx}].op = this.value;crRenderPreview()">${opOpts}</select>
+      ${valHtml}
       <button class="sb-crow-del" onclick="CrPage.removeCond(${idx})" title="删除该条件">✕</button>
     </div>
   `;
 }
 
-/* 规则预览(实时反映当前条件行;连接词显示 全部满足/满足其一) */
+/* 规则预览(实时反映当前条件行;连接词直接用 且/或,读起来通顺) */
 function crRulePreviewText() {
   if (!CrPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
-  const body = CrPage.editConds.map(x =>
-    `${crItemDef(x.item).label}${x.op} ${x.values.length ? x.values.map(v => crNameOf(x.item, v)).join('、') : '(未选值)'}`)
-    .join(` ${CrPage.editJoiner} `);
+  const body = CrPage.editConds.map(x => {
+    const def = crItemDef(x.item);
+    if (def.type === 'num') return `${def.label}${x.op} ${x.values.length ? x.values[0] : '(未填数值)'}`;
+    return `${def.label}${x.op} ${x.values.length ? x.values.map(v => crNameOf(x.item, v)).join('、') : '(未选值)'}`;
+  }).join(` ${CrPage.editJoiner} `);
   return `落口规则:${body}`;
 }
 function crRenderPreview() {
@@ -357,7 +388,7 @@ function crHelpModal() {
           <div class="lr-help-step"><b>③ 多口命中:</b>一票货同时命中多个口的规则时,按格口号顺序落第一个空闲口(⚠ 页面对「包含」值有交集的口给出重叠提示,无优先级仲裁)</div>
           <div class="lr-help-step"><b>④ 同类多口:</b>一类货需要多个格口时,需逐口配置相同规则;后续规则变更(如产品清单更新)需对每个口重新配置</div>
           <div class="lr-help-step"><b>⑤ 异常口:</b>可配规则(用「异常类型」验证字段区分不同异常);异常件未命中方案时落首个空闲异常口</div>
-          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道),值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
+          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道/异常类型/调拨目的仓/主单件数;枚举字段验证类型为 包含/不包含,主单件数为数值条件,验证类型为 大于/大于等于/小于/小于等于/等于);值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="document.getElementById('crHelpMask').style.display='none'">知道了</button>
@@ -406,10 +437,12 @@ const CrPage = {
 
   saveRule() {
     const incomplete = this.editConds.some(c => !c.item || !c.op || !c.values.length);
-    if (incomplete) { Helpers.toast('每行条件需选择值;删光条件行保存=恢复默认池'); return; }
+    if (incomplete) { Helpers.toast('每行条件需选择值/填写数值;删光条件行保存=恢复默认池'); return; }
     const isClear = this.editConds.length === 0;
-    const summary = this.editConds.map(c =>
-      `${crItemDef(c.item).label}${c.op}${c.values.length}项`).join(` ${this.editJoiner} `);
+    const summary = this.editConds.map(c => {
+      const def = crItemDef(c.item);
+      return def.type === 'num' ? `${def.label}${c.op}${c.values[0] || ''}` : `${def.label}${c.op}${c.values.length}项`;
+    }).join(` ${this.editJoiner} `);
     this.editChutes.forEach(no => {
       const c = CR_CHUTES.find(x => x.no === no);
       c.conds = this.editConds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
@@ -440,6 +473,11 @@ const CrPage = {
     const def = crItemDef(key);
     this.editConds[idx] = { item: key, op: def.ops[0], values: [] };
     this.refreshCondBox();
+  },
+  /* 数值字段(主单件数)内容输入 */
+  onNumInput(idx, v) {
+    this.editConds[idx].values = v === '' ? [] : [v];
+    crRenderPreview();
   },
   refreshCondBox() {
     document.getElementById('crCondBox').innerHTML = crCondRowsHtml();

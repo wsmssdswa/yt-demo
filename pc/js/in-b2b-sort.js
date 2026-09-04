@@ -45,11 +45,15 @@ function sbBuildChutes() {
     { item: 'channel', op: '包含', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
   const ruleCif = [ { item: 'exception', op: '包含', values: ['CIF'] } ];
+  const ruleDest = [ { item: 'destOrg', op: '包含', values: ['DE-FRA', 'UK-LON'] } ];
+  const rulePieces = [ { item: 'pieces', op: '大于', values: ['5'] } ];
   const cp = r => r.map(c => ({ ...c, values: c.values.slice() }));
   ['03', '04', '21', '22'].forEach(n => { byNo(n).conds = cp(ruleElecSea); });
   ['05', '06', '23', '24'].forEach(n => { byNo(n).conds = cp(ruleMg); });
   ['07', '08', '27', '28'].forEach(n => { byNo(n).conds = cp(ruleNoElec); });
   ['43', '44'].forEach(n => { byNo(n).conds = cp(ruleCif); });
+  ['09', '10'].forEach(n => { byNo(n).conds = cp(ruleDest); });
+  ['13', '14'].forEach(n => { byNo(n).conds = cp(rulePieces); });
   return list;
 }
 
@@ -78,21 +82,37 @@ const SB_EXCEPTIONS = [
   { code: 'CIF', name: '签入失败' },
   { code: 'CF',  name: '格口已满' },
 ];
+const SB_DESTS = [
+  { code: 'US-LAX', name: '洛杉矶仓' },
+  { code: 'US-EWR', name: '新泽西仓' },
+  { code: 'US-ORD', name: '芝加哥仓' },
+  { code: 'US-ATL', name: '亚特兰大仓' },
+  { code: 'DE-FRA', name: '德国仓' },
+  { code: 'UK-LON', name: '英国仓' },
+];
 const SB_COND_ITEMS = [
   { key: 'product', label: '产品', ops: ['包含', '不包含'], values: SB_PRODUCTS },
   { key: 'channel', label: '渠道', ops: ['包含', '不包含'], values: SB_CHANNELS },
   { key: 'exception', label: '异常类型', ops: ['包含', '不包含'], values: SB_EXCEPTIONS },
+  { key: 'destOrg', label: '调拨目的仓', ops: ['包含', '不包含'], values: SB_DESTS },
+  { key: 'pieces', label: '主单件数', type: 'num', ops: ['大于', '大于等于', '小于', '小于等于', '等于'] },
 ];
 const sbItemDef = k => SB_COND_ITEMS.find(d => d.key === k);
 const sbNameOf = (item, code) => {
-  const v = sbItemDef(item).values.find(x => x.code === code);
+  const def = sbItemDef(item);
+  if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */
+  const v = def.values.find(x => x.code === code);
   return v ? v.name : code;
 };
 
 /* ---- 工具 ---- */
 const sbAttrColor = a => a === '单件' ? '#2E7D32' : (a === '多件' ? '#1565C0' : '#C62828');
 function sbRuleSummary(c) {
-  return c.conds.map(x => `${sbItemDef(x.item).label}${x.op === '包含' ? '含' : '不含'}${x.values.length}`).join(` ${c.joiner} `);
+  return c.conds.map(x => {
+    const def = sbItemDef(x.item);
+    if (def.type === 'num') return `${def.label}${x.op}${x.values[0] || ''}`;
+    return `${def.label}${x.op === '包含' ? '含' : '不含'}${x.values.length}`;
+  }).join(` ${c.joiner} `);
 }
 function sbRuleTitle(c) {
   return c.conds.map((x, i) =>
@@ -297,11 +317,11 @@ function sbCondRowHtml(c, idx) {
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
   const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
-  return `
-    <div class="sb-crow">
-      <select class="sel sb-crow-item" onchange="SbPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
-      <select class="sel sb-crow-op" onchange="SbPage.editConds[${idx}].op = this.value">${opOpts}</select>
-      <div class="sb-msel" id="sbValBox_${idx}">
+  /* 数值字段(主单件数)内容=数值输入框;枚举字段=多选下拉 */
+  const valHtml = def.type === 'num'
+    ? `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
+         value="${c.values[0] || ''}" oninput="SbPage.onNumInput(${idx}, this.value)" />`
+    : `<div class="sb-msel" id="sbValBox_${idx}">
         <div class="sb-msel-toggle" onclick="SbPage.toggleValDrop(${idx}, event)">
           <span class="sb-msel-chips" id="sbValChips_${idx}"></span>
           <span class="sb-msel-arrow">▾</span>
@@ -310,7 +330,12 @@ function sbCondRowHtml(c, idx) {
           <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SbPage.renderValDrop(${idx})" />
           <div class="sb-msel-list" id="sbValList_${idx}"></div>
         </div>
-      </div>
+      </div>`;
+  return `
+    <div class="sb-crow">
+      <select class="sel sb-crow-item" onchange="SbPage.onItemChange(${idx}, this.value)">${itemOpts}</select>
+      <select class="sel sb-crow-op" onchange="SbPage.editConds[${idx}].op = this.value;sbRenderPreview()">${opOpts}</select>
+      ${valHtml}
       <button class="sb-crow-del" onclick="SbPage.removeCond(${idx})" title="删除该条件">✕</button>
     </div>
   `;
@@ -319,9 +344,11 @@ function sbCondRowHtml(c, idx) {
 /* 规则预览(实时反映当前条件行;连接词直接用 且/或,读起来通顺) */
 function sbRulePreviewText() {
   if (!SbPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
-  const body = SbPage.editConds.map(x =>
-    `${sbItemDef(x.item).label}${x.op} ${x.values.length ? x.values.map(v => sbNameOf(x.item, v)).join('、') : '(未选值)'}`)
-    .join(` ${SbPage.editJoiner} `);
+  const body = SbPage.editConds.map(x => {
+    const def = sbItemDef(x.item);
+    if (def.type === 'num') return `${def.label}${x.op} ${x.values.length ? x.values[0] : '(未填数值)'}`;
+    return `${def.label}${x.op} ${x.values.length ? x.values.map(v => sbNameOf(x.item, v)).join('、') : '(未选值)'}`;
+  }).join(` ${SbPage.editJoiner} `);
   return `落口规则:${body}`;
 }
 function sbRenderPreview() {
@@ -480,7 +507,7 @@ const SbPage = {
     const c = SB_CHUTES.find(x => x.no === this.ruleNo);
     if (!c) return;
     const incomplete = this.editConds.some(x => !x.item || !x.op || !x.values.length);
-    if (incomplete) { Helpers.toast('每行条件需选择值;删光条件行保存=恢复默认池'); return; }
+    if (incomplete) { Helpers.toast('每行条件需选择值/填写数值;删光条件行保存=恢复默认池'); return; }
     const isClear = this.editConds.length === 0;
     c.conds = this.editConds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
     c.joiner = this.editJoiner;
@@ -507,6 +534,11 @@ const SbPage = {
     const def = sbItemDef(key);
     this.editConds[idx] = { item: key, op: def.ops[0], values: [] };
     this.refreshCondBox();
+  },
+  /* 数值字段(主单件数)内容输入 */
+  onNumInput(idx, v) {
+    this.editConds[idx].values = v === '' ? [] : [v];
+    sbRenderPreview();
   },
   refreshCondBox() {
     document.getElementById('sbCondBox').innerHTML = sbCondRowsHtml();

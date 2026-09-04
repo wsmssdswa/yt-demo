@@ -31,10 +31,20 @@ const SS_EXCEPTIONS = [
   { code: 'CIF', name: '签入失败' },
   { code: 'CF',  name: '格口已满' },
 ];
+const SS_DESTS = [
+  { code: 'US-LAX', name: '洛杉矶仓' },
+  { code: 'US-EWR', name: '新泽西仓' },
+  { code: 'US-ORD', name: '芝加哥仓' },
+  { code: 'US-ATL', name: '亚特兰大仓' },
+  { code: 'DE-FRA', name: '德国仓' },
+  { code: 'UK-LON', name: '英国仓' },
+];
 const SS_COND_ITEMS = [
   { key: 'product', label: '产品', ops: ['包含', '不包含'], values: SS_PRODUCTS },
   { key: 'channel', label: '渠道', ops: ['包含', '不包含'], values: SS_CHANNELS },
   { key: 'exception', label: '异常类型', ops: ['包含', '不包含'], values: SS_EXCEPTIONS },
+  { key: 'destOrg', label: '调拨目的仓', ops: ['包含', '不包含'], values: SS_DESTS },
+  { key: 'pieces', label: '主单件数', type: 'num', ops: ['大于', '大于等于', '小于', '小于等于', '等于'] },
 ];
 const ssItemDef = k => SS_COND_ITEMS.find(d => d.key === k);
 
@@ -59,6 +69,8 @@ const ssApplyCount = id => new Set(SS_APPLIES.filter(a => a.schemeId === id).map
 
 /* ---- 演示数据:方案操作日志(全生命周期流水,最新在前;方案删除后日志仍保留) ---- */
 const SS_LOGS = [
+  { schemeId: 8, time: '2026-08-26 15:10:00', action: '新建', detail: '条件:主单件数大于5', user: '王强' },
+  { schemeId: 7, time: '2026-08-26 14:20:00', action: '新建', detail: '条件:调拨目的仓包含2项', user: '庄亚运' },
   { schemeId: 6, time: '2026-08-26 10:05:00', action: '挂载', detail: 'FJ-01 异常格口 43、44', user: '庄亚运' },
   { schemeId: 6, time: '2026-08-26 10:00:00', action: '新建', detail: '条件:异常类型包含1项', user: '庄亚运' },
   { schemeId: 1, time: '2026-08-25 10:00:11', action: '挂载', detail: 'FJ-01 格口 05、06(与敏货类共享口)', user: '庄亚运' },
@@ -104,6 +116,12 @@ const SS_SCHEMES = [
   { id: 6, code: 'GS-006', name: '签入失败件',
     conds: [ { item: 'exception', op: '包含', values: ['CIF'] } ], joiner: '且',
     status: 1, updateUser: '庄亚运', updateTime: '2026-08-26 10:00:00' },
+  { id: 7, code: 'GS-007', name: '欧洲仓件',
+    conds: [ { item: 'destOrg', op: '包含', values: ['DE-FRA', 'UK-LON'] } ], joiner: '且',
+    status: 1, updateUser: '庄亚运', updateTime: '2026-08-26 14:20:00' },
+  { id: 8, code: 'GS-008', name: '大票多件',
+    conds: [ { item: 'pieces', op: '大于', values: ['5'] } ], joiner: '且',
+    status: 1, updateUser: '王强', updateTime: '2026-08-26 15:10:00' },
 ];
 
 /* ---- 条件列渲染 ---- */
@@ -195,6 +213,20 @@ function ssCondRowHtml(c, idx) {
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
        ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
   const opOpts = def.ops.map(o => `<option ${o === c.op ? 'selected' : ''}>${o}</option>`).join('');
+  /* 数值字段(主单件数)内容=数值输入框;枚举字段=多选下拉 */
+  const valHtml = def.type === 'num'
+    ? `<input type="number" class="ipt" style="width:100%" placeholder="填写数值"
+         value="${c.values[0] || ''}" oninput="SsPage.onNumInput(${idx}, this.value)" />`
+    : `<div class="sb-msel" id="ssValBox_${idx}">
+        <div class="sb-msel-toggle" onclick="SsPage.toggleValDrop(${idx}, event)">
+          <span class="sb-msel-chips" id="ssValChips_${idx}"></span>
+          <span class="sb-msel-arrow">▾</span>
+        </div>
+        <div class="sb-msel-drop" id="ssValDrop_${idx}">
+          <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SsPage.renderValDrop(${idx})" />
+          <div class="sb-msel-list" id="ssValList_${idx}"></div>
+        </div>
+      </div>`;
   return `
     <tr class="${SsPage.rowSel.has(idx) ? 'is-cur' : ''}">
       <td class="col--check"><input type="checkbox" ${SsPage.rowSel.has(idx) ? 'checked' : ''}
@@ -202,18 +234,7 @@ function ssCondRowHtml(c, idx) {
       <td class="col--num">${idx + 1}</td>
       <td><select class="sel" onchange="SsPage.onItemChange(${idx}, this.value)">${itemOpts}</select></td>
       <td><select class="sel" onchange="SsPage.editConds[${idx}].op = this.value">${opOpts}</select></td>
-      <td>
-        <div class="sb-msel" id="ssValBox_${idx}">
-          <div class="sb-msel-toggle" onclick="SsPage.toggleValDrop(${idx}, event)">
-            <span class="sb-msel-chips" id="ssValChips_${idx}"></span>
-            <span class="sb-msel-arrow">▾</span>
-          </div>
-          <div class="sb-msel-drop" id="ssValDrop_${idx}">
-            <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SsPage.renderValDrop(${idx})" />
-            <div class="sb-msel-list" id="ssValList_${idx}"></div>
-          </div>
-        </div>
-      </td>
+      <td>${valHtml}</td>
     </tr>
   `;
 }
@@ -339,7 +360,7 @@ function ssHelpModal() {
           <div class="lr-help-step"><b>④ 兜底:</b>分组挂载的口全满、或应用因分拣方案换版失效 → 一律<b>转异常口</b>,不回退默认</div>
           <div class="lr-help-step"><b>⑤ 未命中:</b>未命中任何分组的货走默认分拣(未挂方案的格口,按单件/多件分配,与现状一致)</div>
           <div class="lr-help-step"><b>⑥ 删除保护:</b>已被格口挂载的分组不允许删除,请先在各分拣机看板摘除</div>
-          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道),值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
+          <div class="lr-help-note">条件项字典可扩展(当前:产品/渠道/异常类型/调拨目的仓/主单件数;枚举字段验证类型为 包含/不包含,主单件数为数值条件,验证类型为 大于/大于等于/小于/小于等于/等于),值从基础数据全量多选;分拣中途变更规则,已开始的票跟随第一件的格口不拆分。</div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="document.getElementById('ssHelpMask').style.display='none'">知道了</button>
@@ -428,11 +449,13 @@ const SsPage = {
     if (!name) { Helpers.toast('请填写方案名称'); return; }
     const incomplete = this.editConds.some(c => !c.item || !c.op || !c.values.length);
     if (!this.editConds.length || incomplete) {
-      Helpers.toast('请至少配置一行完整条件(条件项/运算符/值)'); return;
+      Helpers.toast('请至少配置一行完整条件(条件项/运算符/值或数值)'); return;
     }
     const conds = this.editConds.map(c => ({ item: c.item, op: c.op, values: c.values.slice() }));
-    const condSummary = conds.map(c =>
-      `${ssItemDef(c.item).label}${c.op}${c.values.length}项`).join(` ${this.editJoiner} `);
+    const condSummary = conds.map(c => {
+      const def = ssItemDef(c.item);
+      return def.type === 'num' ? `${def.label}${c.op}${c.values[0] || ''}` : `${def.label}${c.op}${c.values.length}项`;
+    }).join(` ${this.editJoiner} `);
     if (this.editingId > 0) {
       const s = SS_SCHEMES.find(x => x.id === this.editingId);
       Object.assign(s, { name, conds, joiner: this.editJoiner,
@@ -491,6 +514,10 @@ const SsPage = {
     const def = ssItemDef(key);
     this.editConds[idx] = { item: key, op: def.ops[0], values: [] };
     this.refreshCondBox();
+  },
+  /* 数值字段(主单件数)内容输入 */
+  onNumInput(idx, v) {
+    this.editConds[idx].values = v === '' ? [] : [v];
   },
   refreshCondBox() {
     document.getElementById('ssCondBox').innerHTML = ssCondRowsHtml();
