@@ -56,7 +56,8 @@ const SortItemRegistry = {
     list = list.filter(it => it && typeof it === 'object' && it.key && it.type);
     list.forEach(it => {
       const opsArr = Array.isArray(it.ops) ? it.ops : [];
-      if (!opsArr.every(c => SIR_OP_MAP[c])) {
+      /* 空数组 every 恒 true:需显式判空,否则默认种子(无 ops)会跳过重建 */
+      if (!opsArr.length || !opsArr.every(c => SIR_OP_MAP[c])) {
         it.ops = SIR_OPS_BY_TYPE[it.type === 'num' ? 'num' : 'enum'].slice();
       }
       if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
