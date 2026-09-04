@@ -923,3 +923,10 @@
 .lr-help-step { font-size: 12px; color: #444; line-height: 1.9; }
 .lr-help-step b { color: #00817F; }
 .lr-help-note { margin-top: 10px; font-size: 12px; color: #D46B08; background: #FFF7E6; border: 1px solid #FFD591; border-radius: 4px; padding: 6px 10px; }
+
+/* ============================================
+   b-sort-item 分拣项配置(注册表)
+   ============================================ */
+.si-mrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.si-mrow-del { flex: none; width: 24px; height: 24px; border: none; background: none; color: #999; cursor: pointer; border-radius: 3px; }
+.si-mrow-del:hover { color: #E81123; background: #FFECEC; }

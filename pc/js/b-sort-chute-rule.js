@@ -9,7 +9,8 @@
    演示数据与 B2B分拣管理/分拣分组方案 各持一份(纯静态原型,跨页不同步)。
    ============================================ */
 
-/* ---- 条件项字典(与 分拣分组方案 同源副本;值全量多选) ---- */
+/* ---- 条件项字典(2026-09-04 起从分拣项注册表读取,本页不再写死) ---- */
+/* 产品/渠道为"接口数据源"型分拣项的取值表(模拟 CCOS 主数据,注册表引用) */
 const CR_PRODUCTS = [
   { code: 'US-MATSU-ELC',  name: '美森快船-带电' },
   { code: 'US-MATSU-REG',  name: '美森快船-普货' },
@@ -30,26 +31,10 @@ const CR_CHANNELS = [
   { code: 'KONGYUN-ZHIXIAN',    name: '空运直达' },
   { code: 'KONGYUN-JIJI',       name: '空运急件' },
 ];
-const CR_EXCEPTIONS = [
-  { code: 'CIF', name: '签入失败' },
-  { code: 'CF',  name: '格口已满' },
-];
-const CR_DESTS = [
-  { code: 'US-LAX', name: '洛杉矶仓' },
-  { code: 'US-EWR', name: '新泽西仓' },
-  { code: 'US-ORD', name: '芝加哥仓' },
-  { code: 'US-ATL', name: '亚特兰大仓' },
-  { code: 'DE-FRA', name: '德国仓' },
-  { code: 'UK-LON', name: '英国仓' },
-];
-const CR_COND_ITEMS = [
-  { key: 'product', label: '产品', ops: ['包含', '不包含'], values: CR_PRODUCTS },
-  { key: 'channel', label: '渠道', ops: ['包含', '不包含'], values: CR_CHANNELS },
-  { key: 'exception', label: '异常类型', ops: ['包含', '不包含'], values: CR_EXCEPTIONS },
-  { key: 'destOrg', label: '调拨目的仓', ops: ['包含', '不包含'], values: CR_DESTS },
-  { key: 'pieces', label: '主单件数', type: 'num', ops: ['大于', '大于等于', '小于', '小于等于', '等于'] },
-];
-const crItemDef = k => CR_COND_ITEMS.find(d => d.key === k);
+const CR_COND_ITEMS = SortItemRegistry.buildCondItems({ product: CR_PRODUCTS, channel: CR_CHANNELS });
+/* 兜底:预置规则引用的 key 若被注册表停用/删除,按原名展示不崩 */
+const crItemDef = k => CR_COND_ITEMS.find(d => d.key === k)
+  || { key: k, label: `(已停用)${k}`, type: 'enum', ops: ['包含'], values: [] };
 const crNameOf = (item, code) => {
   const def = crItemDef(item);
   if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */

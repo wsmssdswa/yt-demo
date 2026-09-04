@@ -62,6 +62,7 @@ const Layout = {
       { key: 'b-channel',    label: '渠道配置' },
       { key: 'b-push',       label: '推送配置' },
       { key: 'b-b2b-bin',    label: 'B2B推荐库位配置' },
+      { key: 'b-sort-item',  label: '分拣项配置' },
       { key: 'b-sort-scheme', label: '分拣分组方案' },
       { key: 'b-chute-rule',  label: '分拣格口规则(对比)' },
     ]},
@@ -234,6 +235,7 @@ const Layout = {
       'wh-print':    './wh-print.html',
       'wh-box-rep':  './wh-box-rep.html',
       'b-b2b-bin':   './wh-loc-rule.html',
+      'b-sort-item': './b-sort-item.html',
       'b-sort-scheme': './b-sort-scheme.html',
       'b-chute-rule':  './b-sort-chute-rule.html',
     };
