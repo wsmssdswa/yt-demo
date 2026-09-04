@@ -927,6 +927,27 @@
 /* ============================================
    b-sort-item 分拣项配置(注册表)
    ============================================ */
-.si-mrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .si-mrow-del { flex: none; width: 24px; height: 24px; border: none; background: none; color: #999; cursor: pointer; border-radius: 3px; }
 .si-mrow-del:hover { color: #E81123; background: #FFECEC; }
+.si-panel .rw-form-label { width: 88px; }
+.si-sec-title {
+  font-size: 13px; font-weight: 600; color: #1F4E79;
+  border-left: 3px solid #00A99D; padding-left: 8px;
+  margin: 14px 0 10px; line-height: 1.2;
+}
+.si-sec-title:first-of-type { margin-top: 0; }
+.si-lock-note {
+  font-size: 12px; color: #7A5C00; background: #FFFBE6;
+  border: 1px solid #FFE58F; border-radius: 4px;
+  padding: 6px 10px; margin-bottom: 12px; line-height: 1.6;
+}
+.si-dim { font-size: 11px; color: #999; line-height: 1.6; margin-top: 3px; }
+.si-val-static {
+  font-size: 12px; color: #666; background: #FAFAFA;
+  border: 1px dashed #D9D9D9; border-radius: 4px;
+  padding: 10px 12px; line-height: 1.6;
+}
+#siValBody .grid th { font-size: 11px; padding: 4px 6px; background: #F7F9FC; }
+#siValBody .grid td { padding: 3px 4px; }
+#siValBody .grid input.ipt { height: 24px; box-sizing: border-box; }
+#siFType:disabled, #siFBind:disabled { background: #F5F5F5; color: #999; cursor: not-allowed; }
