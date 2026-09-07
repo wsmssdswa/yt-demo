@@ -47,14 +47,14 @@ const SortItemRegistry = {
       }
     } catch (e) { /* file:// 个别环境禁 localStorage,回退种子 */ }
     if (!list) list = SIR_DEFAULT_ITEMS.map(i => JSON.parse(JSON.stringify(i)));
-    /* 归一化:项结构校验 + 值形态(type)由可选值配置推导 + ops 缺失/非法重建(默认全 12) */
+    /* 归一化:项结构校验 + 值形态(type)由可选值配置推导 + ops 缺失/非法按值形态给默认集 */
     list = list.filter(it => it && typeof it === 'object' && it.key);
     list.forEach(it => {
       it.type = SIR_typeOf(it);
       const opsArr = Array.isArray(it.ops) ? it.ops : [];
-      /* 空数组 every 恒 true:需显式判空,否则默认种子(无 ops)会跳过重建 */
+      /* 空数组 every 恒 true:需显式判空;种子/旧档缺 ops 时兜底(新建默认不勾,用户自己选) */
       if (!opsArr.length || !opsArr.every(c => SIR_OP_MAP[c])) {
-        it.ops = SIR_ALL_OPS.slice();
+        it.ops = SIR_OPS_BY_TYPE[it.type === 'num' ? 'num' : 'enum'].slice();
       }
       if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
         it.valSource = it.type === 'num'
@@ -182,5 +182,8 @@ const SIR_typeOf = it => {
   if (!it.valSource || it.valSource.kind === 'none') return 'num';
   return 'enum';
 };
-/* 新建默认运算符=全部 12 个自由勾选(用户定:不需要按类型给默认) */
-const SIR_ALL_OPS = SIR_OPS.map(o => o.code);
+/* 数据兜底默认运算符集(仅种子/旧档缺 ops 时用;新建默认不勾,用户自己选) */
+const SIR_OPS_BY_TYPE = {
+  enum: SIR_OPS.filter(o => o.kinds.includes("str")).map(o => o.code),
+  num: SIR_OPS.filter(o => o.kinds.includes("num")).map(o => o.code),
+};

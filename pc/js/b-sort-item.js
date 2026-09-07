@@ -125,7 +125,7 @@ function siEditModal() {
             <label class="rw-form-label"><span class="rw-req">*</span>运算符</label>
             <div style="flex:1">
               <div class="si-op-grid" id="siFOps"></div>
-              <div class="si-dim">真实系统 12 个运算符全部可选,自由勾选</div>
+              <div class="si-dim">真实系统 12 个运算符全部可选,按需勾选(保存需至少一个);内容控件随运算符变化:包含=多选,等于/不等于=单选,匹配类=文本,比较/区间=数值</div>
             </div>
           </div>
 
@@ -213,7 +213,7 @@ const SiPage = {
     this.editingKey = null;
     this.draft = {
       key: '', name: '', fieldName: '',
-      ops: SIR_ALL_OPS.slice(), valSource: { kind: 'manual', values: [] },
+      ops: [], valSource: { kind: 'manual', values: [] },
       refCount: 0, status: 1, updateUser: '庄亚运', updateTime: Helpers.nowTime(),
     };
     this.openEditForm('新增分拣项', false);
