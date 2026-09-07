@@ -74,13 +74,14 @@ const MAIN_ORDERS = [
   },
 ];
 
-/* ---- 推荐库位规则(与 PC 配置页「调拨网点方案」演示数据同源,只列启用规则) ----
-   匹配口径 = 签入网点 + 条件行全部满足/满足其一(joiner,默认且;产品/调拨网点均为条件项,留空 = 不限);
+/* ---- 推荐库位规则(与 PC 配置页演示数据同源,只列启用规则) ----
+   一条规则 = 条件集:产品集 + 调拨网点集(空=不限);
+   匹配口径 = 签入网点 + 产品∈集 + 调拨网点∈集(AND,先创建先生效);
    LNMS 无返回时,带调拨网点条件的规则自然匹配不上,不限规则照常命中 */
 const LR_RULES = [
-  { og: 'GZ01', joiner: '且', conds: [{ item: 'product', values: ['US-MATSU-REG'] }, { item: 'destOrg', values: ['上海仓'] }],   locations: ['A-01-01', 'A-01-02'] },
-  { og: 'GZ01', joiner: '且', conds: [{ item: 'product', values: ['US-MATSU-REG'] }, { item: 'destOrg', values: ['洛杉矶仓'] }], locations: ['B-02-01'] },
-  { og: 'GZ01', joiner: '且', conds: [{ item: 'product', values: ['US-MATSU-ELC'] }],                                           locations: ['B-02-01', 'B-02-04'] },
+  { og: 'GZ01', products: ['US-MATSU-REG'], destOrgs: ['上海仓'],           locations: ['A-01-01', 'A-01-02'] },
+  { og: 'GZ01', products: ['US-MATSU-REG'], destOrgs: ['洛杉矶仓'],         locations: ['B-02-01'] },
+  { og: 'GZ01', products: ['US-MATSU-ELC', 'US-KAPAI-ELC'], destOrgs: [],   locations: ['B-02-01', 'B-02-04'] },
   // 海运普船(US-HAIYUN-REG)的规则在演示中为停用状态 → 不列入;64票签入时 LNMS 有推荐也无命中 → 暂无推荐库位
 ];
 // LNMS 模拟开关:true = 无返回(签入照常,带调拨网点条件的规则匹配不上,不限规则照常兜底)
@@ -88,12 +89,9 @@ let LNMS_DOWN = false;
 
 /* 签入时匹配推荐库位:命中多条按创建顺序取第一条的第一个库位(线上 order by id limit 1 的口径) */
 function matchRecommend(og, productCode, destOrg) {
-  const ctx = { product: productCode, destOrg };
-  const hit = r => {
-    const ok = r.conds.map(c => !!ctx[c.item] && c.values.includes(ctx[c.item]));
-    return r.joiner === '或' ? ok.some(Boolean) : ok.every(Boolean);
-  };
-  const rule = LR_RULES.find(r => r.og === og && hit(r));
+  const rule = LR_RULES.find(r =>
+    r.og === og && r.products.includes(productCode) &&
+    (!destOrg || r.destOrgs.includes(destOrg)));
   return rule ? rule.locations[0] : '';
 }
 // 超尺寸阈值:任一边 > 265CM 必须上传照片(新需求,边界 [待确认:大于还是大于等于])
@@ -124,12 +122,13 @@ const DEMO_MAINS = [
     ],
   },
   {
-    // 调拨票②:目的仓=上海仓(SH01)≠本仓 → 签入照常成功,仅提示不拦截、不自动到货
-    WaybillNumber: 'YT2621000070481088', OrderPieces: 1, CheckInCount: 0, AbnormalCount: 0,
+    // 调拨票②:目的仓=上海仓(SH01)≠本仓,12件 → 签入照常成功+自动到货;错仓件触发飞书通知
+    //   同票更新一张卡,卡片清单封顶最近5件;全量明细走「查看全量明细」跳飞书文档(真实登记文档)
+    WaybillNumber: 'YT2621000070481088', OrderPieces: 12, CheckInCount: 0, AbnormalCount: 0,
     transitNo: 'ZX2608270201', destOrg: 'SH01', destOrgName: '上海仓',
-    children: [
-      { ChildNumber: 'YT2621000070481088U001', IsCheckIn: false },
-    ],
+    children: Array.from({ length: 12 }, (_, i) => ({
+      ChildNumber: `YT2621000070481088U${String(i + 1).padStart(3, '0')}`, IsCheckIn: false,
+    })),
   },
 ];
 MAIN_ORDERS.push(...DEMO_MAINS);
@@ -264,6 +263,10 @@ document.getElementById('app').innerHTML = Layout.shell(`
   </div>
 
   <!-- 目的仓不一致不再弹窗(2026-09-02:现场零打断,签入照常+自动到货,系统飞书通知跟进) -->
+
+  <!-- 错仓飞书通知卡片(预览):首件错仓件签入时弹出,同票后续件签入原地更新;
+       非模态不打断签入;清单封顶最近5件,「查看全量明细」跳飞书文档页 -->
+  <div class="ci-fscard hidden" id="ciFsCard"></div>
 
   <!-- 照片选择(拍照上传,隐藏 input) -->
   <input type="file" accept="image/*" capture="environment" class="hidden" id="ciPhotoInput" />
@@ -709,8 +712,48 @@ function doSignIn(code, imgs, dims) {
   syncOversizePanel();
   renderPredWt();   // 扫码框已清空 → 录入区预报参照随之隐藏
   scanInput.focus();
+  if (rec.orgMismatch && rec.arrivalDone) noticeCardPush(rec);   // 错仓件签入 → 飞书通知(卡片弹出/同票更新)
   Helpers.toast(toastMsg);
 }
+
+/* ---- 错仓飞书通知卡片(预览):同票聚合一张卡,首件错仓件签入弹出,后续件原地更新(再签已关的卡会再次弹出,
+   对应线上"更新卡片即置顶提醒");清单封顶最近签入的5件,超出折叠;非模态不拦签入,×关闭 ---- */
+// 「查看全量明细」跳转的错仓到货台账(多维表格,全量错仓件一行一件,按中转单+日期分组看批次;
+// 生产由 CCOS 随签入自动追加,演示为预置台账)
+const FS_DOC_URL = 'https://ztn.larkenterprise.com/base/FjEIbdXkZa9KirsDSxwcjuC6nRf';
+const fsCard = $('ciFsCard');
+let fsMismatchList = [];   // 本批次已签入的错仓件(签入即登记,与飞书文档页同源)
+function noticeCardPush(rec) {
+  rec.mismatchTime = Helpers.nowTime();   // 本批首件签入时间 = 首件错仓件签入时刻(卡片字段,与真卡片一致)
+  fsMismatchList.push(rec);
+  renderFsCard();
+  fsCard.classList.remove('hidden');
+}
+function renderFsCard() {
+  const n = fsMismatchList.length;
+  const first = fsMismatchList[0];
+  const shown = fsMismatchList.slice(-5);   // 卡片最多展示最近签入的前5件,超出折叠汇总
+  const folded = n - shown.length;
+  fsCard.innerHTML = `
+    <button class="ci-fscard-close" id="ciFsClose">×</button>
+    <div class="ci-fscard-title">错仓到货通知</div>
+    <div class="ci-fscard-meta">
+      <div><span>中转单号</span><b>${first.transitNo}</b></div>
+      <div><span>调拨目的仓</span><b>${first.destOrgName}</b></div>
+      <div><span>实际签入仓</span><b>广州仓(本仓)</b></div>
+      <div><span>错仓件数</span><b class="ci-fscard-warn">${n} 件</b></div>
+      <div><span>本批首件签入时间</span><b>${(first.mismatchTime || '').slice(5, 16)}</b></div>
+    </div>
+    <div class="ci-fscard-list">
+      ${shown.map(r => `<div class="ci-fscard-row">${r.scanCode}</div>`).join('')}
+    </div>
+    ${folded > 0 ? `<div class="ci-fscard-fold">另有 ${folded} 件,共 ${n} 件</div>` : ''}
+    <button class="ci-fscard-btn" id="ciFsDetail">查看全量明细</button>`;
+}
+fsCard.addEventListener('click', e => {
+  if (e.target.id === 'ciFsClose') { fsCard.classList.add('hidden'); return; }
+  if (e.target.id === 'ciFsDetail') { location.href = FS_DOC_URL; }
+});
 
 /* ---- 图片录入(强制拍照必填)交互:拍照为签入前置,上传完再扫描 ---- */
 oversizePhotos.addEventListener('click', e => {
@@ -839,6 +882,8 @@ finishBtn.addEventListener('click', () => {
   batchNumber = '';
   scanRecords = [];
   expandMain = '';
+  fsMismatchList = [];   // 错仓通知卡片一并复位
+  fsCard.classList.add('hidden');
   MAIN_ORDERS.forEach(m => {
     m.CheckInCount = 0;
     m.children.forEach(c => {
@@ -856,6 +901,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!revokeMask.classList.contains('hidden')) closeRevoke();
     if (!abnMask.classList.contains('hidden')) abnMask.classList.add('hidden');
+    if (!fsCard.classList.contains('hidden')) fsCard.classList.add('hidden');
     if (!devMask.classList.contains('hidden')) { closeDevDialog(); Helpers.toast('已关闭,弹窗内照片已丢弃;可重新称重后再扫'); }
   }
 });
@@ -887,13 +933,14 @@ testPanel.innerHTML = `
       <button class="test-panel-btn" data-lnms="0">无返回(降级)</button>
     </div>
   </div>
-  <div class="test-panel-group">
+    <div class="test-panel-group">
     <div class="test-panel-label">签入即到货(全部调拨货适用,不分网点类型)</div>
     <div class="test-panel-tags">
       <button class="test-panel-btn" data-demo="${DEMO_MAINS[0].children[0].ChildNumber}">一键:调拨货自动到货</button>
       <span class="test-panel-tag" data-demo="YT2621000070481066U002">…066U002 自动到货</span>
       <span class="test-panel-tag" data-demo="${PRE_ARRIVED_CHILD}">…066U003 已有到货(防重复)</span>
       <span class="test-panel-tag" data-demo="YT2621000070481088U001">…088U001 错仓·飞书通知</span>
+      <button class="test-panel-btn" data-demo-bulk="YT2621000070481088">一键:错仓票12件全签(演示卡片封顶+全量明细)</button>
     </div>
   </div>
   <div class="test-panel-group">
@@ -963,6 +1010,15 @@ testPanel.addEventListener('click', e => {
     onScan();
     return;
   }
+  // 错仓票一键全签:逐件签入(卡片随签入逐件更新,直观看到同票聚合+封顶折叠;全量明细在飞书文档页)
+  const bulkBtn = e.target.closest('[data-demo-bulk]');
+  if (bulkBtn) {
+    const m = MAIN_ORDERS.find(x => x.WaybillNumber === bulkBtn.dataset.demoBulk);
+    m.children.filter(c => !c.IsCheckIn).forEach(c => {
+      doSignIn(c.ChildNumber, [], { L: '60', W: '40', H: '35', Wt: '12.35' });
+    });
+    return;
+  }
   if (e.target.closest('[data-reset]')) {
     batchNumber = BATCH_NO;
     if (!devMask.classList.contains('hidden')) closeDevDialog();   // 偏差抽屉开着则一并关闭还原
@@ -998,6 +1054,8 @@ testPanel.addEventListener('click', e => {
       });
     });
     render();
+    fsMismatchList = [];   // 错仓通知卡片一并复位
+    fsCard.classList.add('hidden');
     Helpers.toast('已重置演示批次');
     return;
   }
