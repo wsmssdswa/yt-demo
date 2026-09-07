@@ -243,12 +243,7 @@ function sbRenderBoardBody() {
   const s = SbPage.sol || SB_SOLUTIONS[0];
   document.getElementById('sbBoardTitle').textContent =
     `格口看板 — ${s.solutionName} | ${s.sorterName}(${s.sorterCode}) | 格口 ${s.chuteTotal} 个 | 版本 ${s.version}`;
-  const groups = sbConflictGroups();
-  const warn = groups.length ? `
-    <div class="sb-warn-bar">⚠ 检测到 ${groups.length} 组格口规则重叠:${groups.map(g =>
-      `${g.a}↔${g.b}(${sbItemDef(g.item).label}:${g.vals[0]} 等${g.vals.length}项)`).join(';')};一票货同时命中多个口的规则时,按格口号顺序落第一个空闲口(无优先级仲裁)</div>` : '';
   document.getElementById('sbBoardBody').innerHTML = `
-    ${warn}
     <div class="sb-board-head">
       <span class="sb-legend">
         <i class="sb-lg sb-lg--free"></i>空闲
