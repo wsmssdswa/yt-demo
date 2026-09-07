@@ -15,27 +15,22 @@ const SIR_STORAGE_KEY = 'b2bSortItemRegistry_v1';
    ops 省略 = 按数据类型给默认全集(由 items() 归一化填充;旧存档中文 ops 同样被修复) */
 const SIR_DEFAULT_ITEMS = [
   { key: 'product', name: '产品', fieldName: 'product_code', type: 'enum',
-    bindSource: '订单属性字段 product_code',
     valSource: { kind: 'api', apiKey: 'product', note: '产品主数据(SPMS 同步)' },
     refCount: 8, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'channel', name: '渠道', fieldName: 'server_channel_code', type: 'enum',
-    bindSource: '订单属性字段 server_channel_code',
     valSource: { kind: 'api', apiKey: 'channel', note: '渠道主数据' },
     refCount: 6, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'exception', name: '异常类型', fieldName: 'b2b_exception_type', type: 'enum',
-    bindSource: '签入结果字段 b2b_exception_type',
     valSource: { kind: 'manual', values: [
       { code: 'CIF', name: '签入失败' }, { code: 'CF', name: '格口已满' }] },
     refCount: 2, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'destOrg', name: '调拨目的仓', fieldName: 'dest_org_code', type: 'enum',
-    bindSource: '待开发字段(OTS 侧确认中)',
     valSource: { kind: 'manual', values: [
       { code: 'US-LAX', name: '洛杉矶仓' }, { code: 'US-EWR', name: '新泽西仓' },
       { code: 'US-ORD', name: '芝加哥仓' }, { code: 'US-ATL', name: '亚特兰大仓' },
       { code: 'DE-FRA', name: '德国仓' }, { code: 'UK-LON', name: '英国仓' }] },
     refCount: 2, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'pieces', name: '主单件数', fieldName: 'order_pieces', type: 'num',
-    bindSource: '订单属性字段 order_pieces',
     valSource: { kind: 'none', note: '数值输入,无可选值' },
     refCount: 2, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
 ];
@@ -52,18 +47,17 @@ const SortItemRegistry = {
       }
     } catch (e) { /* file:// 个别环境禁 localStorage,回退种子 */ }
     if (!list) list = SIR_DEFAULT_ITEMS.map(i => JSON.parse(JSON.stringify(i)));
-    /* 归一化:项结构校验 + 值形态(type)由绑字段性质推导 + ops 缺失/非法按字段性质重建默认全集 */
-    list = list.filter(it => it && typeof it === 'object' && it.key && it.bindSource);
+    /* 归一化:项结构校验 + 值形态(type)由可选值配置推导 + ops 缺失/非法重建(默认全 12) */
+    list = list.filter(it => it && typeof it === 'object' && it.key);
     list.forEach(it => {
       it.type = SIR_typeOf(it);
-      const kind = SIR_bindKindOf(it.bindSource);
       const opsArr = Array.isArray(it.ops) ? it.ops : [];
       /* 空数组 every 恒 true:需显式判空,否则默认种子(无 ops)会跳过重建 */
       if (!opsArr.length || !opsArr.every(c => SIR_OP_MAP[c])) {
-        it.ops = SIR_OPS_BY_KIND[kind].slice();
+        it.ops = SIR_ALL_OPS.slice();
       }
       if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
-        it.valSource = kind === 'num'
+        it.valSource = it.type === 'num'
           ? { kind: 'none', note: '数值输入,无可选值' }
           : { kind: 'manual', values: [] };
       }
@@ -181,31 +175,12 @@ const SIR_OPS = [
 const SIR_OP_MAP = {};
 SIR_OPS.forEach(o => { SIR_OP_MAP[o.code] = o; });
 
-/* 供配置页展示:字段性质决定值形态与默认运算符集
-   kind: num=数值直接输入 / str=编码清单或文本 */
-const SIR_BIND_SOURCES = [
-  { code: 'order:product_code', name: '订单属性字段 product_code', kind: 'str' },
-  { code: 'order:server_channel_code', name: '订单属性字段 server_channel_code', kind: 'str' },
-  { code: 'order:order_pieces', name: '订单属性字段 order_pieces', kind: 'num' },
-  { code: 'order:weight', name: '订单属性字段 重量(kg)', kind: 'num' },
-  { code: 'order:volume', name: '订单属性字段 材积(CBM)', kind: 'num' },
-  { code: 'result:b2b_exception_type', name: '签入结果字段 b2b_exception_type', kind: 'str' },
-  { code: 'pending', name: '待开发字段(需数据侧确认)', kind: 'str' },
-];
-/* 字段性质 → 默认运算符集(可再勾选调整;数值=比较+区间,编码=值集+文本匹配) */
-const SIR_OPS_BY_KIND = {
-  num: SIR_OPS.filter(o => o.kinds.includes('num')).map(o => o.code),
-  str: SIR_OPS.filter(o => o.kinds.includes('str')).map(o => o.code),
-};
-/* 注册项值形态内部推导:type 不再由用户选择——绑字段性质 num → 数值;否则看可选值(有清单=enum,无清单=文本 str) */
+/* 值形态由「编辑器可选值」配置自然推导(不设数据类型/绑定层,2026-09-07 定):
+   配了值清单(手工/接口)=enum(下拉选值);选「无」(数值直接填)=num */
 const SIR_typeOf = it => {
   if (it.type === 'num' || it.type === 'enum') return it.type;   /* 旧存档兼容:已有 type 保留 */
-  const bs = SIR_BIND_SOURCES.find(s => s.name === it.bindSource);
-  if (bs && bs.kind === 'num') return 'num';
-  if (!it.valSource || it.valSource.kind === 'none') return 'str';
+  if (!it.valSource || it.valSource.kind === 'none') return 'num';
   return 'enum';
 };
-const SIR_bindKindOf = bindName => {
-  const bs = SIR_BIND_SOURCES.find(s => s.name === bindName);
-  return bs ? bs.kind : 'str';
-};
+/* 新建默认运算符=全部 12 个自由勾选(用户定:不需要按类型给默认) */
+const SIR_ALL_OPS = SIR_OPS.map(o => o.code);
