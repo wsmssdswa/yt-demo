@@ -422,14 +422,14 @@ const LrPage = {
         Helpers.toast(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在相同条件的规则，不可重复创建`); return;
       }
     }
-    /* 重叠提示(不拦截):对同网点全部规则检测(含停用——停用的将来启用同样会撞);
-       文案以当前规则条目为主语(线上防重复句式),不罗列对方清单 */
-    const overlapRows = LR_ROWS.filter(r =>
+    /* 重叠拦截:与同网点任意已有规则(含停用)可能同时命中 → 不允许保存,
+       库内规则两两互斥,签入匹配永远唯一命中(先创建先生效退化为防并发的兜底) */
+    const overlapRow = LR_ROWS.find(r =>
       r.og === og && r.id !== this.editingId &&
       lrCondSig(r.products, r.destOrgs) !== lrCondSig(this.productTags, this.destOrgTags) &&
       lrCondOverlap({ products: this.productTags, destOrgs: this.destOrgTags }, r));
-    if (overlapRows.length) {
-      if (!confirm(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在可能同时命中的规则，重叠时先创建的先生效，是否继续保存？`)) return;
+    if (overlapRow) {
+      Helpers.toast(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在可能同时命中的规则，不可创建，请调整或停用已有规则`); return;
     }
 
     if (this.editingId === 0) {
@@ -472,18 +472,6 @@ const LrPage = {
       return;
     }
     const verb = target === 1 ? '启用' : '停用';
-    /* 启用 = 规则生效的门:与保存同口径做重叠检测(对全部规则,含停用);
-       文案以即将启用的规则条目为主语;批量启用时逐条检测,汇总一次提示(不拦截) */
-    if (target === 1) {
-      const hitRows = rows.filter(row => LR_ROWS.some(r =>
-        r.og === row.og && r.id !== row.id &&
-        lrCondSig(r.products, r.destOrgs) !== lrCondSig(row.products, row.destOrgs) &&
-        lrCondOverlap(row, r)));
-      if (hitRows.length) {
-        const conds = hitRows.map(row => lrCondStr(row.products, row.destOrgs)).join(';');
-        if (!confirm(`启用后，操作网点「${hitRows[0].og}」下${conds}存在命中重叠，重叠时先创建的先生效，是否继续启用？`)) return;
-      }
-    }
     if (confirm(`确定${verb}选中的 ${rows.length} 条规则？`)) {
       rows.forEach(r => r.status = target);
       document.getElementById('lrGridBody').innerHTML = lrGridHtml();
