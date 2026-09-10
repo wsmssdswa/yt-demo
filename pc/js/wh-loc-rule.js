@@ -418,19 +418,19 @@ const LrPage = {
       }
     }
     /* 重叠提示(不拦截):同网点下可能与现有规则同时命中 → 点破「先创建先生效」 */
-    /* 重叠提示(不拦截):仅对启用中的规则检测(停用不参与匹配,无重叠可言);全部重叠规则逐条列出,
-       带条件/推荐库位/创建时间/创建人,便于在列表中定位 */
+    /* 重叠提示(不拦截):对同网点全部规则检测(含停用——停用的将来启用同样会撞);
+       全部重叠规则逐条列出,带条件/推荐库位/创建时间/创建人/状态,便于在列表中定位 */
     const overlapRows = LR_ROWS.filter(r =>
-      r.og === og && r.status === 1 && r.id !== this.editingId &&
+      r.og === og && r.id !== this.editingId &&
       lrCondSig(r.products, r.destOrgs) !== lrCondSig(this.productTags, this.destOrgTags) &&
       lrCondOverlap({ products: this.productTags, destOrgs: this.destOrgTags }, r));
     if (overlapRows.length) {
       const lines = overlapRows.map(r => {
         const cond = (r.products.length ? `产品${r.products.join('、')}` : '产品不限') +
           (r.destOrgs.length ? `,调拨网点${r.destOrgs.join('、')}` : ',调拨不限');
-        return `${cond} | 推荐库位${r.locations[0]}${r.locations.length > 1 ? ` 等${r.locations.length}个` : ''} | ${r.createTime.slice(0, 10)}创建(${r.createUser})`;
+        return `${cond} | 推荐库位${r.locations[0]}${r.locations.length > 1 ? ` 等${r.locations.length}个` : ''} | ${r.createTime.slice(0, 10)}创建(${r.createUser}) | ${r.status === 1 ? '启用中' : '停用中'}`;
       });
-      if (!confirm(`检测到与 ${overlapRows.length} 条启用规则存在命中重叠:\n\n${lines.join('\n')}\n\n重叠时先创建的规则先生效;若需本规则优先生效,请调整或停用老规则。\n\n仍要保存吗?`)) return;
+      if (!confirm(`检测到与 ${overlapRows.length} 条规则存在命中重叠:\n\n${lines.join('\n')}\n\n重叠时先创建的规则先生效(停用中的规则启用后同样生效);若需本规则优先生效,请调整或停用老规则。\n\n仍要保存吗?`)) return;
     }
 
     if (this.editingId === 0) {
@@ -473,16 +473,16 @@ const LrPage = {
       return;
     }
     const verb = target === 1 ? '启用' : '停用';
-    /* 启用 = 规则生效的门:与保存同口径做重叠检测(停用→再启用的漏口在此堵上);
+    /* 启用 = 规则生效的门:与保存同口径做重叠检测(对全部规则,含停用);
        批量启用逐条检测,汇总一次提示(不拦截) */
     if (target === 1) {
       const hits = [];
       rows.forEach(row => {
         LR_ROWS.forEach(r => {
-          if (r.og === row.og && r.status === 1 && r.id !== row.id &&
+          if (r.og === row.og && r.id !== row.id &&
               lrCondSig(r.products, r.destOrgs) !== lrCondSig(row.products, row.destOrgs) &&
               lrCondOverlap(row, r)) {
-            hits.push(`「${(row.products.length ? row.products.join('、') : '产品不限')}${row.destOrgs.length ? '+' + row.destOrgs.join('、') : ''}」 ↔ ${r.createTime.slice(0, 10)}创建的「${(r.products.length ? r.products.join('、') : '产品不限')}${r.destOrgs.length ? '+' + r.destOrgs.join('、') : ''}」(推荐库位${r.locations[0]})`);
+            hits.push(`「${(row.products.length ? row.products.join('、') : '产品不限')}${row.destOrgs.length ? '+' + row.destOrgs.join('、') : ''}」 ↔ ${r.createTime.slice(0, 10)}创建的「${(r.products.length ? r.products.join('、') : '产品不限')}${r.destOrgs.length ? '+' + r.destOrgs.join('、') : ''}」(推荐库位${r.locations[0]},${r.status === 1 ? '启用中' : '停用中'})`);
           }
         });
       });
