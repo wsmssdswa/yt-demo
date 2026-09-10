@@ -70,15 +70,15 @@ function lrLocDisplay(locs) {
   return `${locs.slice(0, 3).join(', ')} …共${locs.length}个`;
 }
 
-/* 匹配条件列:产品+调拨网点标签集中一列(悬浮全文;调拨空 = 不限) */
-function lrCondCell(row) {
-  const pv = row.products.length > 2
-    ? `<span class="lr-chip" title="产品包含 ${row.products.join('、')}">产品:${row.products[0]} 等${row.products.length}项</span>`
-    : `<span class="lr-chip" title="产品包含 ${row.products.join('、')}">产品:${row.products.join('、')}</span>`;
-  const dv = row.destOrgs.length
-    ? `<span class="lr-chip" title="调拨网点包含 ${row.destOrgs.join('、')}">调拨:${row.destOrgs.length > 2 ? row.destOrgs[0] + ' 等' + row.destOrgs.length + '项' : row.destOrgs.join('、')}</span>`
-    : '<span class="lr-chip lr-chip--none">调拨:不限</span>';
-  return `${pv}${dv}`;
+/* 产品列:代码(名称);多产品显首个 + 等N个(省略格式对齐线上推荐库位列惯例) */
+function lrProductCell(products) {
+  if (products.length === 1) return `${products[0]}(${lrProductName(products[0])})`;
+  return `${products[0]}(${lrProductName(products[0])}) 等${products.length}个`;
+}
+
+/* 调拨网点列:纯文本拼接;未配置显示 - */
+function lrDestOrgCell(destOrgs) {
+  return destOrgs.length ? destOrgs.join(', ') : '-';
 }
 
 /* 条件集签名(防重复:同网点+完全相同条件集 → 拦截) */
@@ -129,13 +129,14 @@ function lrToolbar() {
   `;
 }
 
-/* ---- 列表(一行 = 一条条件集规则;匹配条件集中一列展示) ---- */
+/* ---- 列表(线上列结构 + 新增调拨网点列;产品代码/名称合并一列;一行 = 一条条件集规则) ---- */
 function lrGridHtml() {
   return LrPage.rows.map(r => `
     <tr data-id="${r.id}">
       <td class="col--check"><input type="checkbox" data-id="${r.id}" onchange="LrPage.toggleCheck(this)" /></td>
       <td>${r.og}</td>
-      <td class="lr-cond-cell">${lrCondCell(r)}</td>
+      <td class="col--code" title="${r.products.join('、')}">${lrProductCell(r.products)}</td>
+      <td title="${r.destOrgs.length ? r.destOrgs.join('、') : '未配置,任何调拨网点均可命中'}">${lrDestOrgCell(r.destOrgs)}</td>
       <td class="col--code cell-link" title="双击查看库位明细" onclick="LrPage.showLocations(${r.id})">${lrLocDisplay(r.locations)}</td>
       <td>${r.status === 1 ? '<span class="abn-tag abn-tag--ok">启用</span>' : '<span class="abn-tag">停用</span>'}</td>
       <td>${r.autoShelf === 1 ? '是' : '否'}</td>
@@ -153,9 +154,10 @@ function lrGrid() {
       <table class="grid wh-grid">
         <colgroup>
           <col style="width:36px" />
-          <col style="width:130px" />
-          <col style="min-width:230px" />
-          <col style="min-width:180px" />
+          <col style="width:120px" />
+          <col style="min-width:210px" />
+          <col style="width:120px" />
+          <col style="min-width:170px" />
           <col style="width:64px" />
           <col style="width:84px" />
           <col style="width:145px" />
@@ -167,7 +169,8 @@ function lrGrid() {
           <tr>
             <th></th>
             <th>操作网点</th>
-            <th title="产品与调拨网点条件集中展示;产品多值聚合,调拨网点留空=不限;悬浮查看全量">匹配条件</th>
+            <th title="产品代码与名称合并展示;多产品显首个+等N个;悬浮查看全量">产品</th>
+            <th title="调拨网点条件;未配置=不限,任何调拨网点均可命中">调拨网点</th>
             <th>推荐库位</th>
             <th>启用状态</th>
             <th>是否自动上架</th>
