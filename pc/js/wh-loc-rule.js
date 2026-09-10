@@ -70,17 +70,15 @@ function lrLocDisplay(locs) {
   return `${locs.slice(0, 3).join(', ')} …共${locs.length}个`;
 }
 
-/* 多值聚合显示:首个值 + "等N项"(悬浮全量) */
-function lrMultiCell(values) {
-  if (!values.length) return '';
-  return values.length > 1 ? `${values[0]} 等${values.length}项` : values[0];
-}
-
-/* 调拨网点列:多值标签,空 = 不限 */
-function lrDestOrgCell(destOrgs) {
-  if (!destOrgs.length) return '<span class="lr-chip lr-chip--none">不限</span>';
-  const text = destOrgs.length > 2 ? `${destOrgs[0]} 等${destOrgs.length}项` : destOrgs.join('/');
-  return `<span class="lr-chip" title="调拨网点包含 ${destOrgs.join('、')}">${text}</span>`;
+/* 匹配条件列:产品+调拨网点标签集中一列(悬浮全文;调拨空 = 不限) */
+function lrCondCell(row) {
+  const pv = row.products.length > 2
+    ? `<span class="lr-chip" title="产品包含 ${row.products.join('、')}">产品:${row.products[0]} 等${row.products.length}项</span>`
+    : `<span class="lr-chip" title="产品包含 ${row.products.join('、')}">产品:${row.products.join('、')}</span>`;
+  const dv = row.destOrgs.length
+    ? `<span class="lr-chip" title="调拨网点包含 ${row.destOrgs.join('、')}">调拨:${row.destOrgs.length > 2 ? row.destOrgs[0] + ' 等' + row.destOrgs.length + '项' : row.destOrgs.join('、')}</span>`
+    : '<span class="lr-chip lr-chip--none">调拨:不限</span>';
+  return `${pv}${dv}`;
 }
 
 /* 条件集签名(防重复:同网点+完全相同条件集 → 拦截) */
@@ -131,17 +129,13 @@ function lrToolbar() {
   `;
 }
 
-/* ---- 列表(线上 11 列 + 调拨网点;一行 = 一条条件集规则) ---- */
+/* ---- 列表(一行 = 一条条件集规则;匹配条件集中一列展示) ---- */
 function lrGridHtml() {
-  return LrPage.rows.map(r => {
-    const pvName = lrProductName(r.products[0]);
-    return `
+  return LrPage.rows.map(r => `
     <tr data-id="${r.id}">
       <td class="col--check"><input type="checkbox" data-id="${r.id}" onchange="LrPage.toggleCheck(this)" /></td>
       <td>${r.og}</td>
-      <td class="col--code" title="${r.products.join('、')}">${lrMultiCell(r.products)}</td>
-      <td title="${r.products.map(lrProductName).join('、')}">${pvName}${r.products.length > 1 ? ' 等' : ''}</td>
-      <td class="lr-cond-cell">${lrDestOrgCell(r.destOrgs)}</td>
+      <td class="lr-cond-cell">${lrCondCell(r)}</td>
       <td class="col--code cell-link" title="双击查看库位明细" onclick="LrPage.showLocations(${r.id})">${lrLocDisplay(r.locations)}</td>
       <td>${r.status === 1 ? '<span class="abn-tag abn-tag--ok">启用</span>' : '<span class="abn-tag">停用</span>'}</td>
       <td>${r.autoShelf === 1 ? '是' : '否'}</td>
@@ -150,7 +144,7 @@ function lrGridHtml() {
       <td>${r.createUser}</td>
       <td>${r.updateUser}</td>
     </tr>
-  `;}).join('');
+  `).join('');
 }
 
 function lrGrid() {
@@ -159,10 +153,8 @@ function lrGrid() {
       <table class="grid wh-grid">
         <colgroup>
           <col style="width:36px" />
-          <col style="width:120px" />
-          <col style="width:140px" />
-          <col style="width:110px" />
           <col style="width:130px" />
+          <col style="min-width:230px" />
           <col style="min-width:180px" />
           <col style="width:64px" />
           <col style="width:84px" />
@@ -175,9 +167,7 @@ function lrGrid() {
           <tr>
             <th></th>
             <th>操作网点</th>
-            <th>产品代码</th>
-            <th>产品名称</th>
-            <th title="调拨网点条件;留空=不限,任何调拨网点均可命中">调拨网点</th>
+            <th title="产品与调拨网点条件集中展示;产品多值聚合,调拨网点留空=不限;悬浮查看全量">匹配条件</th>
             <th>推荐库位</th>
             <th>启用状态</th>
             <th>是否自动上架</th>
