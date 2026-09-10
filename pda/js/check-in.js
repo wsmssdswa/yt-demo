@@ -13,8 +13,9 @@
      原型为纯静态演示,数据在下方 MAIN_ORDERS 预置,交互 1:1 模拟代码行为。
 
    推荐库位 × LNMS(2026-09 新需求):签入时经 LNMS 实时查「推荐调拨网点」,再以
-     签入网点+产品+调拨网点 匹配推荐库位规则(条件行留空=不限);命中多条按创建顺序取第一条的第一个库位。
+     签入网点+产品+调拨网点 匹配推荐库位规则(条件留空=不限);命中多条按创建顺序取第一条的第一个库位。
      LNMS 无返回/超时:静默降级——签入照常,带调拨网点条件的规则匹配不上,不限规则照常兜底。
+     展示与线上一致(仅推荐库位,不显示调拨网点/产品——匹配维度不进作业界面)。
 
    签入即到货(2026-08 新需求):有调拨任务的货,签入时自动登记到货(替代单独的到货扫描)
      适用范围:全部调拨货,不区分计费/非计费网点 — 两类网点都是"人工做一个动作、系统补全另一件":
@@ -388,7 +389,6 @@ function renderRecords() {
         <span>重量(KG)：${r.pkgWeight}</span>
         ${r.predWt ? `<span>预报(KG)：${r.predWt}</span>` : ''}
       </div>` : ''}
-      <div class="ci-rec-recommend${r.destOrgTip ? '' : ' ci-rec-recommend--hide'}">${r.destOrgTip ? `推荐调拨：<b>${r.destOrgTip}</b>` : ''}</div>
       <div class="ci-rec-recommend${r.recommend ? '' : ' ci-rec-recommend--none'}">推荐库位：${r.recommend ? `<b>${r.recommend}</b>` : '暂无推荐库位'}</div>
       ${r.transitNo ? `
       <div class="ci-rec-transfer">中转单:${r.transitNo} · <span${r.orgMismatch ? ' class="ci-rec-dest--warn"' : ''}>目的仓:${r.destOrgName}</span></div>` : ''}

@@ -1986,7 +1986,6 @@
 }
 .ci-rec-recommend b { color: #008081; font-weight: 700; margin-left: 2px; }
 .ci-rec-recommend--none { color: #a5a5a5; }
-.ci-rec-recommend--hide { display: none; }
 
 /* 问题件标记 */
 .ci-rec-abn {
