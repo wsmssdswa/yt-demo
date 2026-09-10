@@ -86,7 +86,12 @@ function lrDestOrgCell(destOrgs) {
   return destOrgs.length ? destOrgs.join(', ') : '-';
 }
 
-/* 条件集签名(防重复:同网点+完全相同条件集 → 拦截) */
+/* 条件摘要(线上防重复句式):产品/调拨多值顿号连接,未配置 = 不限 */
+function lrCondStr(products, destOrgs) {
+  return `产品「${products.length ? products.join('、') : '不限'}」调拨网点「${destOrgs.length ? destOrgs.join('、') : '不限'}」`;
+}
+
+
 function lrCondSig(products, destOrgs) {
   return JSON.stringify({ p: [...products].sort(), d: [...destOrgs].sort() });
 }
@@ -411,26 +416,20 @@ const LrPage = {
     if (!og) { Helpers.toast('请选择操作网点'); return; }
 
     if (this.editingId === 0) {
-      /* 防重复:同网点+完全相同条件集(产品集+调拨网点集) */
+      /* 防重复:同网点+完全相同条件集(产品集+调拨网点集);文案对齐线上防重复句式 */
       const sig = lrCondSig(this.productTags, this.destOrgTags);
       if (LR_ROWS.some(r => r.og === og && lrCondSig(r.products, r.destOrgs) === sig)) {
-        Helpers.toast(`操作网点「${og}」下已存在相同条件的规则，不可重复创建`); return;
+        Helpers.toast(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在相同条件的规则，不可重复创建`); return;
       }
     }
-    /* 重叠提示(不拦截):同网点下可能与现有规则同时命中 → 点破「先创建先生效」 */
     /* 重叠提示(不拦截):对同网点全部规则检测(含停用——停用的将来启用同样会撞);
-       全部重叠规则逐条列出,带条件/推荐库位/创建时间/创建人/状态,便于在列表中定位 */
+       文案以当前规则条目为主语(线上防重复句式),不罗列对方清单 */
     const overlapRows = LR_ROWS.filter(r =>
       r.og === og && r.id !== this.editingId &&
       lrCondSig(r.products, r.destOrgs) !== lrCondSig(this.productTags, this.destOrgTags) &&
       lrCondOverlap({ products: this.productTags, destOrgs: this.destOrgTags }, r));
     if (overlapRows.length) {
-      const lines = overlapRows.map(r => {
-        const cond = (r.products.length ? `产品${r.products.join('、')}` : '产品不限') +
-          (r.destOrgs.length ? `,调拨网点${r.destOrgs.join('、')}` : ',调拨不限');
-        return `${cond} | 推荐库位${r.locations[0]}${r.locations.length > 1 ? ` 等${r.locations.length}个` : ''} | ${r.createTime.slice(0, 10)}创建(${r.createUser}) | ${r.status === 1 ? '启用中' : '停用中'}`;
-      });
-      if (!confirm(`检测到与 ${overlapRows.length} 条规则存在命中重叠:\n\n${lines.join('\n')}\n\n重叠时先创建的规则先生效(停用中的规则启用后同样生效);若需本规则优先生效,请调整或停用老规则。\n\n仍要保存吗?`)) return;
+      if (!confirm(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在可能同时命中的规则，重叠时先创建的先生效，是否继续保存？`)) return;
     }
 
     if (this.editingId === 0) {
@@ -474,19 +473,16 @@ const LrPage = {
     }
     const verb = target === 1 ? '启用' : '停用';
     /* 启用 = 规则生效的门:与保存同口径做重叠检测(对全部规则,含停用);
-       批量启用逐条检测,汇总一次提示(不拦截) */
+       文案以即将启用的规则条目为主语;批量启用时逐条检测,汇总一次提示(不拦截) */
     if (target === 1) {
-      const hits = [];
-      rows.forEach(row => {
-        LR_ROWS.forEach(r => {
-          if (r.og === row.og && r.id !== row.id &&
-              lrCondSig(r.products, r.destOrgs) !== lrCondSig(row.products, row.destOrgs) &&
-              lrCondOverlap(row, r)) {
-            hits.push(`「${(row.products.length ? row.products.join('、') : '产品不限')}${row.destOrgs.length ? '+' + row.destOrgs.join('、') : ''}」 ↔ ${r.createTime.slice(0, 10)}创建的「${(r.products.length ? r.products.join('、') : '产品不限')}${r.destOrgs.length ? '+' + r.destOrgs.join('、') : ''}」(推荐库位${r.locations[0]},${r.status === 1 ? '启用中' : '停用中'})`);
-          }
-        });
-      });
-      if (hits.length && !confirm(`启用后将存在命中重叠(重叠时先创建的规则先生效):\n\n${hits.join('\n')}\n\n仍要启用吗?`)) return;
+      const hitRows = rows.filter(row => LR_ROWS.some(r =>
+        r.og === row.og && r.id !== row.id &&
+        lrCondSig(r.products, r.destOrgs) !== lrCondSig(row.products, row.destOrgs) &&
+        lrCondOverlap(row, r)));
+      if (hitRows.length) {
+        const conds = hitRows.map(row => lrCondStr(row.products, row.destOrgs)).join(';');
+        if (!confirm(`启用后，操作网点「${hitRows[0].og}」下${conds}存在命中重叠，重叠时先创建的先生效，是否继续启用？`)) return;
+      }
     }
     if (confirm(`确定${verb}选中的 ${rows.length} 条规则？`)) {
       rows.forEach(r => r.status = target);
