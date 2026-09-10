@@ -2,7 +2,7 @@
    wh-loc-rule.js — 库位推荐规则配置页(调拨网点方案)
    基线 = 线上 FrmRecommendRule 三窗体还原版;本次叠加「调拨网点」条件:
      1. 行粒度 = 条件集(一条配置意图一行):产品集 + 调拨网点集 + 库位 + 自动上架;
-        产品与其他条件项平等,均值多选(产品必配),不按产品拆行
+        产品与其他条件项平等,均值多选(产品与调拨网点至少配一项),不按产品拆行
      2. 弹窗沿用线上平铺交互(uctrlProductMultiSelect 的「下拉+添加+标签」形态),
         新增「调拨网点」字段;条件项超过 3 个后再演进条件行交互
      3. 调拨网点留空 = 不限;签入时经 LNMS 实时获取推荐调拨网点参与匹配
@@ -45,6 +45,10 @@ const LR_ROWS = [
     products:['US-KAPAI-ELC'], destOrgs:['芝加哥仓','纽约仓'],
     locations:['G-05-01','G-05-02','G-05-03'], status:1, autoShelf:0,
     createTime:'2026-07-28 14:47:20', updateTime:'2026-08-21 17:25:41', createUser:'张敏', updateUser:'张敏' },
+  { id:9, og:'东腾曼沙项目仓',
+    products:[], destOrgs:['芝加哥仓'],
+    locations:['T-01-01'], status:1, autoShelf:0,
+    createTime:'2026-08-28 09:15:33', updateTime:'2026-08-28 09:15:33', createUser:'李丽', updateUser:'李丽' },
 ];
 
 const LR_OGS = ['东腾曼沙项目仓', '东腾美西中转仓'];
@@ -70,8 +74,9 @@ function lrLocDisplay(locs) {
   return `${locs.slice(0, 3).join(', ')} …共${locs.length}个`;
 }
 
-/* 产品列:代码(名称);多产品显首个 + 等N个(省略格式对齐线上推荐库位列惯例) */
+/* 产品列:代码(名称);多产品显首个 + 等N个;未配置(仅调拨网点)= - */
 function lrProductCell(products) {
+  if (!products.length) return '-';
   if (products.length === 1) return `${products[0]}(${lrProductName(products[0])})`;
   return `${products[0]}(${lrProductName(products[0])}) 等${products.length}个`;
 }
@@ -88,7 +93,8 @@ function lrCondSig(products, destOrgs) {
 
 /* 条件集重叠判定(AND 语义):产品集有交集 且 调拨集有交集(空 = 不限 = 全交集) */
 function lrCondOverlap(a, b) {
-  const prodHit = a.products.some(p => b.products.includes(p));
+  const prodHit = !a.products.length || !b.products.length ||
+    a.products.some(p => b.products.includes(p));
   const destHit = !a.destOrgs.length || !b.destOrgs.length ||
     a.destOrgs.some(d => b.destOrgs.includes(d));
   return prodHit && destHit;
@@ -388,7 +394,7 @@ const LrPage = {
     document.getElementById('lrDestOrgTags').innerHTML = this.destOrgTags.length
       ? this.destOrgTags.map(d =>
         `<span class="lrb-tag">${d}<b onclick="LrPage.removeDestOrgTag('${d}')">✕</b></span>`).join('')
-      : '<span class="sb-cond-note">未选择 = 不限,任何调拨网点均可命中</span>';
+      : '<span class="sb-cond-note">未选择 = 不限(产品与调拨网点至少填一项)</span>';
   },
 
   saveEdit() {
@@ -397,7 +403,10 @@ const LrPage = {
     const locs = [...new Set(raw.split(/[\n,，]/).map(s => s.trim()).filter(Boolean))];
     if (!locs.length) { Helpers.toast('请至少添加一个推荐库位'); return; }
     if (locs.length > 100) { Helpers.toast('推荐库位数量不能超过100'); return; }
-    if (!this.productTags.length) { Helpers.toast('请选择产品'); return; }
+    /* 产品与调拨网点至少配置一项(都空 = 无条件,不允许) */
+    if (!this.productTags.length && !this.destOrgTags.length) {
+      Helpers.toast('产品与调拨网点至少配置一项'); return;
+    }
     const og = document.getElementById('lrFOg').value;
     if (!og) { Helpers.toast('请选择操作网点'); return; }
 

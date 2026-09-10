@@ -88,11 +88,13 @@ const LR_RULES = [
 // LNMS 模拟开关:true = 无返回(签入照常,带调拨网点条件的规则匹配不上,不限规则照常兜底)
 let LNMS_DOWN = false;
 
-/* 签入时匹配推荐库位:命中多条按创建顺序取第一条的第一个库位(线上 order by id limit 1 的口径) */
+/* 签入时匹配推荐库位:条件集双方均可空=不限(产品与调拨网点规则侧至少配一项);
+   命中多条按创建顺序取第一条的第一个库位(线上 order by id limit 1 的口径) */
 function matchRecommend(og, productCode, destOrg) {
   const rule = LR_RULES.find(r =>
-    r.og === og && r.products.includes(productCode) &&
-    (!destOrg || r.destOrgs.includes(destOrg)));
+    r.og === og &&
+    (!r.products.length || r.products.includes(productCode)) &&
+    (!r.destOrgs.length || (destOrg && r.destOrgs.includes(destOrg))));
   return rule ? rule.locations[0] : '';
 }
 // 超尺寸阈值:任一边 > 265CM 必须上传照片(新需求,边界 [待确认:大于还是大于等于])
