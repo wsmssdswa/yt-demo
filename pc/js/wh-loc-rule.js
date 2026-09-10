@@ -3,12 +3,14 @@
    基线 = 线上 FrmRecommendRule 三窗体还原版;本次叠加「调拨网点」条件:
      1. 行粒度 = 条件集(一条配置意图一行):产品集 + 调拨网点集 + 库位 + 自动上架;
         产品与其他条件项平等,均值多选(产品与调拨网点至少配一项),不按产品拆行
-     2. 弹窗沿用线上平铺交互(uctrlProductMultiSelect 的「下拉+添加+标签」形态),
-        新增「调拨网点」字段;条件项超过 3 个后再演进条件行交互
+     2. 产品选择对齐线上 uctrlProductMultiSelect:只读框(点击选择产品/已选摘要)
+        → 弹「产品选择」弹窗(待选在左/已选在右双表格+各自搜索框+添加/移除按钮,
+        双击行或选中行+按钮操作,保存回显摘要,>2 个显前两+等N个,悬停显全量);
+        调拨网点为新增字段,跟随同款弹窗式交互(网点代码+网点名称两列)
      3. 调拨网点留空 = 不限;签入时经 LNMS 实时获取推荐调拨网点参与匹配
      4. 多条件固定「全部满足」(AND-only);新建默认停用(对齐线上 rule_status=0)
-     5. 防重复 = 同网点+完全相同条件集(产品集+调拨网点集);
-        命中重叠保存时提示「先创建先生效」(不拦截),运行时无仲裁
+     5. 防重复 = 同网点+完全相同条件集拦截;命中重叠(可能同时命中)保存拦截,
+        库内两两互斥,签入匹配唯一命中(先创建先生效仅作防并发兜底)
    ============================================ */
 
 /* ---- 演示数据(products=产品条件集必配;destOrgs=调拨网点条件集,空=不限) ---- */
@@ -53,19 +55,25 @@ const LR_ROWS = [
 
 const LR_OGS = ['东腾曼沙项目仓', '东腾美西中转仓'];
 const LR_PRODUCT_DICT = [
-  { code: 'US-MATSU-REG',  name: '美森快船-普货' },
-  { code: 'US-MATSU-ELC',  name: '美森快船-带电' },
-  { code: 'US-HAIYUN-REG', name: '海运普船-普货' },
-  { code: 'US-KAPAI-REG',  name: '海外卡派-普货' },
-  { code: 'US-KAPAI-ELC',  name: '海外卡派-带电' },
-  { code: 'US-BAOHUO-REG', name: '普船带电-普货' },
+  { code: 'US-MATSU-REG',  name: '美森快船-普货', en: 'Matson Express General' },
+  { code: 'US-MATSU-ELC',  name: '美森快船-带电', en: 'Matson Express Electronic' },
+  { code: 'US-HAIYUN-REG', name: '海运普船-普货', en: 'Ocean Freight General' },
+  { code: 'US-KAPAI-REG',  name: '海外卡派-普货', en: 'Overseas Trucking General' },
+  { code: 'US-KAPAI-ELC',  name: '海外卡派-带电', en: 'Overseas Trucking Electronic' },
+  { code: 'US-BAOHUO-REG', name: '普船带电-普货', en: 'Ocean Freight Electronic' },
 ];
 const LR_PRODUCTS = LR_PRODUCT_DICT.map(p => p.code);
 function lrProductName(code) {
   const hit = LR_PRODUCT_DICT.find(p => p.code === code);
   return hit ? hit.name : code;
 }
-const LR_DEST_ORGS = ['上海仓', '洛杉矶仓', '纽约仓', '芝加哥仓'];
+/* 调拨网点字典:网点代码(NetworkCoding 风格)+ 网点名称;规则/展示主键仍用名称 */
+const LR_DEST_ORGS = [
+  { code: 'CNSHA', name: '上海仓' },
+  { code: 'USLAX', name: '洛杉矶仓' },
+  { code: 'USNYC', name: '纽约仓' },
+  { code: 'USCHI', name: '芝加哥仓' },
+];
 
 /* 推荐库位列显示:≤3 个逗号分隔,超出取前 3 + "…共N个"(对齐线上 FormatLocationDisplay) */
 function lrLocDisplay(locs) {
@@ -115,7 +123,7 @@ function lrQueryPanel() {
         ${f('产品代码', `<select class="sel" id="lrQProduct"><option value="">全部</option>${LR_PRODUCTS.map(p => `<option>${p}</option>`).join('')}</select>`)}
         ${f('操作网点', `<select class="sel" id="lrQOg"><option value="">全部</option>${LR_OGS.map(o => `<option>${o}</option>`).join('')}</select>`)}
         ${f('是否自动上架', `<select class="sel" id="lrQAuto"><option value="-1">全部</option><option value="1">是</option><option value="0">否</option></select>`)}
-        ${f('调拨网点', `<select class="sel" id="lrQDestOrg"><option value="">全部</option>${LR_DEST_ORGS.map(o => `<option>${o}</option>`).join('')}</select>`)}
+        ${f('调拨网点', `<select class="sel" id="lrQDestOrg"><option value="">全部</option>${LR_DEST_ORGS.map(o => `<option>${o.name}</option>`).join('')}</select>`)}
         <div class="qp-actions">
           <button class="btn btn--primary" onclick="LrPage.doQuery()">🔍 查询</button>
         </div>
@@ -214,18 +222,11 @@ function lrPager() {
   `;
 }
 
-/* 多选标签行(线上 uctrlProductMultiSelect 形态:下拉 + 添加 + 标签) */
-function lrMultiField(id, selId, addFn, options, ph) {
+/* 选择框(线上 uctrlProductMultiSelect 形态:只读框,点击弹窗选择,回显摘要) */
+function lrPickField(id, openFn, ph) {
   return `
-    <div class="lrb-multi">
-      <div style="display:flex;gap:6px">
-        <select class="sel" id="${selId}" style="flex:1">
-          <option value="">${ph}</option>
-          ${options.map(o => `<option>${o}</option>`).join('')}
-        </select>
-        <button class="btn" id="${selId}Add" onclick="${addFn}()">添加</button>
-      </div>
-      <div class="lrb-tags" id="${id}"></div>
+    <div class="lrb-pick-wrap">
+      <div class="lrb-pick" id="${id}" onclick="${openFn}" title="">${ph}</div>
     </div>
   `;
 }
@@ -249,11 +250,14 @@ function lrEditModal() {
           </div>
           <div class="rw-form-row" style="align-items:flex-start">
             <label class="rw-form-label">产品代码：</label>
-            ${lrMultiField('lrProductTags', 'lrFProductSel', 'LrPage.addProductTag', LR_PRODUCTS, '请选择产品')}
+            ${lrPickField('lrFProduct', 'LrPage.openPicker(\'product\')', '点击选择产品')}
           </div>
           <div class="rw-form-row" style="align-items:flex-start">
             <label class="rw-form-label">调拨网点：</label>
-            ${lrMultiField('lrDestOrgTags', 'lrFDestOrgSel', 'LrPage.addDestOrgTag', LR_DEST_ORGS, '请选择调拨网点(可留空=不限)')}
+            <div style="flex:1">
+              ${lrPickField('lrFDestOrg', 'LrPage.openPicker(\'destOrg\')', '点击选择调拨网点')}
+              <div class="sb-cond-note">未选择 = 不限(产品与调拨网点至少填一项)</div>
+            </div>
           </div>
           <div class="rw-form-row" style="align-items:flex-start">
             <label class="rw-form-label">推荐库位：</label>
@@ -296,6 +300,57 @@ function lrLocationsModal() {
   `;
 }
 
+/* ---- 选择弹窗(线上 FormProductMultiSelector 布局微调:待选在左/已选在右,中间添加/移除) ---- */
+function lrPickerModal() {
+  return `
+    <div class="rw-modal" id="lrPickerMask" style="display:none">
+      <div class="rw-modal-mask" onclick="LrPage.closePicker()"></div>
+      <div class="rw-modal-panel lrb-picker-panel" style="width:720px" tabindex="-1">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title" id="lrPickerTitle">产品选择</span>
+          <button class="rw-modal-close" onclick="LrPage.closePicker()">✕</button>
+        </div>
+        <div class="rw-modal-body">
+          <div class="lrb-picker">
+            <div class="lrb-picker-col">
+              <div class="lrb-picker-head" id="lrPickerPendHead">待选产品</div>
+              <input class="ipt lrb-picker-search" id="lrPickerPendFilter" placeholder="输入代码/名称过滤"
+                oninput="LrPage.pickerFilter('pend')" />
+              <div class="lrb-picker-gridwrap">
+                <table class="grid lrb-picker-grid">
+                  <colgroup id="lrPickerPendCols"></colgroup>
+                  <thead id="lrPickerPendHeadRow"></thead>
+                  <tbody id="lrPickerPendBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="lrb-picker-mid">
+              <button class="btn" id="lrPickerAddBtn" onclick="LrPage.pickerAdd()">添加</button>
+              <button class="btn" id="lrPickerRemoveBtn" onclick="LrPage.pickerRemove()">移除</button>
+            </div>
+            <div class="lrb-picker-col">
+              <div class="lrb-picker-head" id="lrPickerSelHead">已选产品</div>
+              <input class="ipt lrb-picker-search" id="lrPickerSelFilter" placeholder="输入代码/名称过滤"
+                oninput="LrPage.pickerFilter('sel')" />
+              <div class="lrb-picker-gridwrap">
+                <table class="grid lrb-picker-grid">
+                  <colgroup id="lrPickerSelCols"></colgroup>
+                  <thead id="lrPickerSelHeadRow"></thead>
+                  <tbody id="lrPickerSelBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn btn--primary" onclick="LrPage.savePicker()">保存</button>
+          <button class="btn" onclick="LrPage.closePicker()">关闭</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* ---- 页面逻辑 ---- */
 const LrPage = {
   rows: LR_ROWS.slice(),
@@ -303,6 +358,8 @@ const LrPage = {
   editingId: 0,
   productTags: [],
   destOrgTags: [],
+  /* 选择弹窗状态(mode: product|destOrg;cur: 当前选中行 {side, key}) */
+  picker: { mode: '', sel: [], pendFilter: '', selFilter: '', cur: null },
 
   doQuery() {
     const og = document.getElementById('lrQOg').value;
@@ -344,10 +401,7 @@ const LrPage = {
     this.productTags = row ? [...row.products] : [];
     this.destOrgTags = row ? [...row.destOrgs] : [];
     document.getElementById('lrFOg').disabled = !!row;
-    document.getElementById('lrFProductSel').disabled = !!row;
-    document.getElementById('lrFProductSelAdd') && (document.getElementById('lrFProductSelAdd').disabled = !!row);
-    this.renderProductTags();
-    this.renderDestOrgTags();
+    this.renderPickFields();
     if (row) {
       document.getElementById('lrFOg').value = row.og;
       document.getElementById('lrFLocations').value = row.locations.join('\n');
@@ -362,44 +416,140 @@ const LrPage = {
 
   closeEdit() { document.getElementById('lrEditMask').style.display = 'none'; },
 
-  /* ---- 多选标签(产品/调拨网点同款交互;编辑时产品锁定=线上行为) ---- */
-  addTag(list, selId, toastName, locked) {
-    if (locked) { Helpers.toast(`${toastName}不可修改`); return; }
-    const el = document.getElementById(selId);
-    const v = el.value;
-    if (!v) { Helpers.toast(`请选择${toastName}`); return; }
-    if (list.includes(v)) { Helpers.toast(`「${v}」已添加`); return; }
-    list.push(v);
-    el.value = '';
+  /* ---- 选择弹窗(线上 uctrlProductMultiSelect + FormProductMultiSelector 同款) ---- */
+  pickerAll() {
+    return this.picker.mode === 'product'
+      ? LR_PRODUCT_DICT
+      : LR_DEST_ORGS.map(n => ({ name: n }));
   },
-  addProductTag() {
-    this.addTag(this.productTags, 'lrFProductSel', '产品', this.editingId > 0);
-    if (this.productTags.length > 20) { this.productTags.pop(); Helpers.toast('产品数量不能超过20'); return; }
-    this.renderProductTags();
+  pickerKey(item) { return this.picker.mode === 'product' ? item.code : item.name; },
+  pickerLabel() { return this.picker.mode === 'product' ? '产品' : '调拨网点'; },
+
+  openPicker(mode) {
+    if (mode === 'product' && this.editingId > 0) { Helpers.toast('产品不可修改'); return; }
+    this.picker.mode = mode;
+    this.picker.pendFilter = '';
+    this.picker.selFilter = '';
+    this.picker.cur = null;
+    this.picker.sel = mode === 'product' ? [...this.productTags] : [...this.destOrgTags];
+    const label = this.pickerLabel();
+    document.getElementById('lrPickerTitle').textContent = `${label}选择`;
+    document.getElementById('lrPickerSelHead').textContent = `已选${label}`;
+    document.getElementById('lrPickerPendHead').textContent = `待选${label}`;
+    document.getElementById('lrPickerSelFilter').value = '';
+    document.getElementById('lrPickerPendFilter').value = '';
+    this.renderPicker();
+    document.getElementById('lrPickerMask').style.display = 'flex';
+    document.querySelector('.lrb-picker-panel').focus();
   },
-  removeProductTag(code) {
-    if (this.editingId > 0) return;
-    this.productTags = this.productTags.filter(p => p !== code);
-    this.renderProductTags();
+
+  pickerFilter(side) {
+    const v = document.getElementById(side === 'sel' ? 'lrPickerSelFilter' : 'lrPickerPendFilter').value.trim();
+    if (side === 'sel') this.picker.selFilter = v; else this.picker.pendFilter = v;
+    this.renderPicker();
   },
-  renderProductTags() {
-    document.getElementById('lrProductTags').innerHTML = this.productTags.map(p =>
-      `<span class="lrb-tag">${p}${this.editingId > 0 ? '' : `<b onclick="LrPage.removeProductTag('${p}')">✕</b>`}</span>`
-    ).join('');
+
+  renderPicker() {
+    const isProd = this.picker.mode === 'product';
+    const all = this.pickerAll();
+    const selSet = new Set(this.picker.sel);
+    const match = (item, q) => !q || [item.code, item.name, item.en]
+      .filter(Boolean).some(v => v.includes(q));
+    const selRows = all.filter(i => selSet.has(this.pickerKey(i)) && match(i, this.picker.selFilter));
+    const pendRows = all.filter(i => !selSet.has(this.pickerKey(i)) && match(i, this.picker.pendFilter));
+
+    const cols = isProd
+      ? '<col style="width:36%"/><col style="width:30%"/><col style="width:34%"/>'
+      : '<col style="width:100%"/>';
+    const heads = isProd
+      ? '<tr><th>产品代码</th><th>中文名称</th><th>英文名称</th></tr>'
+      : '<tr><th>网点名称</th></tr>';
+    const rowHtml = (i, side) => {
+      const k = this.pickerKey(i);
+      const marked = this.picker.cur && this.picker.cur.side === side && this.picker.cur.key === k;
+      const dbl = side === 'pend' ? `LrPage.pickerAdd('${k}')` : `LrPage.pickerRemove('${k}')`;
+      const mark = `LrPage.pickerMark('${side}','${k}')`;
+      const cls = marked ? ' class="row--picked"' : '';
+      return isProd
+        ? `<tr${cls} onclick="${mark}" ondblclick="${dbl}"><td class="col--code">${i.code}</td><td>${i.name}</td><td>${i.en}</td></tr>`
+        : `<tr${cls} onclick="${mark}" ondblclick="${dbl}"><td>${i.name}</td></tr>`;
+    };
+    const empty = which => `<tr class="lrb-picker-empty"><td colspan="${isProd ? 3 : 1}">${which}</td></tr>`;
+
+    document.getElementById('lrPickerSelCols').innerHTML = cols;
+    document.getElementById('lrPickerPendCols').innerHTML = cols;
+    document.getElementById('lrPickerSelHeadRow').innerHTML = heads;
+    document.getElementById('lrPickerPendHeadRow').innerHTML = heads;
+    document.getElementById('lrPickerSelBody').innerHTML =
+      selRows.length ? selRows.map(i => rowHtml(i, 'sel')).join('') : empty('暂无已选');
+    document.getElementById('lrPickerPendBody').innerHTML =
+      pendRows.length ? pendRows.map(i => rowHtml(i, 'pend')).join('') : empty('暂无待选');
   },
-  addDestOrgTag() {
-    this.addTag(this.destOrgTags, 'lrFDestOrgSel', '调拨网点');
-    this.renderDestOrgTags();
+
+  pickerMark(side, key) {
+    this.picker.cur = { side, key };
+    this.renderPicker();
   },
-  removeDestOrgTag(code) {
-    this.destOrgTags = this.destOrgTags.filter(d => d !== code);
-    this.renderDestOrgTags();
+
+  /* 添加:待选当前行(或双击行) → 已选;无当前行提示(线上无选中时静默,原型提示更直观) */
+  pickerAdd(key) {
+    key = key || (this.picker.cur && this.picker.cur.side === 'pend' && this.picker.cur.key);
+    if (!key) { Helpers.toast(`请先选中待选${this.pickerLabel()}`); return; }
+    if (!this.picker.sel.includes(key)) this.picker.sel.push(key);
+    this.picker.cur = null;
+    this.renderPicker();
   },
-  renderDestOrgTags() {
-    document.getElementById('lrDestOrgTags').innerHTML = this.destOrgTags.length
-      ? this.destOrgTags.map(d =>
-        `<span class="lrb-tag">${d}<b onclick="LrPage.removeDestOrgTag('${d}')">✕</b></span>`).join('')
-      : '<span class="sb-cond-note">未选择 = 不限(产品与调拨网点至少填一项)</span>';
+
+  /* 移除:已选当前行(或双击行) → 移出 */
+  pickerRemove(key) {
+    key = key || (this.picker.cur && this.picker.cur.side === 'sel' && this.picker.cur.key);
+    if (!key) { Helpers.toast(`请先选中已选${this.pickerLabel()}`); return; }
+    this.picker.sel = this.picker.sel.filter(k => k !== key);
+    this.picker.cur = null;
+    this.renderPicker();
+  },
+
+  savePicker() {
+    /* 产品上限对齐线上服务端校验(产品数量不能超过20) */
+    if (this.picker.mode === 'product' && this.picker.sel.length > 20) {
+      Helpers.toast('产品数量不能超过20'); return;
+    }
+    if (this.picker.mode === 'product') this.productTags = [...this.picker.sel];
+    else this.destOrgTags = [...this.picker.sel];
+    this.renderPickFields();
+    document.getElementById('lrPickerMask').style.display = 'none';
+  },
+
+  closePicker() { document.getElementById('lrPickerMask').style.display = 'none'; },
+
+  /* ---- 选择框回显摘要(线上 UpdateDisplay:≤2 全显中文名,>2 前两+等N,悬停显全量) ---- */
+  renderPickFields() {
+    const pBox = document.getElementById('lrFProduct');
+    const pNames = this.productTags.map(lrProductName);
+    pBox.classList.toggle('lrb-pick--locked', this.editingId > 0);
+    if (!pNames.length) {
+      pBox.textContent = '点击选择产品';
+      pBox.classList.add('lrb-pick--empty');
+      pBox.title = '';
+    } else {
+      pBox.classList.remove('lrb-pick--empty');
+      pBox.textContent = pNames.length <= 2
+        ? pNames.join('、')
+        : `${pNames[0]}、${pNames[1]} 等${pNames.length}个产品`;
+      pBox.title = pNames.join('、');
+    }
+    const dBox = document.getElementById('lrFDestOrg');
+    if (!this.destOrgTags.length) {
+      dBox.textContent = '点击选择调拨网点';
+      dBox.classList.add('lrb-pick--empty');
+      dBox.title = '';
+    } else {
+      dBox.classList.remove('lrb-pick--empty');
+      dBox.textContent = this.destOrgTags.length <= 2
+        ? this.destOrgTags.join('、')
+        : `${this.destOrgTags[0]}、${this.destOrgTags[1]} 等${this.destOrgTags.length}个网点`;
+      dBox.title = this.destOrgTags.join('、');
+    }
   },
 
   saveEdit() {
@@ -524,6 +674,7 @@ document.getElementById('app').innerHTML = Layout.window({
     ${lrPager()}
     ${lrEditModal()}
     ${lrLocationsModal()}
+    ${lrPickerModal()}
   `,
 });
 
@@ -534,4 +685,12 @@ document.addEventListener('click', e => {
   if (!tr || e.target.closest('input')) return;
   document.querySelectorAll('.wh-grid tbody tr.row--selected').forEach(r => r.classList.remove('row--selected'));
   tr.classList.add('row--selected');
+});
+
+/* 选择弹窗键盘操作(线上:待选表格 Enter=添加,已选表格 Delete=移除) */
+document.addEventListener('keydown', e => {
+  const mask = document.getElementById('lrPickerMask');
+  if (!mask || mask.style.display === 'none') return;
+  if (e.key === 'Enter') { e.preventDefault(); LrPage.pickerAdd(); }
+  else if (e.key === 'Delete') { e.preventDefault(); LrPage.pickerRemove(); }
 });
