@@ -25,18 +25,34 @@ const SUGGESTIONS = [
 ];
 
 // 申报信息(发票级数据,真实页面 GetInspectionInvoiceInfo 拉取)
-const INVOICE = [
-  ['中文品名', '无线蓝牙耳机(带充电仓)'],
-  ['英文品名', 'Bluetooth Earbuds'],
-  ['申报数量', '200'],
-  ['单价', '$8.50'],
-  ['总价', '$1700.00'],
-  ['币种', 'USD'],
-  ['材质', 'ABS塑料'],
-  ['品牌', 'Anker'],
-  ['备案信息', '无'],
-  ['产品用途', '跨境电商零售'],
+// ⚠️ 一个子单可有多条申报:装箱单里不同 SKU 各自成条(一行一个申报名),故按子单号分组
+//    (原实现只有一条常量,与线上"一个子单可多条"的数据结构不符)
+const INVOICE_ITEMS = {
+  [WAYBILL + 'U001']: [
+    { cn: '无线蓝牙耳机(带充电仓)', en: 'Bluetooth Earbuds with Charging Case', qty: '200', unitPrice: '$8.50', total: '$1700.00', currency: 'USD', material: 'ABS塑料', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
+    { cn: 'Type-C 充电线', en: 'USB Type-C Charging Cable', qty: '200', unitPrice: '$0.80', total: '$160.00', currency: 'USD', material: 'PVC+铜芯', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
+  ],
+  [WAYBILL + 'U002']: [
+    { cn: '硅胶手机壳', en: 'Silicone Phone Case', qty: '500', unitPrice: '$1.20', total: '$600.00', currency: 'USD', material: '硅胶', brand: '无品牌', filing: '无', usage: '跨境电商零售' },
+  ],
+  [WAYBILL + 'U003']: [
+    { cn: '便携式榨汁机', en: 'Portable Juicer', qty: '100', unitPrice: '$12.00', total: '$1200.00', currency: 'USD', material: 'ABS+不锈钢', brand: 'Bear', filing: '无', usage: '家用小电器' },
+    { cn: '玻璃果汁杯', en: 'Glass Juice Cup', qty: '100', unitPrice: '$2.50', total: '$250.00', currency: 'USD', material: '高硼硅玻璃', brand: 'Bear', filing: '无', usage: '家用小电器' },
+    { cn: '榨汁机滤网配件', en: 'Juicer Filter Mesh', qty: '100', unitPrice: '$1.50', total: '$150.00', currency: 'USD', material: '不锈钢', brand: 'Bear', filing: '无', usage: '家用小电器' },
+  ],
+};
+
+// tab1 申报信息的 10 个展示字段(标签 + 数据键)
+const INVOICE_FIELDS = [
+  ['中文品名', 'cn'], ['英文品名', 'en'], ['申报数量', 'qty'], ['单价', 'unitPrice'],
+  ['总价', 'total'], ['币种', 'currency'], ['材质', 'material'], ['品牌', 'brand'],
+  ['备案信息', 'filing'], ['产品用途', 'usage'],
 ];
+
+// 取某子单的申报条目(无数据返回空数组)
+function invoiceOf(childNo) {
+  return (childNo && INVOICE_ITEMS[childNo]) || [];
+}
 
 // 问题件类型(真实页面 GetIssuekindItems 拉取,扣件时选)
 const ISSUE_TYPES = [
@@ -78,6 +94,8 @@ let state = {
   children: [],       // 子单查验明细(扫描后填充)
   flowState: 'S0',    // 流程状态机:S0=扫描态 S1=处理态 S2=完成态
   currentChildNo: '', // S1 态正在处理的子单号
+  viewChildNo: '',    // tab1 申报信息查看的子单号(跟随最近扫描的子单,确认查验后仍保留,对齐线上 childNumber)
+  invoiceIdx: 0,      // tab1 当前查看的申报序号(多条时"申报1/2/…"页签切换,扫描新子单归零)
 };
 
 // 扫描成功后填充的订单数据(对应 ScanInspection 返回)
@@ -298,9 +316,13 @@ function renderScanOrDone() {
 /* ---- 子单处理弹窗(扫描后弹出) ---- */
 function openProcess() {
   const sugName = (SUGGESTIONS.find(s => s.code === state.suggestCode) || {}).name;
+  const invoices = invoiceOf(state.currentChildNo);
   // 单号上提到标题栏副标题,省去 body 内独立高亮条,节省 PDA 竖向空间
   document.getElementById('ccProcessSub').textContent = state.currentChildNo;
   document.getElementById('ccProcessBody').innerHTML = `
+    <!-- ① 申报信息(判断依据:品名/数量/材质;一个子单可多条,平铺不切换) -->
+    ${invoiceBlockHtml(invoices)}
+
     <!-- ② 拍照上传(先拍照) -->
     <div class="cc-field">
       <div class="cc-field-head">
@@ -335,6 +357,40 @@ function openProcess() {
   document.getElementById('ccSuggestTrigger').addEventListener('click', openSuggestPicker);
   renderUploadRow();
   document.getElementById('ccProcess').classList.remove('hidden');
+}
+
+// 弹窗内申报信息:一行一条的列表(表头 品名/数量/材质),不换行不切换
+// 一个子单可多条;条目多时列表内滚动(不挤压下方拍照/建议操作区);单条时不显示"共N条"
+// 品名列展示中文品名(弹窗用于快速核对实物),英文品名等完整字段在 Tab1 看
+function invoiceBlockHtml(items) {
+  if (!items || items.length === 0) {
+    return `
+      <div class="cc-field">
+        <div class="cc-field-head"><span class="cc-field-label">申报信息</span></div>
+        <div class="cc-invoice-empty">暂无申报信息</div>
+      </div>`;
+  }
+  const multi = items.length > 1;
+  return `
+    <div class="cc-field">
+      <div class="cc-field-head">
+        <span class="cc-field-label">申报信息</span>
+        ${multi ? `<span class="cc-invoice-count">共${items.length}条</span>` : ''}
+      </div>
+      <div class="cc-inv-table">
+        <div class="cc-inv-head">
+          <span class="cc-inv-c-name">品名</span>
+          <span class="cc-inv-c-qty">数量</span>
+          <span class="cc-inv-c-mat">材质</span>
+        </div>
+        ${items.map(it => `
+          <div class="cc-inv-row">
+            <span class="cc-inv-c-name">${it.cn}</span>
+            <span class="cc-inv-c-qty">${it.qty}</span>
+            <span class="cc-inv-c-mat">${it.material}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 function closeProcess() {
@@ -431,15 +487,35 @@ function openPhotoPreview(idx) {
   document.querySelector('.device').appendChild(mask);
 }
 
-// Tab1 申报信息
+// Tab1 申报信息 —— 一个子单可多条:顶部「申报1/申报2/…」页签切换(对齐子单详情页范式)
+// 内容为选中条目的完整 10 项;单条时不显示页签
 function renderTab1() {
+  const items = invoiceOf(state.viewChildNo);
+  if (items.length === 0) {
+    ccBody.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">暂无信息</div></div>`;
+    return;
+  }
+  const multi = items.length > 1;
+  const idx = Math.min(state.invoiceIdx || 0, items.length - 1);
+  const it = items[idx];
   ccBody.innerHTML = `
+    ${multi ? `
+      <div class="cc-inv-tabs">
+        ${items.map((_, i) => `<div class="cc-inv-tab${i === idx ? ' cc-inv-tab--on' : ''}" data-inv="${i}">申报${i + 1}</div>`).join('')}
+      </div>` : ''}
     <div class="cc-kv">
-      ${INVOICE.map(([k, v]) =>
-        `<div class="cc-kv-row"><span class="cc-kv-label">${k}</span><span class="cc-kv-value">${v}</span></div>`
+      ${INVOICE_FIELDS.map(([label, key]) =>
+        `<div class="cc-kv-row"><span class="cc-kv-label">${label}</span><span class="cc-kv-value">${it[key]}</span></div>`
       ).join('')}
     </div>
   `;
+  ccBody.querySelectorAll('[data-inv]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      state.invoiceIdx = +tab.dataset.inv;
+      ccBody.scrollTop = 0;      // 切条目后从顶部看起
+      renderTab1();
+    });
+  });
 }
 
 // Tab2 问题件类型
@@ -556,6 +632,8 @@ function doScan() {
 
   // 匹配通过 → 弹出处理弹窗
   state.currentChildNo = matched.no;
+  state.viewChildNo = matched.no;   // tab1 申报信息跟随最近扫描的子单(确认查验后仍保留,对齐线上 childNumber)
+  state.invoiceIdx = 0;             // 换子单后申报页签回到第一条
   state.suggestCode = -1;
   state.uploadImages = [];
   scanInput.value = '';
@@ -762,6 +840,8 @@ function resetForm() {
   state.uploadImages = [];
   state.flowState = 'S0';
   state.currentChildNo = '';
+  state.viewChildNo = '';
+  state.invoiceIdx = 0;
   activeTab = 0;
   switchTabOn(0);
   refreshAll();
@@ -779,6 +859,8 @@ function resetAll() {
   state.uploadImages = [];
   state.flowState = 'S0';
   state.currentChildNo = '';
+  state.viewChildNo = '';
+  state.invoiceIdx = 0;
   activeTab = 0;
   switchTabOn(0);
   refreshAll();
@@ -813,6 +895,14 @@ testPanel.innerHTML = `
     </div>
   </div>
   <div class="test-panel-group">
+    <div class="test-panel-label">申报信息条数(演示一个子单多条)</div>
+    <div class="test-panel-tags">
+      <span class="test-panel-tag" data-scan-child="U001">U001 · 2条</span>
+      <span class="test-panel-tag" data-scan-child="U002">U002 · 1条</span>
+      <span class="test-panel-tag" data-scan-child="U003">U003 · 3条(列表内滚动)</span>
+    </div>
+  </div>
+  <div class="test-panel-group">
     <div class="test-panel-label">操作</div>
     <div class="test-panel-tags">
       <span class="test-panel-tag" data-act="scan">模拟扫描下一箱</span>
@@ -840,6 +930,8 @@ testPanel.addEventListener('click', e => {
     state.suggestCode = -1;
     state.uploadImages = [];
     state.currentChildNo = '';
+    state.viewChildNo = '';
+    state.invoiceIdx = 0;
     // 全完成场景(2自主/3风控):子单全部已查验,直接进 S2 预览主单按钮;否则 S0 等扫描
     const isDoneScene = (sc === 2 || sc === 3);
     state.flowState = isDoneScene ? 'S2' : 'S0';
@@ -855,6 +947,11 @@ testPanel.addEventListener('click', e => {
     // 演示用:自动填入下一个待查子单号,再触发扫描(真实场景是扫枪输入)
     const next = state.children.find(c => !c.done);
     if (next) document.getElementById('ccScanInput').value = next.no;
+    doScan();
+  }
+  if (tag.dataset.scanChild) {
+    // 演示用:直接扫指定子单,查看该子单的申报信息(单条/多条/列表内滚动三种情况)
+    document.getElementById('ccScanInput').value = WAYBILL + tag.dataset.scanChild;
     doScan();
   }
   if (tag.dataset.act === 'detain') openDetain();

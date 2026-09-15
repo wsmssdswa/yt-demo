@@ -14,7 +14,7 @@ let html = fs.readFileSync(src, 'utf8');
 
 const isLocal = (u) => !/^(https?:)?\/\//.test(u);
 
-html = html.replace(/<link[^>]*href="([^"]+\.css)"[^>]*\/?>/g, (m, href) => {
+html = html.replace(/<link[^>]*href="([^"?]+\.css)(?:\?[^"]*)?"[^>]*\/?>/g, (m, href) => {
   if (!isLocal(href)) return m;
   const css = fs
     .readFileSync(path.resolve(path.dirname(src), href), 'utf8')
@@ -22,7 +22,7 @@ html = html.replace(/<link[^>]*href="([^"]+\.css)"[^>]*\/?>/g, (m, href) => {
   return '<style>\n' + css + '\n</style>';
 });
 
-html = html.replace(/<script[^>]*src="([^"]+)"[^>]*>\s*<\/script>/g, (m, s) => {
+html = html.replace(/<script[^>]*src="([^"?]+)(?:\?[^"]*)?"[^>]*>\s*<\/script>/g, (m, s) => {
   if (!isLocal(s)) return m;
   const js = fs
     .readFileSync(path.resolve(path.dirname(src), s), 'utf8')

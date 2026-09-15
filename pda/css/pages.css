@@ -3320,3 +3320,62 @@
 .ci-fscard-fold { font-size: 11px; color: #999; text-align: center; padding: 5px 0 9px; }
 .ci-fscard-btn { width: 100%; border: 0; border-radius: 8px; background: #00A99D; color: #fff; font-size: 13px; padding: 9px 0; }
 
+
+/* === B2B关务查验页·申报信息多条展示(customs-check,2026-09) ===
+   背景:一个子单可有多条申报(装箱单里不同 SKU 各自成条),原实现只显示一条。
+   弹窗内:一行一条的列表(表头 品名/数量/材质),不换行不切换,条目多时列表内滚动;
+   tab1 :多条时顶部「申报N」页签切换,内容为选中条目的完整 10 项。 */
+.cc-invoice-count { margin-left: auto; font-size: 12px; color: #999; }
+.cc-invoice-empty { padding: 10px 0; font-size: 13px; color: #bbb; }
+
+/* —— 弹窗内:一行一条的申报列表(品名 | 数量 | 材质) —— */
+.cc-inv-table {
+  background: #F7F9F9;          /* 浅灰底:只读信息,与下方白色输入控件区分 */
+  border-radius: 8px;
+  padding: 0 12px;
+  max-height: 148px;            /* 表头 + 3条完整,再多列表内滚动(不挤压拍照/建议操作区) */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cc-inv-head {
+  display: flex;
+  padding: 9px 0 7px;
+  font-size: 12px;
+  color: #999;
+  border-bottom: 1px solid #E6E9E9;
+  position: sticky;             /* 列表内滚动时表头固定 */
+  top: 0;
+  background: #F7F9F9;
+}
+.cc-inv-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #ECEEEE;
+  font-size: 13px;
+  color: #333;
+}
+.cc-inv-row:last-child { border-bottom: none; }
+.cc-inv-c-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-inv-c-qty { flex: 0 0 44px; }
+.cc-inv-c-mat { flex: 0 0 86px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* —— Tab1 多条申报:顶部「申报N」页签切换(对齐子单详情页范式) —— */
+.cc-inv-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid #f2f2f2;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cc-inv-tab {
+  padding: 6px 12px 8px;
+  font-size: 13px;
+  color: #999;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cc-inv-tab--on { color: #00A99D; font-weight: 600; border-bottom-color: #00A99D; }
+
