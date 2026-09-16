@@ -3325,7 +3325,12 @@
    背景:一个子单可有多条申报(装箱单里不同 SKU 各自成条),原实现只显示一条。
    弹窗内:一行一条的列表(表头 品名/数量/材质),不换行不切换,条目多时列表内滚动;
    tab1 :多条时顶部「申报N」页签切换,内容为选中条目的完整 10 项。 */
-.cc-invoice-count { margin-left: auto; font-size: 12px; color: #999; }
+.cc-invoice-count { font-size: 12px; color: #999; }
+/* 申报信息折叠面板:标题行右侧"共N条 + 箭头",点整行收起/展开 */
+.cc-field-head--fold { cursor: pointer; user-select: none; }
+.cc-inv-meta { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.cc-inv-arrow { font-size: 12px; color: #999; line-height: 1; transition: transform .15s; }
+.cc-inv-arrow.cc-inv-arrow--open { transform: rotate(180deg); }
 .cc-invoice-empty { padding: 10px 0; font-size: 13px; color: #bbb; }
 
 /* —— 弹窗内:一行一条的申报列表(品名 | 数量 | 材质) —— */
@@ -3333,7 +3338,7 @@
   background: #F7F9F9;          /* 浅灰底:只读信息,与下方白色输入控件区分 */
   border-radius: 8px;
   padding: 0 12px;
-  max-height: 148px;            /* 表头 + 3条完整,再多列表内滚动(不挤压拍照/建议操作区) */
+  max-height: 176px;            /* 约4条完整,再多列表内滚动(面板可整块收起腾空间) */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }

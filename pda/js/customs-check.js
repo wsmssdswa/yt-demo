@@ -28,9 +28,13 @@ const SUGGESTIONS = [
 // ⚠️ 一个子单可有多条申报:装箱单里不同 SKU 各自成条(一行一个申报名),故按子单号分组
 //    (原实现只有一条常量,与线上"一个子单可多条"的数据结构不符)
 const INVOICE_ITEMS = {
+  // U001:5 个不同商品(弹窗列表折叠演示:默认显示前 3 条,可展开)
   [WAYBILL + 'U001']: [
     { cn: '无线蓝牙耳机(带充电仓)', en: 'Bluetooth Earbuds with Charging Case', qty: '200', unitPrice: '$8.50', total: '$1700.00', currency: 'USD', material: 'ABS塑料', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
     { cn: 'Type-C 充电线', en: 'USB Type-C Charging Cable', qty: '200', unitPrice: '$0.80', total: '$160.00', currency: 'USD', material: 'PVC+铜芯', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
+    { cn: '硅胶耳塞套', en: 'Silicone Ear Tips', qty: '500', unitPrice: '$0.30', total: '$150.00', currency: 'USD', material: '硅胶', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
+    { cn: '耳机收纳盒', en: 'Earbuds Storage Case', qty: '300', unitPrice: '$1.50', total: '$450.00', currency: 'USD', material: 'EVA', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
+    { cn: '蓝牙音箱', en: 'Bluetooth Speaker', qty: '150', unitPrice: '$15.00', total: '$2250.00', currency: 'USD', material: 'ABS+金属网', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
   ],
   [WAYBILL + 'U002']: [
     { cn: '硅胶手机壳', en: 'Silicone Phone Case', qty: '500', unitPrice: '$1.20', total: '$600.00', currency: 'USD', material: '硅胶', brand: '无品牌', filing: '无', usage: '跨境电商零售' },
@@ -52,10 +56,9 @@ const INVOICE_FIELDS = [
   ['备案信息', 'filing'], ['产品用途', 'usage'],
 ];
 
-// 合并同一商品的重复申报行:除数量、金额外申报信息完全相同的行视为同一商品
-// (客户装箱单常把同一商品拆成多行导入,展示上合并为一条、数量金额求和)
-// ⚠️ 仅展示层合并:底层数据与金额计算保持逐行,不受影响
-const INVOICE_MERGE_KEY = ['cn', 'en', 'unitPrice', 'currency', 'material', 'brand', 'filing', 'usage'];
+// 合并同一商品的重复申报行:按「品名 + 材质」聚合(仓库核对申报的口径,0916 与仓库确认)
+// 同品名同材质的行合并为一条、数量求和;仅展示层合并,底层数据与金额计算不受影响
+const INVOICE_MERGE_KEY = ['cn', 'material'];
 function mergeInvoices(items) {
   const toNum = s => Number(String(s).replace(/[^0-9.]/g, '')) || 0;
   const map = new Map();
@@ -119,6 +122,7 @@ let state = {
   currentChildNo: '', // S1 态正在处理的子单号
   viewChildNo: '',    // tab1 申报信息查看的子单号(跟随最近扫描的子单,确认查验后仍保留,对齐线上 childNumber)
   invoiceIdx: 0,      // tab1 当前查看的申报序号(多条时"申报1/2/…"页签切换,扫描新子单归零)
+  invoiceExpanded: true,  // 弹窗申报信息面板是否展开(默认展开,可整块收起)
 };
 
 // 扫描成功后填充的订单数据(对应 ScanInspection 返回)
@@ -378,13 +382,13 @@ function openProcess() {
     </div>
   `;
   document.getElementById('ccSuggestTrigger').addEventListener('click', openSuggestPicker);
+  bindInvToggle();
   renderUploadRow();
   document.getElementById('ccProcess').classList.remove('hidden');
 }
 
-// 弹窗内申报信息:一行一条的列表(表头 品名/数量/材质),不换行不切换
-// 一个子单可多条;条目多时列表内滚动(不挤压下方拍照/建议操作区);单条时不显示"共N条"
-// 品名列展示中文品名(弹窗用于快速核对实物),英文品名等完整字段在 Tab1 看
+// 弹窗内申报信息:整块折叠面板(点标题行收起/展开,默认展开;多条才可折叠)
+// 展开时一行一条(品名/数量/材质),条目多时列表内滚动,不做翻页
 function invoiceBlockHtml(items) {
   if (!items || items.length === 0) {
     return `
@@ -396,24 +400,50 @@ function invoiceBlockHtml(items) {
   const multi = items.length > 1;
   return `
     <div class="cc-field">
-      <div class="cc-field-head">
+      <div class="cc-field-head${multi ? ' cc-field-head--fold' : ''}"${multi ? ' id="ccInvHead"' : ''}>
         <span class="cc-field-label">申报信息</span>
-        ${multi ? `<span class="cc-invoice-count">共${items.length}条</span>` : ''}
+        <span class="cc-inv-meta">
+          ${multi ? `<span class="cc-invoice-count">共${items.length}条</span>` : ''}
+          ${multi ? `<span class="cc-inv-arrow${state.invoiceExpanded ? ' cc-inv-arrow--open' : ''}">⌄</span>` : ''}
+        </span>
       </div>
-      <div class="cc-inv-table">
-        <div class="cc-inv-head">
-          <span class="cc-inv-c-name">品名</span>
-          <span class="cc-inv-c-qty">数量</span>
-          <span class="cc-inv-c-mat">材质</span>
-        </div>
-        ${items.map(it => `
-          <div class="cc-inv-row">
-            <span class="cc-inv-c-name">${it.cn}</span>
-            <span class="cc-inv-c-qty">${it.qty}</span>
-            <span class="cc-inv-c-mat">${it.material}</span>
-          </div>`).join('')}
-      </div>
+      <div id="ccInvTableWrap" class="${multi && !state.invoiceExpanded ? 'hidden' : ''}">${invoiceTableHtml(items)}</div>
     </div>`;
+}
+
+// 申报列表本体(完整渲染;条目多时由 .cc-inv-table 的 max-height 内部滚动)
+function invoiceTableHtml(items) {
+  return `
+    <div class="cc-inv-table">
+      <div class="cc-inv-head">
+        <span class="cc-inv-c-name">品名</span>
+        <span class="cc-inv-c-qty">数量</span>
+        <span class="cc-inv-c-mat">材质</span>
+      </div>
+      ${items.map(it => `
+        <div class="cc-inv-row">
+          <span class="cc-inv-c-name">${it.cn}</span>
+          <span class="cc-inv-c-qty">${it.qty}</span>
+          <span class="cc-inv-c-mat">${it.material}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+// 折叠切换:点标题行整块收起/展开
+// 只重渲列表本体,不重建整个弹窗(避免丢已填备注/已拍照片)
+function bindInvToggle() {
+  const head = document.getElementById('ccInvHead');
+  if (!head) return;
+  head.addEventListener('click', () => {
+    state.invoiceExpanded = !state.invoiceExpanded;
+    const arrow = head.querySelector('.cc-inv-arrow');
+    if (arrow) arrow.classList.toggle('cc-inv-arrow--open', state.invoiceExpanded);
+    const wrap = document.getElementById('ccInvTableWrap');
+    if (wrap) {
+      wrap.innerHTML = invoiceTableHtml(invoiceOf(state.currentChildNo));
+      wrap.classList.toggle('hidden', !state.invoiceExpanded);
+    }
+  });
 }
 
 function closeProcess() {
@@ -657,6 +687,7 @@ function doScan() {
   state.currentChildNo = matched.no;
   state.viewChildNo = matched.no;   // tab1 申报信息跟随最近扫描的子单(确认查验后仍保留,对齐线上 childNumber)
   state.invoiceIdx = 0;             // 换子单后申报页签回到第一条
+  state.invoiceExpanded = true;     // 申报面板回到默认展开态
   state.suggestCode = -1;
   state.uploadImages = [];
   scanInput.value = '';
@@ -920,7 +951,7 @@ testPanel.innerHTML = `
   <div class="test-panel-group">
     <div class="test-panel-label">申报信息条数(演示一个子单多条)</div>
     <div class="test-panel-tags">
-      <span class="test-panel-tag" data-scan-child="U001">U001 · 2条</span>
+      <span class="test-panel-tag" data-scan-child="U001">U001 · 5条(折叠)</span>
       <span class="test-panel-tag" data-scan-child="U002">U002 · 1条</span>
       <span class="test-panel-tag" data-scan-child="U003">U003 · 4行合并成2项</span>
     </div>
