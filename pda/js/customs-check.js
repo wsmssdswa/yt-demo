@@ -35,10 +35,13 @@ const INVOICE_ITEMS = {
   [WAYBILL + 'U002']: [
     { cn: '硅胶手机壳', en: 'Silicone Phone Case', qty: '500', unitPrice: '$1.20', total: '$600.00', currency: 'USD', material: '硅胶', brand: '无品牌', filing: '无', usage: '跨境电商零售' },
   ],
+  // U003:模拟客户把同一商品拆成多行导入 —— 榨汁机 3 行(100+100+50)+果汁杯 1 行,
+  //       展示时按商品合并为 2 条(榨汁机 250 / 果汁杯 100)
   [WAYBILL + 'U003']: [
     { cn: '便携式榨汁机', en: 'Portable Juicer', qty: '100', unitPrice: '$12.00', total: '$1200.00', currency: 'USD', material: 'ABS+不锈钢', brand: 'Bear', filing: '无', usage: '家用小电器' },
+    { cn: '便携式榨汁机', en: 'Portable Juicer', qty: '100', unitPrice: '$12.00', total: '$1200.00', currency: 'USD', material: 'ABS+不锈钢', brand: 'Bear', filing: '无', usage: '家用小电器' },
+    { cn: '便携式榨汁机', en: 'Portable Juicer', qty: '50', unitPrice: '$12.00', total: '$600.00', currency: 'USD', material: 'ABS+不锈钢', brand: 'Bear', filing: '无', usage: '家用小电器' },
     { cn: '玻璃果汁杯', en: 'Glass Juice Cup', qty: '100', unitPrice: '$2.50', total: '$250.00', currency: 'USD', material: '高硼硅玻璃', brand: 'Bear', filing: '无', usage: '家用小电器' },
-    { cn: '榨汁机滤网配件', en: 'Juicer Filter Mesh', qty: '100', unitPrice: '$1.50', total: '$150.00', currency: 'USD', material: '不锈钢', brand: 'Bear', filing: '无', usage: '家用小电器' },
   ],
 };
 
@@ -49,9 +52,29 @@ const INVOICE_FIELDS = [
   ['备案信息', 'filing'], ['产品用途', 'usage'],
 ];
 
-// 取某子单的申报条目(无数据返回空数组)
+// 合并同一商品的重复申报行:除数量、金额外申报信息完全相同的行视为同一商品
+// (客户装箱单常把同一商品拆成多行导入,展示上合并为一条、数量金额求和)
+// ⚠️ 仅展示层合并:底层数据与金额计算保持逐行,不受影响
+const INVOICE_MERGE_KEY = ['cn', 'en', 'unitPrice', 'currency', 'material', 'brand', 'filing', 'usage'];
+function mergeInvoices(items) {
+  const toNum = s => Number(String(s).replace(/[^0-9.]/g, '')) || 0;
+  const map = new Map();
+  items.forEach(it => {
+    const k = INVOICE_MERGE_KEY.map(f => it[f]).join('\u0001');
+    if (map.has(k)) {
+      const m = map.get(k);
+      m.qty = String(toNum(m.qty) + toNum(it.qty));
+      m.total = '$' + (toNum(m.total) + toNum(it.total)).toFixed(2);
+    } else {
+      map.set(k, { ...it });
+    }
+  });
+  return [...map.values()];
+}
+
+// 取某子单的申报条目(已按商品合并;无数据返回空数组)
 function invoiceOf(childNo) {
-  return (childNo && INVOICE_ITEMS[childNo]) || [];
+  return mergeInvoices((childNo && INVOICE_ITEMS[childNo]) || []);
 }
 
 // 问题件类型(真实页面 GetIssuekindItems 拉取,扣件时选)
@@ -899,7 +922,7 @@ testPanel.innerHTML = `
     <div class="test-panel-tags">
       <span class="test-panel-tag" data-scan-child="U001">U001 · 2条</span>
       <span class="test-panel-tag" data-scan-child="U002">U002 · 1条</span>
-      <span class="test-panel-tag" data-scan-child="U003">U003 · 3条(列表内滚动)</span>
+      <span class="test-panel-tag" data-scan-child="U003">U003 · 4行合并成2项</span>
     </div>
   </div>
   <div class="test-panel-group">
