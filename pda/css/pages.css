@@ -3360,26 +3360,24 @@
   cursor: pointer;
 }
 .cc-inv-row:last-child { border-bottom: none; }
-/* 超长品名/材质:点行就地展开全文(默认单行截断) */
-.cc-inv-row--open { background: #EDF4F3; }
-.cc-inv-detail {
-  padding: 8px 0 10px;
-  background: #EDF4F3;
-  border-bottom: 1px solid #ECEEEE;
-}
-.cc-inv-detail-line {
-  font-size: 13px;
-  color: #333;
-  line-height: 1.5;
-  word-break: break-all;
-}
-.cc-inv-detail-line + .cc-inv-detail-line { margin-top: 2px; }
-.cc-inv-detail-line span {
-  display: inline-block;
-  margin-right: 6px;
+/* 超长品名/材质:点该行浮出气泡显示完整内容(类似 web hover tooltip,点别处消失) */
+.cc-inv-pop {
+  position: fixed;
+  z-index: 1200;
+  max-width: 280px;
+  padding: 8px 10px;
+  background: #32373C;          /* 不透明深色:半透明会让底下列表文字透出、视觉混乱 */
+  color: #fff;
   font-size: 12px;
-  color: #999;
+  line-height: 1.6;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  word-break: break-all;
+  pointer-events: none;         /* 纯展示:点击穿透,点哪都算"点别处" */
 }
+.cc-pop-line { display: flex; }
+.cc-pop-line + .cc-pop-line { margin-top: 2px; }
+.cc-pop-line span { flex: 0 0 34px; color: rgba(255, 255, 255, .55); }
 .cc-inv-c-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-inv-c-qty { flex: 0 0 44px; }
 .cc-inv-c-mat { flex: 0 0 86px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -123,7 +123,6 @@ let state = {
   viewChildNo: '',    // tab1 申报信息查看的子单号(跟随最近扫描的子单,确认查验后仍保留,对齐线上 childNumber)
   invoiceIdx: 0,      // tab1 当前查看的申报序号(多条时"申报1/2/…"页签切换,扫描新子单归零)
   invoiceExpanded: true,  // 弹窗申报信息面板是否展开(默认展开,可整块收起)
-  invoiceOpenRow: -1,     // 弹窗内展开看全文的申报行(-1=无;超长品名/材质点行展开)
 };
 
 // 扫描成功后填充的订单数据(对应 ScanInspection 返回)
@@ -238,6 +237,9 @@ document.getElementById('app').innerHTML = Layout.shell(`
     </div>
   </div>
 
+  <!-- 申报行内容浮层(点单元格:类似 web hover 的气泡,显示完整内容) -->
+  <div id="ccInvPop" class="cc-inv-pop hidden"></div>
+
   <!-- 操作记录弹层 -->
   <div class="drawer hidden" id="ccLog">
     <div class="drawer-mask" data-close="log"></div>
@@ -345,7 +347,6 @@ function renderScanOrDone() {
 function openProcess() {
   const sugName = (SUGGESTIONS.find(s => s.code === state.suggestCode) || {}).name;
   const invoices = invoiceOf(state.currentChildNo);
-  state.invoiceOpenRow = -1;   // 每次打开弹窗,行展开状态清空
   // 单号上提到标题栏副标题,省去 body 内独立高亮条,节省 PDA 竖向空间
   document.getElementById('ccProcessSub').textContent = state.currentChildNo;
   document.getElementById('ccProcessBody').innerHTML = `
@@ -415,7 +416,7 @@ function invoiceBlockHtml(items) {
 }
 
 // 申报列表本体(完整渲染,不设高度上限:与弹窗共用一层滚动)
-// 品名/材质超长时默认单行截断,点该行就地展开显示全文(方案A)
+// 品名/材质超长时默认单行截断,点该行用浮窗看全文(见 openInvRow)
 function invoiceTableHtml(items) {
   return `
     <div class="cc-inv-table">
@@ -425,20 +426,15 @@ function invoiceTableHtml(items) {
         <span class="cc-inv-c-mat">材质</span>
       </div>
       ${items.map((it, i) => `
-        <div class="cc-inv-row${i === state.invoiceOpenRow ? ' cc-inv-row--open' : ''}" data-row="${i}">
+        <div class="cc-inv-row" data-row="${i}">
           <span class="cc-inv-c-name">${it.cn}</span>
           <span class="cc-inv-c-qty">${it.qty}</span>
           <span class="cc-inv-c-mat">${it.material}</span>
-        </div>
-        ${i === state.invoiceOpenRow ? `
-        <div class="cc-inv-detail">
-          <div class="cc-inv-detail-line"><span>品名</span>${it.cn}</div>
-          <div class="cc-inv-detail-line"><span>材质</span>${it.material}</div>
-        </div>` : ''}`).join('')}
+        </div>`).join('')}
     </div>`;
 }
 
-// 点击某行就地展开/收起完整品名与材质(超长截断时用)
+// 点击某行:在被点行旁浮出小气泡显示该条完整内容(类似 web hover 的气泡)
 // 事件委托绑在容器上:列表重渲后无需重绑
 function bindInvRows() {
   const wrap = document.getElementById('ccInvTableWrap');
@@ -447,11 +443,49 @@ function bindInvRows() {
   wrap.addEventListener('click', e => {
     const row = e.target.closest('[data-row]');
     if (!row) return;
-    const i = +row.dataset.row;
-    state.invoiceOpenRow = (state.invoiceOpenRow === i) ? -1 : i;
-    wrap.innerHTML = invoiceTableHtml(invoiceOf(state.currentChildNo));
+    const it = invoiceOf(state.currentChildNo)[+row.dataset.row];
+    if (it) toggleInvPop(it, row);
   });
 }
+
+// 内容气泡:定位在被点行下方(空间不足换上方),再点同一行或点别处消失
+function toggleInvPop(it, row) {
+  const pop = document.getElementById('ccInvPop');
+  if (!pop) return;
+  if (pop.dataset.row === row.dataset.row && !pop.classList.contains('hidden')) {
+    pop.classList.add('hidden');            // 再点同一行 = 收起
+    return;
+  }
+  pop.dataset.row = row.dataset.row;
+  pop.innerHTML = `
+    <div class="cc-pop-line"><span>品名</span>${it.cn}</div>
+    <div class="cc-pop-line"><span>数量</span>${it.qty}</div>
+    <div class="cc-pop-line"><span>材质</span>${it.material}</div>
+  `;
+  pop.style.visibility = 'hidden';
+  pop.classList.remove('hidden');
+  const r = row.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let top = r.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+  const left = Math.min(Math.max(8, r.left), window.innerWidth - pw - 8);
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
+  pop.style.visibility = '';
+}
+
+function hideInvPop() {
+  const pop = document.getElementById('ccInvPop');
+  if (pop) pop.classList.add('hidden');
+}
+
+// 点别处收起气泡(气泡本身 pointer-events:none,不拦截点击)
+document.addEventListener('click', e => {
+  const pop = document.getElementById('ccInvPop');
+  if (!pop || pop.classList.contains('hidden')) return;
+  if (e.target.closest('[data-row]')) return;   // 点行:由 toggleInvPop 处理
+  pop.classList.add('hidden');
+});
 
 // 折叠切换:点标题行整块收起/展开
 // 只重渲列表本体,不重建整个弹窗(避免丢已填备注/已拍照片)
@@ -460,6 +494,7 @@ function bindInvToggle() {
   if (!head) return;
   head.addEventListener('click', () => {
     state.invoiceExpanded = !state.invoiceExpanded;
+    hideInvPop();                                  // 折叠/展开后气泡位置失效,先收起
     const arrow = head.querySelector('.cc-inv-arrow');
     if (arrow) arrow.classList.toggle('cc-inv-arrow--open', state.invoiceExpanded);
     const wrap = document.getElementById('ccInvTableWrap');
@@ -472,6 +507,7 @@ function bindInvToggle() {
 
 function closeProcess() {
   document.getElementById('ccProcess').classList.add('hidden');
+  hideInvPop();
 }
 
 function progressTagHtml() {
@@ -712,7 +748,6 @@ function doScan() {
   state.viewChildNo = matched.no;   // tab1 申报信息跟随最近扫描的子单(确认查验后仍保留,对齐线上 childNumber)
   state.invoiceIdx = 0;             // 换子单后申报页签回到第一条
   state.invoiceExpanded = true;     // 申报面板回到默认展开态
-  state.invoiceOpenRow = -1;        // 行展开状态清空
   state.suggestCode = -1;
   state.uploadImages = [];
   scanInput.value = '';
@@ -921,7 +956,6 @@ function resetForm() {
   state.currentChildNo = '';
   state.viewChildNo = '';
   state.invoiceIdx = 0;
-  state.invoiceOpenRow = -1;
   activeTab = 0;
   switchTabOn(0);
   refreshAll();
@@ -941,7 +975,6 @@ function resetAll() {
   state.currentChildNo = '';
   state.viewChildNo = '';
   state.invoiceIdx = 0;
-  state.invoiceOpenRow = -1;
   activeTab = 0;
   switchTabOn(0);
   refreshAll();
