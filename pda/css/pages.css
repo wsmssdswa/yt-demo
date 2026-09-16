@@ -3338,9 +3338,7 @@
   background: #F7F9F9;          /* 浅灰底:只读信息,与下方白色输入控件区分 */
   border-radius: 8px;
   padding: 0 12px;
-  max-height: 176px;            /* 约4条完整,再多列表内滚动(面板可整块收起腾空间) */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  /* 不设高度上限:与弹窗 body 共用一层滚动,避免嵌套滚动(0916 与仓库确认) */
 }
 .cc-inv-head {
   display: flex;
@@ -3359,8 +3357,29 @@
   border-bottom: 1px solid #ECEEEE;
   font-size: 13px;
   color: #333;
+  cursor: pointer;
 }
 .cc-inv-row:last-child { border-bottom: none; }
+/* 超长品名/材质:点行就地展开全文(默认单行截断) */
+.cc-inv-row--open { background: #EDF4F3; }
+.cc-inv-detail {
+  padding: 8px 0 10px;
+  background: #EDF4F3;
+  border-bottom: 1px solid #ECEEEE;
+}
+.cc-inv-detail-line {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.cc-inv-detail-line + .cc-inv-detail-line { margin-top: 2px; }
+.cc-inv-detail-line span {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 12px;
+  color: #999;
+}
 .cc-inv-c-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-inv-c-qty { flex: 0 0 44px; }
 .cc-inv-c-mat { flex: 0 0 86px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

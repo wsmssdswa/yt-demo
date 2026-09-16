@@ -30,7 +30,7 @@ const SUGGESTIONS = [
 const INVOICE_ITEMS = {
   // U001:5 个不同商品(弹窗列表折叠演示:默认显示前 3 条,可展开)
   [WAYBILL + 'U001']: [
-    { cn: '无线蓝牙耳机(带充电仓)', en: 'Bluetooth Earbuds with Charging Case', qty: '200', unitPrice: '$8.50', total: '$1700.00', currency: 'USD', material: 'ABS塑料', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
+    { cn: '无线蓝牙耳机(带充电仓)降噪版 白色 蓝牙5.3', en: 'Bluetooth Earbuds with Charging Case', qty: '200', unitPrice: '$8.50', total: '$1700.00', currency: 'USD', material: 'ABS塑料+铝合金+硅胶复合材质', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
     { cn: 'Type-C 充电线', en: 'USB Type-C Charging Cable', qty: '200', unitPrice: '$0.80', total: '$160.00', currency: 'USD', material: 'PVC+铜芯', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
     { cn: '硅胶耳塞套', en: 'Silicone Ear Tips', qty: '500', unitPrice: '$0.30', total: '$150.00', currency: 'USD', material: '硅胶', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
     { cn: '耳机收纳盒', en: 'Earbuds Storage Case', qty: '300', unitPrice: '$1.50', total: '$450.00', currency: 'USD', material: 'EVA', brand: 'Anker', filing: '无', usage: '跨境电商零售' },
@@ -123,6 +123,7 @@ let state = {
   viewChildNo: '',    // tab1 申报信息查看的子单号(跟随最近扫描的子单,确认查验后仍保留,对齐线上 childNumber)
   invoiceIdx: 0,      // tab1 当前查看的申报序号(多条时"申报1/2/…"页签切换,扫描新子单归零)
   invoiceExpanded: true,  // 弹窗申报信息面板是否展开(默认展开,可整块收起)
+  invoiceOpenRow: -1,     // 弹窗内展开看全文的申报行(-1=无;超长品名/材质点行展开)
 };
 
 // 扫描成功后填充的订单数据(对应 ScanInspection 返回)
@@ -344,6 +345,7 @@ function renderScanOrDone() {
 function openProcess() {
   const sugName = (SUGGESTIONS.find(s => s.code === state.suggestCode) || {}).name;
   const invoices = invoiceOf(state.currentChildNo);
+  state.invoiceOpenRow = -1;   // 每次打开弹窗,行展开状态清空
   // 单号上提到标题栏副标题,省去 body 内独立高亮条,节省 PDA 竖向空间
   document.getElementById('ccProcessSub').textContent = state.currentChildNo;
   document.getElementById('ccProcessBody').innerHTML = `
@@ -383,6 +385,7 @@ function openProcess() {
   `;
   document.getElementById('ccSuggestTrigger').addEventListener('click', openSuggestPicker);
   bindInvToggle();
+  bindInvRows();
   renderUploadRow();
   document.getElementById('ccProcess').classList.remove('hidden');
 }
@@ -411,7 +414,8 @@ function invoiceBlockHtml(items) {
     </div>`;
 }
 
-// 申报列表本体(完整渲染;条目多时由 .cc-inv-table 的 max-height 内部滚动)
+// 申报列表本体(完整渲染,不设高度上限:与弹窗共用一层滚动)
+// 品名/材质超长时默认单行截断,点该行就地展开显示全文(方案A)
 function invoiceTableHtml(items) {
   return `
     <div class="cc-inv-table">
@@ -420,13 +424,33 @@ function invoiceTableHtml(items) {
         <span class="cc-inv-c-qty">数量</span>
         <span class="cc-inv-c-mat">材质</span>
       </div>
-      ${items.map(it => `
-        <div class="cc-inv-row">
+      ${items.map((it, i) => `
+        <div class="cc-inv-row${i === state.invoiceOpenRow ? ' cc-inv-row--open' : ''}" data-row="${i}">
           <span class="cc-inv-c-name">${it.cn}</span>
           <span class="cc-inv-c-qty">${it.qty}</span>
           <span class="cc-inv-c-mat">${it.material}</span>
-        </div>`).join('')}
+        </div>
+        ${i === state.invoiceOpenRow ? `
+        <div class="cc-inv-detail">
+          <div class="cc-inv-detail-line"><span>品名</span>${it.cn}</div>
+          <div class="cc-inv-detail-line"><span>材质</span>${it.material}</div>
+        </div>` : ''}`).join('')}
     </div>`;
+}
+
+// 点击某行就地展开/收起完整品名与材质(超长截断时用)
+// 事件委托绑在容器上:列表重渲后无需重绑
+function bindInvRows() {
+  const wrap = document.getElementById('ccInvTableWrap');
+  if (!wrap || wrap.dataset.rowsBound) return;
+  wrap.dataset.rowsBound = '1';
+  wrap.addEventListener('click', e => {
+    const row = e.target.closest('[data-row]');
+    if (!row) return;
+    const i = +row.dataset.row;
+    state.invoiceOpenRow = (state.invoiceOpenRow === i) ? -1 : i;
+    wrap.innerHTML = invoiceTableHtml(invoiceOf(state.currentChildNo));
+  });
 }
 
 // 折叠切换:点标题行整块收起/展开
@@ -688,6 +712,7 @@ function doScan() {
   state.viewChildNo = matched.no;   // tab1 申报信息跟随最近扫描的子单(确认查验后仍保留,对齐线上 childNumber)
   state.invoiceIdx = 0;             // 换子单后申报页签回到第一条
   state.invoiceExpanded = true;     // 申报面板回到默认展开态
+  state.invoiceOpenRow = -1;        // 行展开状态清空
   state.suggestCode = -1;
   state.uploadImages = [];
   scanInput.value = '';
@@ -896,6 +921,7 @@ function resetForm() {
   state.currentChildNo = '';
   state.viewChildNo = '';
   state.invoiceIdx = 0;
+  state.invoiceOpenRow = -1;
   activeTab = 0;
   switchTabOn(0);
   refreshAll();
@@ -915,6 +941,7 @@ function resetAll() {
   state.currentChildNo = '';
   state.viewChildNo = '';
   state.invoiceIdx = 0;
+  state.invoiceOpenRow = -1;
   activeTab = 0;
   switchTabOn(0);
   refreshAll();
