@@ -580,7 +580,7 @@ const RepPage = {
     const failList = results.filter(r => !r.ok);
     let msg = `已下载 ${okList.length}/${nos.length} 个单号的面单`;
     if (failList.length) msg += `,失败:${failList.map(f => f.no).join('、')}`;
-    Helpers.toast(`${msg}(逐单号独立成文件,失败不阻断·演示)`);
+    Helpers.toast(`${msg}(逐单号独立成文件,失败不阻断)`);
   },
   /* 清空扫描框 */
   clearScan() {

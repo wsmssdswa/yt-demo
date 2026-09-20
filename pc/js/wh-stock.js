@@ -123,7 +123,7 @@ function pager() {
 /* ---- 页面逻辑(导出库存子单明细,流式≤2000) ---- */
 const StockPage = {
   exportSub() {
-    Helpers.toast('导出库存子单明细(流式,≤2000,演示)');
+    Helpers.toast('导出库存子单明细(流式,≤2000)');
   },
 };
 
