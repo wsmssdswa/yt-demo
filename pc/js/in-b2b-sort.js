@@ -206,12 +206,12 @@ function sbLogModal() {
           <button class="rw-modal-close" onclick="SbPage.closeLog()">✕</button>
         </div>
         <div class="rw-modal-body">
-          <div class="sb-log-filter">
+          <div class="rw-log-filter">
             <label>格口号</label>
             <input class="ipt" id="sbLogChute" placeholder="如 03,留空看全部"
                    onkeydown="if(event.key==='Enter'){SbPage.doLogQuery()}" />
             <button class="btn" onclick="SbPage.doLogQuery()">🔍 查询</button>
-            <span class="sb-log-count" id="sbLogCount"></span>
+            <span class="rw-log-count" id="sbLogCount"></span>
           </div>
           <table class="grid sb-log-grid" style="width:100%;">
             <thead><tr><th>NO.</th><th>格口号</th><th>操作人</th><th>操作时间</th><th>操作网点</th><th>操作内容</th></tr></thead>
