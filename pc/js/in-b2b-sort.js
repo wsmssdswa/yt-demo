@@ -114,15 +114,16 @@ function sbRuleTitle(c) {
 /* ---- 演示数据初始化 ---- */
 const SB_CHUTES = sbBuildChutes();
 
-/* 格口规则操作日志(演示数据,新→旧;真实系统写通用操作日志模块,按分拣机+格口号可查) */
+/* 格口规则操作日志(演示数据,新→旧;真实系统写通用操作日志模块,按分拣机+格口号可查)
+   sorter 用于"按方案筛"(外层列表选中一行方案 → 只看该分拣机) */
 const SB_RULE_LOGS = [
-  { chute: '02', t: '2026-09-20 09:31:20', u: '庄亚运', og: '东腾曼沙项目仓',
+  { sorter: 'FJ-01', chute: '02', t: '2026-09-20 09:31:20', u: '庄亚运', og: '东腾曼沙项目仓',
     c: '通过【格口看板-规则配置】配置格口 02(分拣机 FJ-01)规则,由「未配规则」改为「产品 包含 美森快船-带电、海运普船-带电」' },
-  { chute: '15', t: '2026-09-19 16:20:05', u: '庄亚运', og: '东腾曼沙项目仓',
+  { sorter: 'FJ-01', chute: '15', t: '2026-09-19 16:20:05', u: '庄亚运', og: '东腾曼沙项目仓',
     c: '通过【格口看板-规则配置】清空格口 15(分拣机 FJ-01)规则,恢复默认分拣' },
-  { chute: '09', t: '2026-09-19 10:15:44', u: '李四', og: '东腾曼沙项目仓',
+  { sorter: 'FJ-01', chute: '09', t: '2026-09-19 10:15:44', u: '李四', og: '东腾曼沙项目仓',
     c: '通过【格口看板-规则配置】配置格口 09(分拣机 FJ-01)规则,由「产品 包含 美森快船-普货」改为「调拨目的仓 包含 德国仓、英国仓」' },
-  { chute: '03', t: '2026-09-18 15:40:12', u: '庄亚运', og: '东腾曼沙项目仓',
+  { sorter: 'FJ-01', chute: '03', t: '2026-09-18 15:40:12', u: '庄亚运', og: '东腾曼沙项目仓',
     c: '通过【格口看板-规则配置】配置格口 03(分拣机 FJ-01)规则,由「产品 包含 美森快船-带电」改为「产品 包含 美森快船-带电、海运普船-带电、海外卡派-带电 且 渠道 包含 海运直达、海运中转」' },
 ];
 
@@ -143,6 +144,7 @@ function sbSolutionsView() {
     </div>
     <div class="grid-toolbar">
       <button class="btn" onclick="SbPage.openBoard()"><span class="ic">▦</span><span>查看格口</span></button>
+      <button class="btn" onclick="SbPage.openLog()"><span class="ic">📋</span><span>操作日志</span></button>
       <span class="sep"></span>
       <button class="btn" onclick="Helpers.toast('已刷新')"><span class="ic">🔄</span><span>刷新</span></button>
       <span class="sb-toolbar-note">方案与格口由 SIMS 同步,此处只读;格口规则在看板中按格口直接配置(规则直挂口)</span>
@@ -183,7 +185,8 @@ function sbSolutionsView() {
    弹窗:操作日志(该方案全部格口的规则配置记录,可按格口号筛)
    ============================================ */
 function sbLogRowsHtml(kw) {
-  const rows = SB_RULE_LOGS.filter(l => !kw || l.chute.includes(kw));
+  const scope = SbPage.logSorter;
+  const rows = SB_RULE_LOGS.filter(l => (!scope || l.sorter === scope) && (!kw || l.chute.includes(kw)));
   if (!rows.length) return '<tr><td colspan="6" class="cr-empty">没有符合条件的操作记录</td></tr>';
   return rows.map((l, i) => `
     <tr>
@@ -293,7 +296,6 @@ function sbRenderBoardBody() {
       <span class="sb-pick-count">已选中 <b>${SbPage.selChutes.size}</b> 个口</span>
       <button class="btn btn--primary" onclick="SbPage.editRuleChecked()">✏️ 编辑落口规则</button>
       <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
-      <button class="btn" onclick="SbPage.openLog()">📋 操作日志</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
     <div class="sb-board-tip">看板 3s 自动轮询;单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
@@ -495,6 +497,7 @@ const SbPage = {
   selChutes: new Set(),       /* 看板选中的格口(单击;配合编辑规则/释放) */
   _clickTimer: null,          /* 单击/双击区分定时器 */
   ruleNo: null,               /* 规则弹窗编辑的格口号 */
+  logSorter: null,            /* 操作日志弹窗的方案范围(未选中行=null 表示全部方案) */
   editConds: [],
   editJoiner: '且',
 
@@ -521,11 +524,13 @@ const SbPage = {
   },
   closeBoard() { document.getElementById('sbBoardMask').style.display = 'none'; },
 
-  /* ---- 操作日志(该方案各格口的规则配置记录) ---- */
+  /* ---- 操作日志(外层列表工具栏入口;选中一行方案=只看该分拣机,未选中=全部方案) ---- */
   openLog() {
-    const s = this.sol || SB_SOLUTIONS[0];
-    document.getElementById('sbLogTitle').textContent =
-      `操作日志 — ${s.solutionName} | ${s.sorterName}(${s.sorterCode})`;
+    const s = this.checkedSol ? SB_SOLUTIONS.find(x => x.sorterCode === this.checkedSol) : null;
+    this.logSorter = s ? s.sorterCode : null;
+    document.getElementById('sbLogTitle').textContent = s
+      ? `操作日志 — ${s.solutionName} | ${s.sorterName}(${s.sorterCode})`
+      : '操作日志 — 全部方案';
     document.getElementById('sbLogChute').value = '';
     this.doLogQuery();
     document.getElementById('sbLogMask').style.display = 'flex';
@@ -534,9 +539,11 @@ const SbPage = {
   doLogQuery() {
     const kw = (document.getElementById('sbLogChute') || {}).value || '';
     document.getElementById('sbLogBody').innerHTML = sbLogRowsHtml(kw.trim());
-    const n = SB_RULE_LOGS.filter(l => !kw.trim() || l.chute.includes(kw.trim())).length;
-    document.getElementById('sbLogCount').textContent = kw.trim()
-      ? `格口 ${kw.trim()} 命中 ${n} 条记录` : `共 ${n} 条记录(全部格口)`;
+    const scope = this.logSorter;
+    const n = SB_RULE_LOGS.filter(l => (!scope || l.sorter === scope)
+      && (!kw.trim() || l.chute.includes(kw.trim()))).length;
+    document.getElementById('sbLogCount').textContent =
+      `${scope ? '当前方案' : '全部方案'} · ${n} 条${kw.trim() ? `（筛格口号 ${kw.trim()}）` : ''}`;
   },
 
   /* ---- 卡片单击=选中(延时区分双击),双击=编辑规则 ---- */
@@ -588,7 +595,7 @@ const SbPage = {
     c.conds = this.editConds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
     c.joiner = this.editJoiner;
     SB_RULE_LOGS.unshift({
-      chute: c.no, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
+      sorter: s.sorterCode, chute: c.no, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
       c: isClear
         ? `通过【格口看板-规则配置】清空格口 ${c.no}(分拣机 ${s.sorterCode})规则,恢复默认分拣`
         : `通过【格口看板-规则配置】配置格口 ${c.no}(分拣机 ${s.sorterCode})规则,由「${oldText}」改为「${sbRuleTitle(c)}」`,
