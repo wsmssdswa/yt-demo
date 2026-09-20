@@ -335,10 +335,9 @@ function sbValCtrlHtml(c, idx) {
 
 function sbCondRowHtml(c, idx) {
   const def = sbItemDef(c.item);
-  const usedItems = SbPage.editConds.map(x => x.item);
+  /* 同字段可多行(不限制):「满足其一」下取并集(可表达多段区间),「全部满足」下取交集 */
   const itemOpts = SB_COND_ITEMS.map(d =>
-    `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}
-       ${usedItems.includes(d.key) && d.key !== c.item ? 'disabled' : ''}>${d.label}</option>`).join('');
+    `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}>${d.label}</option>`).join('');
   /* 运算符下拉:value=code, 文案=中文名(悬浮英文符号/关键字);
      已从分拣项移除的运算符补回候选并标注"已失效",保证显示=数据 */
   const opCodes = (def.ops || []).includes(c.op) ? def.ops : [c.op].concat(def.ops || []);
