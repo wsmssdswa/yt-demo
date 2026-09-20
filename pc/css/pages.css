@@ -934,6 +934,7 @@
    ============================================ */
 .si-mrow-del { flex: none; width: 24px; height: 24px; border: none; background: none; color: #999; cursor: pointer; border-radius: 3px; }
 .si-mrow-del:hover { color: #E81123; background: #FFECEC; }
+.si-dup { border-color: #C62828 !important; background: #FFF1F0 !important; }
 .si-panel .rw-form-label { width: 88px; }
 .si-sec-title {
   font-size: 13px; font-weight: 600; color: #1F4E79;

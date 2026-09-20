@@ -74,7 +74,7 @@ function siOpsCheckHtml() {
     </label>`).join('');
 }
 
-/* 手工清单:小表格(code / 显示名 / 删除) */
+/* 手工清单:小表格(code / 显示名 / 删除);回车=加一行,重复 code 实时标红 */
 function siManualRowsHtml(it) {
   const rows = (it && it.valSource.kind === 'manual' && it.valSource.values) || [];
   if (!rows.length) {
@@ -82,13 +82,24 @@ function siManualRowsHtml(it) {
   }
   return rows.map((v, i) => `
     <tr>
-      <td><input class="ipt" style="width:130px" placeholder="值 code,如 US"
-        value="${v.code}" oninput="SiPage.mv(${i},'code',this.value)" /></td>
-      <td><input class="ipt" style="width:160px" placeholder="显示名,如 美国"
-        value="${v.name}" oninput="SiPage.mv(${i},'name',this.value)" /></td>
+      <td><input class="ipt" style="width:100%" placeholder="值 code,如 CIF"
+        value="${v.code}" oninput="SiPage.mv(${i},'code',this.value)" onkeydown="SiPage.mvKey(event)" /></td>
+      <td><input class="ipt" style="width:100%" placeholder="显示名,如 签入失败"
+        value="${v.name}" oninput="SiPage.mv(${i},'name',this.value)" onkeydown="SiPage.mvKey(event)" /></td>
       <td class="col--check"><button class="si-mrow-del" onclick="SiPage.mvDel(${i})"
         title="删除该行">✕</button></td>
     </tr>`).join('');
+}
+
+/* 重复 code 实时标红(保存时仍会拦截) */
+function siMarkDup() {
+  const inputs = [...document.querySelectorAll('#siManualRows tr td:first-child input')];
+  const vals = inputs.map(i => (i.value || '').trim().toLowerCase());
+  inputs.forEach((inp, i) => {
+    const dup = !!vals[i] && vals.filter(v => v === vals[i]).length > 1;
+    inp.classList.toggle('si-dup', dup);
+    inp.title = dup ? 'code 与其他行重复' : '';
+  });
 }
 
 function siEditModal() {
@@ -166,13 +177,13 @@ function siValBodyHtml() {
       ${k === 'manual' ? `
         <label class="rw-form-label">值清单</label>
         <div style="flex:1">
-          <table class="grid" style="width:100%;max-width:430px">
-            <colgroup><col style="width:150px" /><col style="width:180px" /><col style="width:40px" /></colgroup>
+          <table class="grid" style="width:100%;max-width:520px">
+            <colgroup><col style="width:190px" /><col style="width:270px" /><col style="width:40px" /></colgroup>
             <thead><tr><th>值 code</th><th>显示名</th><th></th></tr></thead>
             <tbody id="siManualRows">${siManualRowsHtml(d)}</tbody>
           </table>
-          <button class="btn" style="margin-top:6px" onclick="SiPage.mvAdd()">➕ 加一行</button>
-          <div class="si-dim" style="margin-top:4px">规则编辑器显示中文名,匹配用值本身(code);留空行保存会被拦截</div>
+          <button class="btn" style="margin-top:6px" title="在任一输入框按回车也可快速加一行" onclick="SiPage.mvAdd()">➕ 加一行</button>
+          <div class="si-dim" style="margin-top:4px">code 必填且不可重复(匹配用值);显示名留空自动取 code;空行保存时自动忽略</div>
         </div>`
       : k === 'api' ? `
         <label class="rw-form-label">数据源</label>
@@ -262,14 +273,32 @@ const SiPage = {
   mv(i, f, v) {
     const vs = this.draft.valSource.values;
     if (vs[i]) vs[i][f] = v;
+    siMarkDup();
+  },
+  /* 回车=快速加一行(连续录入) */
+  mvKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); this.mvAdd(); }
   },
   mvAdd() {
     this.draft.valSource.values.push({ code: '', name: '' });
-    document.getElementById('siManualRows').innerHTML = siManualRowsHtml(this.draft);
+    this.rerenderManual(true);
   },
   mvDel(i) {
     this.draft.valSource.values.splice(i, 1);
-    document.getElementById('siManualRows').innerHTML = siManualRowsHtml(this.draft);
+    this.rerenderManual();
+  },
+  /* 重渲染清单;focusNew=true 时聚焦新行 code 输入框 */
+  rerenderManual(focusNew) {
+    const tbody = document.getElementById('siManualRows');
+    if (!tbody) return;
+    tbody.innerHTML = siManualRowsHtml(this.draft);
+    siMarkDup();
+    if (focusNew) {
+      const rows = tbody.querySelectorAll('tr');
+      const last = rows[rows.length - 1];
+      const inp = last && last.querySelector('input');
+      if (inp) inp.focus();
+    }
   },
 
   saveEdit() {
