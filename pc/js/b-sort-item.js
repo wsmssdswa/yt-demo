@@ -45,9 +45,9 @@ function siGrid() {
     <div class="grid-wrap wh-grid-wrap">
       <table class="grid wh-grid">
         <colgroup><col style="width:36px" /><col style="width:100px" /><col style="width:150px" />
-          <col style="width:80px" /><col style="min-width:140px" /><col style="min-width:150px" />
-          <col style="width:80px" />
-          <col style="width:80px" /><col style="width:130px" /></colgroup>
+          <col style="width:80px" /><col style="min-width:140px" /><col style="width:280px" />
+          <col style="width:100px" />
+          <col style="width:80px" /><col style="width:150px" /></colgroup>
         <thead><tr><th></th><th>中文名</th><th>field_name</th><th>值形态</th>
           <th title="该分拣项在规则行里可选的验证类型">运算符集</th>
           <th title="配规则时内容下拉的候选项来源">编辑器可选值</th>
