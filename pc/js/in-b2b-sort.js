@@ -81,9 +81,9 @@ const SB_CHANNELS = [
   { code: 'KONGYUN-JIJI',       name: '空运急件' },
 ];
 const SB_COND_ITEMS = SortItemRegistry.buildCondItems({ product: SB_PRODUCTS, channel: SB_CHANNELS });
-/* 兜底:预置规则引用的 key 若被注册表停用/删除,按原名展示不崩 */
+/* 兜底:预置规则引用的 key 若已被注册表删除,按原名展示不崩 */
 const sbItemDef = k => SB_COND_ITEMS.find(d => d.key === k)
-  || { key: k, label: `(已停用)${k}`, type: 'enum', ops: ['包含'], values: [] };
+  || { key: k, label: `(已移除)${k}`, type: 'enum', ops: ['IN'], values: [] };
 const sbNameOf = (item, code) => {
   const def = sbItemDef(item);
   if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */

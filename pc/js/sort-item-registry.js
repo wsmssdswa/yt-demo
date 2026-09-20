@@ -5,34 +5,34 @@
    纯静态演示实现:
      · 默认种子内置于 SIR_DEFAULT_ITEMS;localStorage 有存档则用之(跨页共享)
      · 每项声明: key(规则内引用)/ name(中文名)/ field_name(SIMS 风格键名,仅展示)
-       / type(enum|num)/ ops(运算符集)/ 运行时取值来源/ 编辑器可选值来源/ refCount/ status
+       / type(enum|num,由可选值推导)/ ops(运算符集)/ 编辑器可选值来源/ refCount
      · 枚举可选值来源分两种: manual(注册表自带 code+name 清单) / api(页面常量表,调用方传映射)
    ============================================ */
 
 const SIR_STORAGE_KEY = 'b2bSortItemRegistry_v1';
 
-/* 默认种子(与三个规则页演示数据对齐;refCount>0 表示被规则引用,禁止删/停用)
+/* 默认种子(与三个规则页演示数据对齐;refCount>0 表示被规则引用,禁止删除)
    ops 省略 = 按数据类型给默认全集(由 items() 归一化填充;旧存档中文 ops 同样被修复) */
 const SIR_DEFAULT_ITEMS = [
   { key: 'product', name: '产品', fieldName: 'product_code', type: 'enum',
     valSource: { kind: 'api', apiKey: 'product', note: '产品主数据(SPMS 同步)' },
-    refCount: 8, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
+    refCount: 8, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'channel', name: '渠道', fieldName: 'server_channel_code', type: 'enum',
     valSource: { kind: 'api', apiKey: 'channel', note: '渠道主数据' },
-    refCount: 6, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
+    refCount: 6, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'exception', name: '异常类型', fieldName: 'b2b_exception_type', type: 'enum',
     valSource: { kind: 'manual', values: [
       { code: 'CIF', name: '签入失败' }, { code: 'CF', name: '格口已满' }] },
-    refCount: 2, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
+    refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'destOrg', name: '调拨目的仓', fieldName: 'dest_org_code', type: 'enum',
     valSource: { kind: 'manual', values: [
       { code: 'US-LAX', name: '洛杉矶仓' }, { code: 'US-EWR', name: '新泽西仓' },
       { code: 'US-ORD', name: '芝加哥仓' }, { code: 'US-ATL', name: '亚特兰大仓' },
       { code: 'DE-FRA', name: '德国仓' }, { code: 'UK-LON', name: '英国仓' }] },
-    refCount: 2, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
+    refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'pieces', name: '主单件数', fieldName: 'order_pieces', type: 'num',
     valSource: { kind: 'none', note: '数值输入,无可选值' },
-    refCount: 2, status: 1, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
+    refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
 ];
 
 const SortItemRegistry = {
@@ -65,9 +65,9 @@ const SortItemRegistry = {
     return list;
   },
 
-  /* 启用中的注册项(规则编辑器下拉用) */
-  enabled() {
-    return this.items().filter(i => i.status === 1);
+  /* 全量注册项(规则编辑器下拉用;无启停概念,所有项均可选) */
+  list() {
+    return this.items();
   },
 
   save(list) {
@@ -76,13 +76,13 @@ const SortItemRegistry = {
   },
 
   find(key) {
-    return this.enabled().find(i => i.key === key);
+    return this.list().find(i => i.key === key);
   },
 
-  /* 构建某页的 COND_ITEMS 字典(给三个规则页用)
+  /* 构建某页的 COND_ITEMS 字典(给规则页用)
      apiMaps: { apiKey: [{code,name}...] } 页面内置主数据常量映射 */
   buildCondItems(apiMaps) {
-    return this.enabled().map(it => {
+    return this.list().map(it => {
       const base = { key: it.key, label: it.name, ops: it.ops.slice() };
       if (it.type === 'num') { base.type = 'num'; return base; }
       const vs = it.valSource;

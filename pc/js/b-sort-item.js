@@ -6,7 +6,7 @@
      · 新增分拣项免发版——保存后到规则页刷新,下拉即出现新验证字段
      · 不选数据类型:值形态由绑定的运行字段性质自动推导(数值/编码清单),
        运算符从真实系统 12 个里自由勾选
-     · 被规则引用的项锁定(运行时取值/运算符/可选值禁改,弹窗内直接禁用)
+     · 被规则引用的项锁定(运算符/可选值禁改,弹窗内直接禁用)
      · localStorage 存配置(纯静态跨页共享,演示用)
    ============================================ */
 
@@ -24,9 +24,6 @@ const siValSourceText = it => {
 function siListHtml() {
   const list = SortItemRegistry.items();
   return list.map(it => {
-    const st = it.status === 1
-      ? '<span class="abn-tag abn-tag--ok">启用</span>'
-      : '<span class="abn-tag">停用</span>';
     return `
     <tr data-key="${it.key}" class="${SiPage.checked === it.key ? 'row--selected' : ''}"
         onclick="SiPage.check('${it.key}')">
@@ -37,7 +34,6 @@ function siListHtml() {
       <td>${siOpsCell(it)}</td>
       <td>${siValSourceText(it)}</td>
       <td class="col--code">${it.refCount}</td>
-      <td>${st}</td>
       <td>${it.updateUser}</td>
       <td>${it.updateTime}</td>
     </tr>`;
@@ -50,12 +46,12 @@ function siGrid() {
       <table class="grid wh-grid">
         <colgroup><col style="width:36px" /><col style="width:100px" /><col style="width:150px" />
           <col style="width:80px" /><col style="min-width:140px" /><col style="min-width:150px" />
-          <col style="width:80px" /><col style="width:70px" />
+          <col style="width:80px" />
           <col style="width:80px" /><col style="width:130px" /></colgroup>
         <thead><tr><th></th><th>中文名</th><th>field_name</th><th>值形态</th>
           <th title="该分拣项在规则行里可选的验证类型">运算符集</th>
           <th title="配规则时内容下拉的候选项来源">编辑器可选值</th>
-          <th>被规则引用数</th><th>状态</th><th>更新人</th><th>更新时间</th></tr></thead>
+          <th>被规则引用数</th><th>更新人</th><th>更新时间</th></tr></thead>
         <tbody id="siGridBody">${siListHtml()}</tbody>
       </table>
     </div>
@@ -64,7 +60,7 @@ function siGrid() {
 
 /* ============================================
    编辑弹窗(排版对齐系统配置弹窗惯例)
-   区块: ① 基本信息 ② 取值定义(数据类型/运算符集/运行时取值) ③ 编辑器可选值
+   区块: ① 基本信息 ② 取值定义(运算符集) ③ 编辑器可选值
    ============================================ */
 /* 运算符勾选网格:真实系统 12 个全列(checkbox) */
 function siOpsCheckHtml() {
@@ -203,8 +199,7 @@ const SiPage = {
   render() {
     const list = SortItemRegistry.items();
     document.getElementById('siGridBody').innerHTML = siListHtml();
-    document.getElementById('siTotal').textContent =
-      `${list.filter(i => i.status === 1).length} 个启用 / ${list.length} 个分拣项`;
+    document.getElementById('siTotal').textContent = list.length;
   },
   check(key) { this.checked = key; this.render(); },
 
@@ -214,7 +209,7 @@ const SiPage = {
     this.draft = {
       key: '', name: '', fieldName: '',
       ops: [], valSource: { kind: 'manual', values: [] },
-      refCount: 0, status: 1, updateUser: '庄亚运', updateTime: Helpers.nowTime(),
+      refCount: 0, updateUser: '庄亚运', updateTime: Helpers.nowTime(),
     };
     this.openEditForm('新增分拣项', false);
   },
@@ -310,7 +305,7 @@ const SiPage = {
         /* 锁定项 UI 已禁用运算符/可选值,此处兜底:只允许中文名变更 */
         const lockedF = ['ops', 'valSource'];
         if (lockedF.some(f => JSON.stringify(d[f]) !== JSON.stringify(it[f]))) {
-          Helpers.toast('该项被规则引用,不允许修改运行时取值/运算符/可选值;请先在规则中摘除'); return;
+          Helpers.toast('该项被规则引用,不允许修改运算符/可选值;请先在规则中摘除'); return;
         }
         it.name = name;
       } else {
@@ -325,17 +320,6 @@ const SiPage = {
     this.render();
   },
 
-  toggleStatus(st) {
-    if (!this.checked) { Helpers.toast('请先选中一行分拣项'); return; }
-    const list = SortItemRegistry.items();
-    const it = list.find(i => i.key === this.checked);
-    if (it.refCount > 0) { Helpers.toast(`「${it.name}」被 ${it.refCount} 条规则引用,不可停用;请先在规则中摘除`); return; }
-    it.status = st;
-    it.updateUser = '庄亚运'; it.updateTime = Helpers.nowTime();
-    SortItemRegistry.save(list);
-    this.render();
-    Helpers.toast(`分拣项「${it.name}」已${st === 1 ? '启用' : '停用'}(演示)`);
-  },
   delItem() {
     if (!this.checked) { Helpers.toast('请先选中一行分拣项'); return; }
     const list = SortItemRegistry.items();
@@ -360,10 +344,8 @@ document.getElementById('app').innerHTML = Layout.window({
     <div class="grid-toolbar">
       <button class="btn" onclick="SiPage.addNew()"><span class="ic">➕</span><span>新增</span></button>
       <button class="btn" onclick="SiPage.editChecked()"><span class="ic">✏️</span><span>编辑</span></button>
-      <button class="btn" onclick="SiPage.toggleStatus(1)"><span class="ic">▶️</span><span>启用</span></button>
-      <button class="btn" onclick="SiPage.toggleStatus(0)"><span class="ic">⏸</span><span>停用</span></button>
       <button class="btn" onclick="SiPage.delItem()"><span class="ic">🗑</span><span>删除</span></button>
-      <span class="sb-toolbar-note">分拣项由本页注册表统一维护,规则编辑器下拉从注册表读取——新增分拣项免发版;被规则引用的项锁定(不可删/停用/改取值)</span>
+      <span class="sb-toolbar-note">分拣项由本页注册表统一维护,规则编辑器下拉从注册表读取——新增分拣项免发版;被规则引用的项不可删除、运算符与可选值锁定</span>
     </div>
     ${siGrid()}
     <div class="pager">
