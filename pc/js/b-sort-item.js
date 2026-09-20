@@ -1,7 +1,7 @@
 /* ============================================
    b-sort-item.js — 分拣项配置(基础信息·注册表演示)
    分拣项 = 规则可引用的验证维度(field_name 载体),由本页注册表统一维护;
-   规则编辑器(分拣分组方案 / 格口规则 / B2B分拣管理)的验证字段下拉从注册表读取。
+   规则编辑器(B2B分拣管理-格口看板)的验证字段下拉从注册表读取。
    本页演示:
      · 新增分拣项免发版——保存后到规则页刷新,下拉即出现新验证字段
      · 不选数据类型:值形态由绑定的运行字段性质自动推导(数值/编码清单),
@@ -128,7 +128,7 @@ function siEditModal() {
           <div class="si-sec-title">编辑器可选值</div>
           <div id="siValBody"></div>
         </div>
-        <div class="rw-modal-tip">保存后到规则页(分组方案 / 格口规则 / 分拣管理)刷新,验证字段下拉即出现该项</div>
+        <div class="rw-modal-tip">保存后到规则页(B2B分拣管理-格口看板)刷新,验证字段下拉即出现该项</div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="SiPage.closeEdit()">取消</button>
           <button class="btn btn--primary" onclick="SiPage.saveEdit()">保存</button>

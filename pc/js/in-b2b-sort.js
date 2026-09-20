@@ -5,7 +5,7 @@
      · 未配规则的口=默认池(按单件/多件正常分配);异常口可配规则(异常类型字段区分)
      · 一票货命中多个口的规则 → 按格口号顺序落第一个空闲口;多件同票锁同一口
      · 口满/异常 → 转异常口;SIMS 透传(CCOS 回传格口号,SIMS 不自行路由)
-     · 方案与格口由 SIMS 同步(本页列表只读);分组方案维护见 基础信息→分拣分组方案
+     · 方案与格口由 SIMS 同步(本页列表只读);格口规则在看板中按格口直接配置
    ============================================ */
 
 /* ---- 演示数据:分拣方案(SIMS 同步,只读) ---- */
@@ -265,7 +265,7 @@ function sbRenderBoardBody() {
 }
 
 /* ============================================
-   弹窗:配置格口规则(单口,交互与 格口规则对比页 一致)
+   弹窗:配置格口规则(单口)
    ============================================ */
 function sbFitChipsInto(el, chipHtmls, phHtml) {
   if (!chipHtmls.length) { el.innerHTML = phHtml; return; }
@@ -500,7 +500,7 @@ const SbPage = {
     sbRenderBoardBody();
   },
 
-  /* ---- 配置格口规则(单口,交互与 格口规则对比页 一致) ---- */
+  /* ---- 配置格口规则(单口) ---- */
   editRuleChecked() {
     if (this.selChutes.size !== 1) { Helpers.toast('编辑规则为单口操作,请只选中 1 个格口'); return; }
     this.openRule(Array.from(this.selChutes)[0]);
