@@ -321,7 +321,7 @@ const SiPage = {
       if (list.some(i => i.fieldName === field)) { Helpers.toast(`field_name ${field} 已存在`); return; }
       d.key = 'f_' + field; d.fieldName = field; d.name = name;
       list.push(JSON.parse(JSON.stringify(d)));
-      Helpers.toast(`分拣项「${name}」已新增(演示),规则页刷新后下拉可见`);
+      Helpers.toast(`分拣项「${name}」已新增,规则页刷新后下拉可见`);
     } else {
       const it = list.find(i => i.key === this.editingKey);
       if (!it) return;
@@ -330,9 +330,9 @@ const SiPage = {
       Object.assign(it, d);
       it.updateUser = '庄亚运'; it.updateTime = Helpers.nowTime();
       if (it.refCount > 0 && removedOps.length) {
-        Helpers.toast(`已保存:被移除的运算符在 ${it.refCount} 条引用规则中显示「已失效」并不再命中(演示)`);
+        Helpers.toast(`已保存:被移除的运算符在 ${it.refCount} 条引用规则中显示「已失效」并不再命中`);
       } else {
-        Helpers.toast(`分拣项「${name}」已保存(演示)`);
+        Helpers.toast(`分拣项「${name}」已保存`);
       }
     }
     SortItemRegistry.save(list);
@@ -351,7 +351,7 @@ const SiPage = {
     SortItemRegistry.save(list);
     this.checked = null;
     this.render();
-    Helpers.toast(`分拣项「${it.name}」已删除(演示)`);
+    Helpers.toast(`分拣项「${it.name}」已删除`);
   },
 };
 

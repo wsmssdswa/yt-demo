@@ -190,8 +190,8 @@ const InspectPage = {
   },
   /* 导出:≤2000(演示流式进度窗) */
   exportData() {
-    Helpers.toast('导出已开始,正在处理…(演示,≤2000 行流式导出)');
-    setTimeout(() => Helpers.toast('导出完成！(演示)'), 1500);
+    Helpers.toast('导出已开始,正在处理…');
+    setTimeout(() => Helpers.toast('导出完成！'), 1500);
   },
 };
 

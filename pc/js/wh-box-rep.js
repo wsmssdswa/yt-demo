@@ -1,5 +1,16 @@
 /* ============================================
-   wh-box-rep.js — 箱标补打页(库内操作组,扫描操作页)
+   wh-box-rep.js — 箱标补打页(2026-08-21 合入下载PDF优化:尾程按钮常显+按录入单号粒度下载)
+   本版叠加改动(需求:PC箱标补打-尾程整单打印-下载PDF功能优化,仅动尾程 Tab):
+     ① 尾程 Tab「下载PDF」按钮常显 —— 不再依赖先切「整单打印」
+        (线上现状:BoxLabelRePrintUserControl.cs RdoPrintType_CheckedChanged
+         里 btnDownloadPdf.Visible = rdoOrderPrint.Checked,默认隐藏,客服找不到)
+     ③ 下载按录入单号粒度 —— 录子单号只下该子单面单;录主单号下整单合并 PDF;
+        多单号(空格/逗号分隔)逐单号独立成文件,失败互不阻断
+        (线上现状:任意单号都被规约到主单,一律下载整单合并 PDF,且多单号只取第一个)
+     · 下载走 Download 通道(OperateType=Download),仅取标签、不更新换单标识、
+       不推 TIS/OTS/OFP —— 客服取面单不再误触「打印」改变换单状态导致仓库漏换单
+     · 头程 Tab 维持现状(下载按钮仍仅整单模式显示),不扩大范围
+     · 「打印」按钮对客服隐藏走现有权限配置(需求点②),不进开发,本页不演示
    页内三 Tab,对齐线上 frmLabelPrint 窗口(尾程面单打印 | 头程YT面单打印 | 打印设置):
      · Tab1 尾程面单打印 —— BoxLabelRePrintUserControl(PrintObject.EndWaybillPrint)
      · Tab2 头程YT面单打印 —— FirstLegPrintUserControl(PrintObject.HeadYtWaybillPrint)
@@ -7,13 +18,13 @@
         (对齐需求 0811_箱标补打打印设置:规则=勾选渠道+打印份数;
          命中渠道规则按规则份数,未命中按默认规则份数;张数带出后保留手动修改)
   依据:docs/page-fields-reference.md + 生产源码 BoxLabelRePrintUserControl /
-       FirstLegPrintUserControl / frmLabelPrint(2026-08 核对)
+       FirstLegPrintUserControl / frmLabelPrint / PrintBusiness.ListLabel(2026-08 核对)
      · 列表 dgvResult(扫描结果,10 列)
          扫描单号|匹配单号|销售产品|服务渠道|打印类型|打印时间|打印状态|
          打印张数|错误信息|耗时(ms)
      · 操作区:打印类型(子单打印/整单打印单选)+ 主单号/子单号(扫描回车)+ 打印份数(默认1)
-     · 按钮:打印(校验单号非空);头程 Tab 多一个「下载PDF」按钮,仅整单打印模式显示
-          (对齐代码 p1072_2222,2026-08 合入:逐个子单获取标签、按子单号排序合并为一个PDF)
+     · 按钮:打印(校验单号非空);下载PDF(尾程 Tab 常显;头程 Tab 仅整单打印模式显示)
+          (下载合并逻辑对齐代码 p1072_2222,2026-08 合入:逐个子单获取标签、按子单号排序合并为一个PDF)
      · 枚举 PrintType:1子单 / 2整单 / 3拣货单(本页只暴露子单/整单单选)
      · 枚举 PrintStatus:1打印中 / 2成功 / 3失败(复用 wh-print 的 print-status--xxx 色阶)
    注:本页不是查询页,是扫描操作页 —— 操作区替代标准查询区;
@@ -152,15 +163,16 @@ function repTabs() {
   `;
 }
 
-/* 操作区(替代标准查询区;尾程/头程都有「下载PDF」按钮,仅整单模式显示)
-   注:尾程下载PDF 对齐需求(与头程一致):整单模式逐子单获取标签、按子单号排序合并为一个PDF */
+/* 操作区(替代标准查询区)
+   需求改动①:尾程 Tab「下载PDF」按钮常显(初始即显示,不随打印类型联动);
+   头程 Tab 维持现状:仅整单模式显示(需求只优化尾程,不扩大范围) */
 function opPanel(tail) {
   const p = tail ? 'rep' : 'head';
   const radio = (name, val, label, checked) => `
     <label><input type="radio" name="${name}" value="${val}" ${checked ? 'checked' : ''}
        onchange="RepPage.onTypeChange('${p}', this.value)" /> ${label}</label>`;
   const downloadBtn = `
-    <button id="${p}DownloadPdf" class="btn" onclick="RepPage.downloadPdf()" style="display:none;">⬇ 下载PDF</button>`;
+    <button id="${p}DownloadPdf" class="btn" onclick="RepPage.downloadPdf()"${tail ? '' : ' style="display:none;"'}>⬇ 下载PDF</button>`;
   return `
     <div class="rep-op-panel">
       <div class="rep-op-field">
@@ -459,8 +471,10 @@ const RepPage = {
     return el ? el.value : '1';
   },
   typeLabel(v) { return v === '2' ? '整单打印' : '子单打印'; },
-  /* 打印类型切换:下载PDF 仅整单模式显示(尾程/头程都适用) */
+  /* 打印类型切换:需求改动① —— 尾程(rep)下载按钮常显不再受打印类型控制;
+     头程(head)维持现状:仅整单模式显示 */
   onTypeChange(p, v) {
+    if (p === 'rep') return;
     const btn = document.getElementById(`${p}DownloadPdf`);
     if (btn) btn.style.display = v === '2' ? '' : 'none';
   },
@@ -521,23 +535,52 @@ const RepPage = {
     if (!input) return;
     if (mode === 'config') {
       input.style.display = 'none';
-      Helpers.toast('已切换:根据打印配置带出份数(演示)');
+      Helpers.toast('已切换:根据打印配置带出份数');
     } else {
       input.style.display = '';
       input.focus();
-      Helpers.toast('已切换:手动输入份数(演示)');
+      Helpers.toast('已切换:手动输入份数');
     }
   },
-  /* 下载PDF(尾程/头程,整单模式):逐个子单获取标签、按子单号排序合并为一个PDF(对齐 p1072_2222)
-     注:仅下载文件,不改变换单状态——走纯查询链路,不触发换单标识/轨迹副作用(参照头程 ListFirstLegLabel) */
+  /* 下载PDF
+     需求改动③(仅尾程 Tab):按录入单号粒度下载 —— 录入什么单号,就下载对应单号的PDF
+       · 子单号(尾缀 U+3位序号)→ 只下载该子单的面单,文件名=子单号_时间戳.pdf
+       · 主单号 → 整单合并 PDF(逐子单取标签、按子单号排序合并,现状逻辑不变)
+       · 多单号(空格/逗号分隔)→ 逐单号独立成文件,失败互不阻断,结束汇总
+     下载走 Download 通道(OperateType=Download):仅取标签,不更新换单标识、不推TIS/OTS/OFP
+     头程 Tab 维持现状:整单合并为一个PDF */
+  isChildNo(no) { return /U\d{3}$/.test(no); },
+  downloadOne(no) {
+    if (!/^YT\d+/.test(no)) return { ok:false, msg:'订单不存在' }; /* 演示:非YT单号 → 服务端匹配不到 */
+    if (this.isChildNo(no)) {
+      return { ok:true, msg:`已下载子单面单:${no}_${Helpers.nowTime().replace(/[- :]/g,'').slice(0,14)}.pdf(1箱·仅下载文件,不改变换单状态)` };
+    }
+    const boxes = demoBoxCount(no);
+    return { ok:true, msg:`已按子单号排序合并下载整单:${no}_共${boxes}箱.pdf(仅下载文件,不改变换单状态)` };
+  },
   downloadPdf() {
     const c = this.ctx();
     const ipt = document.getElementById(c.scanId);
-    const no = (ipt.value || '').trim();
-    if (!no) { Helpers.toast('请先扫描或输入主单号！'); ipt.focus(); return; }
-    const boxes = demoBoxCount(no);
-    const file = `${no}_共${boxes}箱.pdf`;
-    Helpers.toast(`已按子单号排序合并下载:${file}(仅下载文件,不改变换单状态)(演示)`);
+    const raw = (ipt.value || '').trim();
+    if (!raw) { Helpers.toast('请先扫描或输入主单号/子单号！'); ipt.focus(); return; }
+    if (!c.tail) { /* 头程:维持现状整单合并 */
+      const boxes = demoBoxCount(raw);
+      Helpers.toast(`已按子单号排序合并下载:${raw}_共${boxes}箱.pdf(仅下载文件,不改变换单状态)`);
+      return;
+    }
+    /* 尾程:按录入单号逐个独立下载 */
+    const nos = raw.split(/[\s,，;；]+/).filter(Boolean);
+    if (nos.length === 1) {
+      const r = this.downloadOne(nos[0]);
+      Helpers.toast(r.ok ? `${r.msg}` : r.msg);
+      return;
+    }
+    const results = nos.map(no => ({ no, ...this.downloadOne(no) }));
+    const okList = results.filter(r => r.ok);
+    const failList = results.filter(r => !r.ok);
+    let msg = `已下载 ${okList.length}/${nos.length} 个单号的面单`;
+    if (failList.length) msg += `,失败:${failList.map(f => f.no).join('、')}`;
+    Helpers.toast(`${msg}(逐单号独立成文件,失败不阻断·演示)`);
   },
   /* 清空扫描框 */
   clearScan() {
@@ -556,7 +599,7 @@ const RepPage = {
     if (tail) { tailRows = []; tailNextNo = 1; }
     else { headRows = []; headNextNo = 1; }
     this.refresh(gridId, tail ? tailRows : headRows);
-    Helpers.toast('已清空扫描结果(演示)');
+    Helpers.toast('已清空扫描结果');
   },
   /* 重渲染指定列表区 */
   refresh(gridId, rows) {
@@ -649,7 +692,7 @@ const RepPage = {
       repSettings.defaultCopies = copies;
       this.closeRuleModal();
       this.refreshSettings();
-      Helpers.toast(`默认规则份数已更新为 ${copies}(演示)`);
+      Helpers.toast(`默认规则份数已更新为 ${copies}`);
       return;
     }
     /* 渠道规则:从已选集合取 + 渠道不重叠校验 */
@@ -668,7 +711,7 @@ const RepPage = {
     }
     this.closeRuleModal();
     this.refreshSettings();
-    Helpers.toast(`已保存:${channels.join('、')} → ${copies} 份(演示)`);
+    Helpers.toast(`已保存:${channels.join('、')} → ${copies} 份`);
   },
   /* 全选/取消全选 */
   onChkAll(el) {
@@ -689,7 +732,7 @@ const RepPage = {
     if (!confirm(`确定删除选中的 ${keys.length} 条渠道配置?删除后对应渠道按默认规则份数带出`)) return;
     repSettings.rules = repSettings.rules.filter(r => !keys.includes(r.key));
     this.refreshSettings();
-    Helpers.toast(`已删除 ${keys.length} 条渠道配置(演示)`);
+    Helpers.toast(`已删除 ${keys.length} 条渠道配置`);
   },
   /* 重渲染设置区 */
   refreshSettings() {

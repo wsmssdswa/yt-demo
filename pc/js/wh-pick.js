@@ -212,7 +212,7 @@ const PickPage = {
     if (!this.selectedNo()) { Helpers.toast('请选择要打印的任务！'); return; }
     const ok = confirm(`确定打印拣货单(任务 #${this.selectedNo()}),是否继续？`);
     if (!ok) return;
-    Helpers.toast('打印拣货单成功！(演示)');
+    Helpers.toast('打印拣货单成功！');
   },
 };
 

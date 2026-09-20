@@ -149,7 +149,7 @@ function sbSolutionsView() {
     <div class="grid-toolbar">
       <button class="btn" onclick="SbPage.openBoard()"><span class="ic">▦</span><span>查看格口</span></button>
       <span class="sep"></span>
-      <button class="btn" onclick="Helpers.toast('已刷新(演示)')"><span class="ic">🔄</span><span>刷新</span></button>
+      <button class="btn" onclick="Helpers.toast('已刷新')"><span class="ic">🔄</span><span>刷新</span></button>
       <span class="sb-toolbar-note">方案与格口由 SIMS 同步,此处只读;格口规则在看板中按格口直接配置(规则直挂口)</span>
     </div>
     <div class="grid-wrap wh-grid-wrap">
@@ -206,7 +206,7 @@ function sbBoardCardsHtml() {
       : c.attr === '多件' && c.master
         ? `<div class="sb-card-master" title="${c.master}">${c.master}</div>
            <div class="sb-card-progress ${c.done ? 'is-done' : ''}"
-                title="点击查看未分拣子单明细(演示)">${c.cur}/${c.total}件${c.done ? ' 已到齐' : ''}</div>`
+                title="点击查看未分拣子单明细">${c.cur}/${c.total}件${c.done ? ' 已到齐' : ''}</div>`
         : c.master
           ? `<div class="sb-card-master" title="${c.master}">${c.master}</div><div class="sb-card-free">已落格</div>`
           : `<div class="sb-card-free">空闲</div>`;
@@ -260,7 +260,7 @@ function sbRenderBoardBody() {
       <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
-    <div class="sb-board-tip">看板 3s 自动轮询(演示为静态);单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
+    <div class="sb-board-tip">看板 3s 自动轮询;单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
   `;
 }
 
@@ -474,7 +474,7 @@ const SbPage = {
     return SB_SOLUTIONS.filter(s =>
       (!name || s.solutionName.includes(name.trim())) && (!code || s.sorterCode.includes(code.trim())));
   },
-  doQuery() { this.render(); Helpers.toast('已查询(演示)'); },
+  doQuery() { this.render(); Helpers.toast('已查询'); },
   checkSol(code) { this.checkedSol = code; this.render(); },
 
   /* ---- 看板 ---- */
@@ -534,7 +534,7 @@ const SbPage = {
     this.closeRule();
     sbRenderBoardBody();
     document.getElementById('sbBoardMask').style.display = 'flex';
-    Helpers.toast(isClear ? `格口 ${c.no} 已恢复默认池(演示)` : `格口 ${c.no} 规则已保存(演示)`);
+    Helpers.toast(isClear ? `格口 ${c.no} 已恢复默认池` : `格口 ${c.no} 规则已保存`);
   },
 
   /* ---- 条件行(flex 行式) ---- */
@@ -649,7 +649,7 @@ const SbPage = {
     document.getElementById('sbRelMask').style.display = 'none';
     sbRenderBoardBody();
     document.getElementById('sbBoardMask').style.display = 'flex';
-    Helpers.toast(`格口 ${no} 已释放(演示)`);
+    Helpers.toast(`格口 ${no} 已释放`);
   },
 };
 

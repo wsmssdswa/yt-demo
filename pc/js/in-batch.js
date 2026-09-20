@@ -223,11 +223,11 @@ const BatchPage = {
       return;
     }
     this.closeImport();
-    Helpers.toast('批量导入已提交,任务创建中(演示)');
+    Helpers.toast('批量导入已提交,任务创建中');
   },
   /* 下载结果文件 */
   downloadResult(taskNo) {
-    Helpers.toast(`下载结果文件:${taskNo}(演示)`);
+    Helpers.toast(`下载结果文件:${taskNo}`);
   },
 };
 

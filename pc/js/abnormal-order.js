@@ -319,7 +319,7 @@ const AbnormalPage = {
     }
     const ok = confirm(`确定生成异常拣货任务(已选 ${checked.length} 单),是否继续？`);
     if (!ok) return;
-    Helpers.toast('生成拣货任务成功！(演示)');
+    Helpers.toast('生成拣货任务成功！');
   },
 };
 

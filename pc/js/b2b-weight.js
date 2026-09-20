@@ -255,7 +255,7 @@ const WeightPage = {
   },
   /* 下载模板 */
   downloadTemplate() {
-    Helpers.toast('模板下载已开始！(演示)');
+    Helpers.toast('模板下载已开始！');
   },
   /* 批量导入 */
   batchImport() {
@@ -280,7 +280,7 @@ const WeightPage = {
     }
     const ok = confirm(`确定对已选 ${checked.length} 条待生效记录执行确认勘误,是否继续？`);
     if (!ok) return;
-    Helpers.toast('确认勘误成功！(演示)');
+    Helpers.toast('确认勘误成功！');
   },
   /* 查看日志:必须且仅选中 1 行 */
   viewLog() {

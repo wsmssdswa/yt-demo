@@ -221,7 +221,7 @@ const ProdCcosPage = {
     if (!cn) { Helpers.toast('请填写中文名称'); return; }
     if (!en) { Helpers.toast('请填写英文名称'); return; }
     this.closeEdit();
-    Helpers.toast('修改成功(演示)');
+    Helpers.toast('修改成功');
   },
 };
 

@@ -261,7 +261,7 @@ const ReceiptPage = {
       Helpers.toast('该入仓单已上传照片,请使用「修改照片」！');
       return;
     }
-    Helpers.toast(`上传照片:${r.rcNo}(演示)`);
+    Helpers.toast(`上传照片:${r.rcNo}`);
   },
   /* 修改照片:选中行若未传则提示用上传 */
   modifyPhoto() {
@@ -271,21 +271,21 @@ const ReceiptPage = {
       Helpers.toast('该入仓单未上传照片,请使用「上传照片」！');
       return;
     }
-    Helpers.toast(`修改照片:${r.rcNo}(演示)`);
+    Helpers.toast(`修改照片:${r.rcNo}`);
   },
   /* 查看日志:选中 1 行 */
   requireSelect(label) {
     const r = this._getSelected();
     if (!r) return;
-    Helpers.toast(`${label}:${r.rcNo}(演示)`);
+    Helpers.toast(`${label}:${r.rcNo}`);
   },
   /* PDF 链接 */
   openPdf(rcNo) {
-    Helpers.toast(`打开 PDF:${rcNo}(演示)`);
+    Helpers.toast(`打开 PDF:${rcNo}`);
   },
   /* 照片链接 */
   openPhoto(rcNo) {
-    Helpers.toast(`查看照片:${rcNo}(演示)`);
+    Helpers.toast(`查看照片:${rcNo}`);
   },
 };
 

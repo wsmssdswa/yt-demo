@@ -184,7 +184,7 @@ const SecurityPage = {
   },
   /* 导出数据 */
   exportData() {
-    Helpers.toast('导出数据成功！(演示)');
+    Helpers.toast('导出数据成功！');
   },
 };
 

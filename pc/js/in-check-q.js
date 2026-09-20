@@ -245,7 +245,7 @@ const CheckQPage = {
       Helpers.toast('只能选择一行查看材积信息！');
       return;
     }
-    Helpers.toast('材积信息(演示,选中行尺寸详情)');
+    Helpers.toast('材积信息');
   },
 };
 

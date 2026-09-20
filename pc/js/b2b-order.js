@@ -296,7 +296,7 @@ const OrderPage = {
     if (checked.length > 50) { Helpers.toast('单次最多修改50条数据！'); return; }
     const ok = confirm('此功能用于将子单的换单状态从待换单改成已换单,确定要操作吗?');
     if (!ok) return;
-    Helpers.toast('操作成功！(演示)');
+    Helpers.toast('操作成功！');
   },
   /* 登记退仓:勾选订单 → 主单维度预登记
      打开公共登记弹窗(return-register.js)简化模式:不显示单号,

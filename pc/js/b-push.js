@@ -252,12 +252,12 @@ const PushPage = {
   },
   saveConfig() {
     this.closeConfig();
-    Helpers.toast('推送配置已保存(演示)');
+    Helpers.toast('推送配置已保存');
   },
   delRule(no) {
     const ok = confirm(`确定删除路由规则 ${no},是否继续？`);
     if (!ok) return;
-    Helpers.toast(`删除规则 ${no} 成功(演示)`);
+    Helpers.toast(`删除规则 ${no} 成功`);
   },
   /* 工具栏:批量重推(对选中行;无复选列则回退到行选中) */
   repush() {
@@ -265,11 +265,11 @@ const PushPage = {
     if (rows.length === 0) { Helpers.toast('请选择要重推的记录！'); return; }
     const ok = confirm(`确定重推选中的 ${rows.length} 条记录,是否继续？`);
     if (!ok) return;
-    Helpers.toast(`重推成功 ${rows.length} 条(演示)`);
+    Helpers.toast(`重推成功 ${rows.length} 条`);
   },
   /* 行内重推按钮 */
   repushRow(no) {
-    Helpers.toast(`重推主单 ${PUSH_LOG_ROWS[no-1].waybill}(演示)`);
+    Helpers.toast(`重推主单 ${PUSH_LOG_ROWS[no-1].waybill}`);
   },
 };
 

@@ -210,7 +210,7 @@ const StkPage = {
     }
     const ok = confirm(`确定取消盘点任务「${r.no2}」,是否继续？`);
     if (!ok) return;
-    Helpers.toast('取消盘点成功！(演示)');
+    Helpers.toast('取消盘点成功！');
   },
 };
 

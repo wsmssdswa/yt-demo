@@ -119,7 +119,7 @@ function buildRows(list) {
       </tr>`;
   }).join('');
   return list.length > RENDER_CAP
-    ? html + `<tr><td colspan="10" style="text-align:center;color:#999;padding:10px 0;">(演示已注入 ${list.length} 条数据,列表仅展示前 ${RENDER_CAP} 条)</td></tr>`
+    ? html + `<tr><td colspan="10" style="text-align:center;color:#999;padding:10px 0;">列表仅展示前 ${RENDER_CAP} 条</td></tr>`
     : html;
 }
 
@@ -199,7 +199,7 @@ function previewModal(r) {
             <div>
               <div style="font-size:48px;">🖼</div>
               <div style="margin-top:8px;font-family:Consolas,monospace;color:#555;word-break:break-all;max-width:440px;">${Helpers.esc(r.imgName || '')}</div>
-              <div style="margin-top:4px;font-size:11px;color:#999;">(演示,实际展示照片大图)</div>
+              <div style="margin-top:4px;font-size:11px;color:#999;">实际展示照片大图</div>
             </div>
           </div>
         </div>
@@ -281,7 +281,7 @@ function exportProgressModal(plan) {
 
 /* ---- 页面逻辑:查询过滤(带线上三条校验)/ 图片预览 ---- */
 let photoFiltered = PHOTO_ROWS;   /* 当前展示的数据集 */
-const PHOTO_ORIG = PHOTO_ROWS.slice();  /* 原始演示数据(演示面板重置用) */
+const PHOTO_ORIG = PHOTO_ROWS.slice();  /* 原始演示数据 */
 
 /* ---- 演示面板:一键切换三种量级场景,演示导出弹窗的防呆提示 ---- */
 function demoPanel() {
@@ -426,7 +426,7 @@ const PhotoPage = {
         <div style="font-size:14px;font-weight:bold;margin:6px 0;">${failed.length > 0 ? `成功 ${ok} 张 / 失败 ${failed.length} 张` : '导出完成'}</div>
         <div style="font-size:12px;color:#555;line-height:1.9;">
           已导出 <b class="check-ok-text">${ok}</b> 张图片,以子单号命名<br/>
-          已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>(演示文件名)
+          已打包为:<span style="font-family:Consolas,monospace;">CCOS照片导出_${Helpers.nowTime().replace(/[-: ]/g, '').slice(0, 14)}.zip</span>
         </div>
       </div>
       ${failBox}`;

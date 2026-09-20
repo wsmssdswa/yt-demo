@@ -260,7 +260,7 @@ const WtAdjPage = {
     if (!(wid > 0)) { Helpers.toast('宽须为 >0 的整数'); return; }
     if (!(hei > 0)) { Helpers.toast('高须为 >0 的整数'); return; }
     this.closeEdit();
-    Helpers.toast(`${this.editMode === 'add' ? '新增' : '修改'}成功(演示)`);
+    Helpers.toast(`${this.editMode === 'add' ? '新增' : '修改'}成功`);
   },
   /* 启用/禁用(二次确认) */
   toggleStatus(target) {
@@ -269,7 +269,7 @@ const WtAdjPage = {
     const label = target === 1 ? '启用' : '禁用';
     const ok = confirm(`确定${label}选中的 ${rows.length} 条规则,是否继续？`);
     if (!ok) return;
-    Helpers.toast(`${label}成功 ${rows.length} 条(演示)`);
+    Helpers.toast(`${label}成功 ${rows.length} 条`);
   },
 };
 

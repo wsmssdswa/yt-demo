@@ -154,7 +154,7 @@ const CheckBatPage = {
       Helpers.toast(`${title}:0 件(无明细)`);
       return;
     }
-    Helpers.toast(`${title}明细:${count} 件(演示)`);
+    Helpers.toast(`${title}明细:${count} 件`);
   },
 };
 

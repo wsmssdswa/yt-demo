@@ -418,9 +418,7 @@ const LrPage = {
 
   /* ---- 选择弹窗(线上 uctrlProductMultiSelect + FormProductMultiSelector 同款) ---- */
   pickerAll() {
-    return this.picker.mode === 'product'
-      ? LR_PRODUCT_DICT
-      : LR_DEST_ORGS.map(n => ({ name: n }));
+    return this.picker.mode === 'product' ? LR_PRODUCT_DICT : LR_DEST_ORGS;
   },
   pickerKey(item) { return this.picker.mode === 'product' ? item.code : item.name; },
   pickerLabel() { return this.picker.mode === 'product' ? '产品' : '调拨网点'; },
@@ -460,10 +458,10 @@ const LrPage = {
 
     const cols = isProd
       ? '<col style="width:36%"/><col style="width:30%"/><col style="width:34%"/>'
-      : '<col style="width:100%"/>';
+      : '<col style="width:40%"/><col style="width:60%"/>';
     const heads = isProd
       ? '<tr><th>产品代码</th><th>中文名称</th><th>英文名称</th></tr>'
-      : '<tr><th>网点名称</th></tr>';
+      : '<tr><th>网点代码</th><th>网点名称</th></tr>';
     const rowHtml = (i, side) => {
       const k = this.pickerKey(i);
       const marked = this.picker.cur && this.picker.cur.side === side && this.picker.cur.key === k;
@@ -472,9 +470,9 @@ const LrPage = {
       const cls = marked ? ' class="row--picked"' : '';
       return isProd
         ? `<tr${cls} onclick="${mark}" ondblclick="${dbl}"><td class="col--code">${i.code}</td><td>${i.name}</td><td>${i.en}</td></tr>`
-        : `<tr${cls} onclick="${mark}" ondblclick="${dbl}"><td>${i.name}</td></tr>`;
+        : `<tr${cls} onclick="${mark}" ondblclick="${dbl}"><td class="col--code">${i.code}</td><td>${i.name}</td></tr>`;
     };
-    const empty = which => `<tr class="lrb-picker-empty"><td colspan="${isProd ? 3 : 1}">${which}</td></tr>`;
+    const empty = which => `<tr class="lrb-picker-empty"><td colspan="${isProd ? 3 : 2}">${which}</td></tr>`;
 
     document.getElementById('lrPickerSelCols').innerHTML = cols;
     document.getElementById('lrPickerPendCols').innerHTML = cols;

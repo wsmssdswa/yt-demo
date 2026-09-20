@@ -164,7 +164,7 @@ const ChargeNetPage = {
     const checked = document.querySelectorAll('#cnModal .cn-org-item input:checked');
     if (checked.length === 0) { Helpers.toast('请至少选择一个网点'); return; }
     this.closeAdd();
-    Helpers.toast(`新增成功 ${checked.length} 个计费网点(演示)`);
+    Helpers.toast(`新增成功 ${checked.length} 个计费网点`);
   },
   /* 删除(二次确认) */
   remove() {
@@ -172,7 +172,7 @@ const ChargeNetPage = {
     if (checked.length === 0) { Helpers.toast('请选择要删除的网点！'); return; }
     const ok = confirm(`确定删除选中的 ${checked.length} 个计费网点,是否继续？`);
     if (!ok) return;
-    Helpers.toast(`删除成功 ${checked.length} 条(演示)`);
+    Helpers.toast(`删除成功 ${checked.length} 条`);
   },
 };
 
