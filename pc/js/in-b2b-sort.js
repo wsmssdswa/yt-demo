@@ -55,7 +55,7 @@ function sbBuildChutes() {
   ['43', '44'].forEach(n => { byNo(n).conds = cp(ruleCif); });
   ['09', '10'].forEach(n => { byNo(n).conds = cp(ruleDest); });
   ['13', '14'].forEach(n => { byNo(n).conds = cp(rulePieces); });
-  /* 演示:交叉案例——02 口(单件)单留两个带电产品,与 03/04 在"产品"维度上交叉 */
+  /* 02 口(单件):单字段规则示例(只按产品圈货) */
   byNo('02').conds = [ { item: 'product', op: 'IN', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC'] } ];
   return list;
 }
@@ -111,52 +111,6 @@ function sbRuleTitle(c) {
     return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
   }).join(` ${c.joiner} `);
 }
-/* ---- 规则重叠判定(2026-09-20 收窄:"在同一个维度上划分了重叠的值"才算交叉) ----
-   1) 同类别才比(单件/多件/异常各自不竞争,跨类别天然不同池);
-   2) 同一条件集的多口=有意共享(同类货一片口),不算;
-   3) 需有共有字段,且共有字段的取值均有交集(某共有字段互斥=整条规则不可能同时命中);
-   不同维度各管一段(如目的仓规则 vs 产品规则)不算——模型天然会同时命中,提示也无解。  */
-function sbRuleSetKey(c) {
-  return JSON.stringify(c.conds.map(x => x.item + '|' + x.op + '|' + x.values.join(',')));
-}
-/* 两条件行取值交集:枚举取代码交集;区间取相交(含仅端点相接);形态不同(如 IN vs 区间)不判 */
-function sbCondInter(ca, cb) {
-  if (ca.op === 'IN' && cb.op === 'IN') return ca.values.filter(v => cb.values.includes(v));
-  const isRange = op => op === 'BETWEEN' || op === 'INTERVAL';
-  if (isRange(ca.op) && isRange(cb.op)) {
-    const [a1, a2] = (ca.values || []).map(Number);
-    const [b1, b2] = (cb.values || []).map(Number);
-    if ([a1, a2, b1, b2].some(Number.isNaN)) return [];
-    const lo = Math.max(a1, b1), hi = Math.min(a2, b2);
-    return hi >= lo ? [`数值 ${lo}~${hi}`] : [];
-  }
-  return [];
-}
-/* 一批条件(或一个口)与其它口的交叉明细 */
-function sbConflictsOf(no, attr, conds) {
-  if (!conds.length) return [];
-  const selfKey = sbRuleSetKey({ conds });
-  return SB_CHUTES.filter(c => c.no !== no && c.conds.length && c.attr === attr)
-    .filter(c => sbRuleSetKey(c) !== selfKey)
-    .map(c => {
-      const shared = conds.filter(ca => c.conds.some(cb => cb.item === ca.item));
-      if (!shared.length) return null;
-      const detail = [];
-      for (const ca of shared) {
-        const cb = c.conds.find(x => x.item === ca.item);
-        const vals = sbCondInter(ca, cb);
-        if (!vals.length) return null;             /* 共有字段互斥:不可能同时命中 */
-        detail.push({ item: ca.item, vals });
-      }
-      return { other: c.no, detail };
-    }).filter(Boolean);
-}
-/* 交叉明细 → 可读文案(卡片悬浮/编辑弹窗共用) */
-function sbConflictText(cfs) {
-  return cfs.map(x => `与 ${x.other} 口交叉 — ` + x.detail.map(d =>
-    `${sbItemDef(d.item).label}:${d.vals.map(v => sbNameOf(d.item, v)).join('、')}`).join(';')).join('\n');
-}
-
 /* ---- 演示数据初始化 ---- */
 const SB_CHUTES = sbBuildChutes();
 
@@ -234,9 +188,7 @@ function sbBoardCardsHtml() {
         : c.master
           ? `<div class="sb-card-master" title="${c.master}">${c.master}</div><div class="sb-card-free">已落格</div>`
           : `<div class="sb-card-free">空闲</div>`;
-    const cfs = sbConflictsOf(c.no, c.attr, c.conds);
-    const confHtml = cfs.length
-      ? `<div class="cr-conflict" title="${Helpers.esc ? Helpers.esc(sbConflictText(cfs)) : sbConflictText(cfs)}">⚠ ${cfs.length <= 2 ? '与 ' + cfs.map(x => x.other).join('、') + ' 交叉' : '与 ' + cfs.length + ' 个口交叉'}</div>` : '';
+    const confHtml = '';   /* 规则交叉提示已撤(格口不多,看规则摘要可判断);判定逻辑见 git 历史 */
     const rule = c.conds.length
       ? `<div class="sb-card-badge sb-card-badge--rule" title="${sbRuleTitle(c)}">规则:${sbRuleSummary(c)}</div>`
       : '';
@@ -277,7 +229,6 @@ function sbRenderBoardBody() {
         <i class="sb-lg sb-lg--done"></i>多件已到齐
         <i class="sb-lg sb-lg--abn"></i>异常
         <i class="sb-lg sb-lg--rule">规则:</i>已配规则
-        <i class="sb-lg sb-lg--conflict">⚠</i>规则交叉
       </span>
       <span style="flex:1"></span>
       <span class="sb-pick-count">已选中 <b>${SbPage.selChutes.size}</b> 个口</span>
@@ -394,20 +345,6 @@ function sbRulePreviewText() {
 function sbRenderPreview() {
   const el = document.getElementById('sbRulePreview');
   if (el) el.textContent = sbRulePreviewText();
-  /* 交叉实时提示:当前编辑中的条件 vs 其它口(配置当场发现,不等保存后看板) */
-  const cf = document.getElementById('sbRuleConflict');
-  if (cf) {
-    const c = SB_CHUTES.find(x => x.no === SbPage.ruleNo);
-    const cfs = c ? sbConflictsOf(c.no, c.attr, SbPage.editConds) : [];
-    if (cfs.length) {
-      cf.style.display = '';
-      cf.innerHTML = `⚠ 与 ${cfs.map(x => x.other).join('、')} 口交叉 — ${cfs.map(x =>
-        `${x.other}口 ` + x.detail.map(d => `${sbItemDef(d.item).label}:${d.vals.map(v => sbNameOf(d.item, v)).join('、')}`).join(';')).join(' | ')}<br/>该货会同时命中两口,按格口号顺序落第一个空闲口`;
-    } else {
-      cf.style.display = 'none';
-      cf.innerHTML = '';
-    }
-  }
 }
 
 function sbCondRowsHtml() {
@@ -454,7 +391,6 @@ function sbRuleModal() {
             <div class="sb-cond-box" id="sbCondBox" style="gap:8px"></div>
           </div>
           <div class="sb-rule-preview" id="sbRulePreview"></div>
-          <div class="sb-rule-conflict" id="sbRuleConflict" style="display:none"></div>
         </div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="SbPage.closeRule()">取消</button>
