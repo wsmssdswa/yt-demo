@@ -365,7 +365,6 @@
 .rw-log-filter { display: flex; align-items: center; gap: 8px; padding: 0 0 8px; flex-wrap: wrap; }
 .rw-log-filter label { font-size: 12px; color: #333; }
 .rw-log-filter .ipt { width: 240px; }
-.rw-log-chk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #333; cursor: pointer; }
 .rw-log-count { font-size: 12px; color: #5B6B84; }
 /* 已删除对象标记(分拣项删除后日志仍可查,列表里标出来) */
 .rw-log-tag--del { margin-left: 4px; font-size: 10px; color: #CF1322; background: #FFF1F0;

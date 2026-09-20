@@ -173,7 +173,7 @@ function siDiffText(before, after) {
 }
 
 /* 操作日志弹窗
-   选中分拣项 → 该分拣项的日志;未选中 → 全部日志(含已删除的分拣项,删除记录不被丢掉)
+   一律列全部日志(含已删除的分拣项,删除记录不被丢掉);选中分拣项时关键词带出该项名称
    对齐退仓/增值页日志弹窗范式:筛选条 + 表格 + 关闭 */
 function siLogModal() {
   return `
@@ -181,7 +181,7 @@ function siLogModal() {
       <div class="rw-modal-mask" onclick="SiPage.closeLog()"></div>
       <div class="rw-modal-panel rw-modal-panel--log rw-modal-panel--scroll">
         <div class="rw-modal-header">
-          <span class="rw-modal-title" id="siLogTitle">操作日志</span>
+          <span class="rw-modal-title" id="siLogTitle">操作日志 — 分拣项配置（含已删除）</span>
           <button class="rw-modal-close" onclick="SiPage.closeLog()">✕</button>
         </div>
         <div class="rw-modal-body">
@@ -190,8 +190,6 @@ function siLogModal() {
             <input class="ipt" id="siLogKw" placeholder="分拣项 / 字段标识 / 操作人 / 内容"
                    onkeydown="if(event.key==='Enter'){SiPage.doLogQuery()}" />
             <button class="btn" onclick="SiPage.doLogQuery()">🔍 查询</button>
-            <label class="rw-log-chk"><input type="checkbox" id="siLogDelOnly"
-              onchange="SiPage.doLogQuery()" />只看已删除的分拣项</label>
             <span class="rw-log-count" id="siLogCount"></span>
           </div>
           <table class="grid si-log-grid" style="width:100%;">
@@ -274,32 +272,26 @@ const SiPage = {
   },
   check(key) { this.checked = key; this.render(); },
 
-  /* ---- 操作日志(工具栏「日志」;选中分拣项看单项,未选中看全部含已删除) ---- */
+  /* ---- 操作日志(工具栏「日志」;选中分拣项 → 关键词带出该项名称) ---- */
   openLog() {
-    this.logKey = this.checked || null;
-    const it = this.logKey ? SortItemRegistry.items().find(i => i.key === this.logKey) : null;
-    document.getElementById('siLogTitle').textContent = it
-      ? `操作日志 — ${it.name}`
-      : '操作日志 — 全部分拣项（含已删除）';
-    document.getElementById('siLogKw').value = '';
-    document.getElementById('siLogDelOnly').checked = false;
+    const it = this.checked ? SortItemRegistry.items().find(i => i.key === this.checked) : null;
+    document.getElementById('siLogKw').value = it ? it.name : '';
     this.doLogQuery();
     document.getElementById('siLogMask').style.display = 'flex';
   },
   closeLog() { document.getElementById('siLogMask').style.display = 'none'; },
-  /* 过滤:范围(选中项/全部) → 关键词(分拣项/字段标识/操作人/内容) → 只看已删除 */
+  /* 过滤:关键词(分拣项 / 字段标识 / 操作人 / 内容);已删除的分拣项日志一并列出并打标 */
   doLogQuery() {
     const kw = (document.getElementById('siLogKw').value || '').trim().toLowerCase();
-    const delOnly = document.getElementById('siLogDelOnly').checked;
     const alive = SortItemRegistry.items().map(i => i.key);
     const isDel = l => !alive.includes(l.key);
-    let rows = SortItemRegistry.logs(this.logKey || null);
-    const delCount = rows.filter(isDel).length;
+    let rows = SortItemRegistry.logs();
     if (kw) {
       rows = rows.filter(l => [l.name, l.fieldName, l.u, l.c]
         .some(v => String(v || '').toLowerCase().includes(kw)));
     }
-    if (delOnly) rows = rows.filter(isDel);
+    /* 已删除条数按"当前结果集"算,别把全量数字贴到筛选后的结果上 */
+    const delCount = rows.filter(isDel).length;
     document.getElementById('siLogBody').innerHTML = rows.length
       ? rows.map((l, i) => `
           <tr>
@@ -313,7 +305,8 @@ const SiPage = {
           </tr>`).join('')
       : '<tr><td colspan="7" class="cr-empty">没有符合条件的操作记录</td></tr>';
     document.getElementById('siLogCount').textContent =
-      `${this.logKey ? '当前分拣项' : '全部分拣项'} · ${rows.length} 条${delCount ? `（含已删除 ${delCount} 条）` : ''}`;
+      `${kw ? `关键词「${document.getElementById('siLogKw').value.trim()}」` : '全部分拣项'} · ${rows.length} 条`
+      + `${delCount ? `（含已删除 ${delCount} 条）` : ''}`;
   },
 
   /* 列表工具栏 */
