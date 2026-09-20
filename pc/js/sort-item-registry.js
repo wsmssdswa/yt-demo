@@ -75,10 +75,6 @@ const SortItemRegistry = {
     catch (e) { return false; }
   },
 
-  reset() {
-    try { localStorage.removeItem(SIR_STORAGE_KEY); return true; } catch (e) { return false; }
-  },
-
   find(key) {
     return this.enabled().find(i => i.key === key);
   },

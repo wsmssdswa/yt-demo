@@ -7,7 +7,7 @@
      · 不选数据类型:值形态由绑定的运行字段性质自动推导(数值/编码清单),
        运算符从真实系统 12 个里自由勾选
      · 被规则引用的项锁定(运行时取值/运算符/可选值禁改,弹窗内直接禁用)
-     · localStorage 存配置(纯静态跨页共享),「重置默认」恢复系统内置种子
+     · localStorage 存配置(纯静态跨页共享,演示用)
    ============================================ */
 
 /* ---- 值形态(内部推导,不劳用户选) ---- */
@@ -348,13 +348,6 @@ const SiPage = {
     this.render();
     Helpers.toast(`分拣项「${it.name}」已删除(演示)`);
   },
-  resetAll() {
-    SortItemRegistry.reset();
-    this.checked = null;
-    this.render();
-    Helpers.toast('已重置为系统内置分拣项(演示)');
-  },
-  showHelp() { document.getElementById('siHelpMask').style.display = 'flex'; },
 };
 
 /* ---- 渲染整页 ---- */
@@ -370,9 +363,6 @@ document.getElementById('app').innerHTML = Layout.window({
       <button class="btn" onclick="SiPage.toggleStatus(1)"><span class="ic">▶️</span><span>启用</span></button>
       <button class="btn" onclick="SiPage.toggleStatus(0)"><span class="ic">⏸</span><span>停用</span></button>
       <button class="btn" onclick="SiPage.delItem()"><span class="ic">🗑</span><span>删除</span></button>
-      <span class="sep"></span>
-      <button class="btn" onclick="SiPage.resetAll()"><span class="ic">🔄</span><span>重置默认</span></button>
-      <button class="btn" onclick="SiPage.showHelp()"><span class="ic">❓</span><span>说明</span></button>
       <span class="sb-toolbar-note">分拣项由本页注册表统一维护,规则编辑器下拉从注册表读取——新增分拣项免发版;被规则引用的项锁定(不可删/停用/改取值)</span>
     </div>
     ${siGrid()}
@@ -382,25 +372,6 @@ document.getElementById('app').innerHTML = Layout.window({
       <span class="pg-info">总记录数: <b id="siTotal"></b> 条</span>
     </div>
     ${siEditModal()}
-    <div class="rw-modal" id="siHelpMask" style="display:none">
-      <div class="rw-modal-mask" onclick="document.getElementById('siHelpMask').style.display='none'"></div>
-      <div class="rw-modal-panel" style="width:520px">
-        <div class="rw-modal-header">
-          <span class="rw-modal-title">分拣项配置说明(注册表)</span>
-          <button class="rw-modal-close" onclick="document.getElementById('siHelpMask').style.display='none'">✕</button>
-        </div>
-        <div class="rw-modal-body">
-          <div class="lr-help-step"><b>① 分拣项 = 规则可引用的验证维度</b>(field_name 载体),规则编辑器每一行「验证字段」下拉 = 引用一个启用中的分拣项</div>
-          <div class="lr-help-step"><b>② 运行时取值 vs 编辑器可选值</b>是两回事:前者=签入时这票货的值从哪拿(白名单字段绑定,禁开放表达式);后者=配规则时内容下拉显示什么(手工清单 / 接口数据源;数值项无)</div>
-          <div class="lr-help-step"><b>③ 被规则引用的项锁定</b>:不可删除/停用,弹窗内数据类型/运算符集/运行时取值直接禁用——需先在规则中摘除</div>
-          <div class="lr-help-step"><b>④ 新增演示</b>:新增一项 → 到 分组方案/格口规则/分拣管理 任一页刷新 → 验证字段下拉即出现(免发版)</div>
-          <div class="lr-help-note">配置存浏览器 localStorage,「重置默认」恢复系统内置种子(产品/渠道/异常类型/调拨目的仓/主单件数)</div>
-        </div>
-        <div class="rw-modal-footer">
-          <button class="btn" onclick="document.getElementById('siHelpMask').style.display='none'">知道了</button>
-        </div>
-      </div>
-    </div>
   `,
 });
 SiPage.render();
