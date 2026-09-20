@@ -296,7 +296,7 @@ const SiPage = {
       ? rows.map((l, i) => `
           <tr>
             <td class="col--num">${i + 1}</td>
-            <td>${l.name || '—'}${isDel(l) ? '<span class="rw-log-tag--del">已删除</span>' : ''}</td>
+            <td>${l.name || '—'}</td>
             <td class="col--code">${l.fieldName || '—'}</td>
             <td>${l.u}</td>
             <td>${l.t}</td>
