@@ -149,12 +149,14 @@ function siEditModal() {
 }
 
 /* 列表运算符列:数量 + 悬浮全量(真实系统 12 运算符,label 较长不宜整列平铺) */
+/* 列表运算符列:直接列运算符名称,超出由列宽省略号截断,悬浮看全量(含表达式) */
 function siOpsCell(it) {
   const full = it.ops.map(c => {
     const o = SIR_OP_MAP[c];
     return o ? `${o.label} ${o.expr}` : c;
   }).join('；');
-  return `<span title="${full}">${it.ops.length} 个</span>`;
+  const names = it.ops.map(c => (SIR_OP_MAP[c] || {}).label || c).join('、');
+  return `<span title="${full}">${names}</span>`;
 }
 
 /* 编辑器可选值区(三选:手工清单 / 接口数据源 / 无-数值直接填;决定值形态) */
