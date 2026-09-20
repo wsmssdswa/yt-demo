@@ -185,8 +185,7 @@ function sbSolutionsView() {
    弹窗:操作日志(该方案全部格口的规则配置记录,可按格口号筛)
    ============================================ */
 function sbLogRowsHtml(kw) {
-  const scope = SbPage.logSorter;
-  const rows = SB_RULE_LOGS.filter(l => (!scope || l.sorter === scope) && (!kw || l.chute.includes(kw)));
+  const rows = SB_RULE_LOGS.filter(l => l.sorter === SbPage.logSorter && (!kw || l.chute.includes(kw)));
   if (!rows.length) return '<tr><td colspan="6" class="cr-empty">没有符合条件的操作记录</td></tr>';
   return rows.map((l, i) => `
     <tr>
@@ -524,13 +523,14 @@ const SbPage = {
   },
   closeBoard() { document.getElementById('sbBoardMask').style.display = 'none'; },
 
-  /* ---- 操作日志(外层列表工具栏入口;选中一行方案=只看该分拣机,未选中=全部方案) ---- */
+  /* ---- 操作日志(外层列表工具栏入口;必须先选中一行方案=看该分拣机的记录。
+         分拣机由 SIMS 同步、业务侧删不掉,所以不提供"全部方案"视图) ---- */
   openLog() {
     const s = this.checkedSol ? SB_SOLUTIONS.find(x => x.sorterCode === this.checkedSol) : null;
-    this.logSorter = s ? s.sorterCode : null;
-    document.getElementById('sbLogTitle').textContent = s
-      ? `操作日志 — ${s.solutionName} | ${s.sorterName}(${s.sorterCode})`
-      : '操作日志 — 全部方案';
+    if (!s) { Helpers.toast('请先选中一行方案'); return; }
+    this.logSorter = s.sorterCode;
+    document.getElementById('sbLogTitle').textContent =
+      `操作日志 — ${s.solutionName} | ${s.sorterName}(${s.sorterCode})`;
     document.getElementById('sbLogChute').value = '';
     this.doLogQuery();
     document.getElementById('sbLogMask').style.display = 'flex';
@@ -539,11 +539,10 @@ const SbPage = {
   doLogQuery() {
     const kw = (document.getElementById('sbLogChute') || {}).value || '';
     document.getElementById('sbLogBody').innerHTML = sbLogRowsHtml(kw.trim());
-    const scope = this.logSorter;
-    const n = SB_RULE_LOGS.filter(l => (!scope || l.sorter === scope)
+    const n = SB_RULE_LOGS.filter(l => l.sorter === this.logSorter
       && (!kw.trim() || l.chute.includes(kw.trim()))).length;
     document.getElementById('sbLogCount').textContent =
-      `${scope ? '当前方案' : '全部方案'} · ${n} 条${kw.trim() ? `（筛格口号 ${kw.trim()}）` : ''}`;
+      `共 ${n} 条记录${kw.trim() ? `（筛格口号 ${kw.trim()}）` : ''}`;
   },
 
   /* ---- 卡片单击=选中(延时区分双击),双击=编辑规则 ---- */
