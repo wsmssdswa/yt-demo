@@ -273,6 +273,10 @@
   width: 460px; background: #fff; border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0,0,0,.2); overflow: hidden;
 }
+/* 可选修饰:内容会超高(行数多的清单/表格)的弹窗——body 内滚、header/footer 固定。
+   注意:body 一旦可滚,其内部绝对定位浮层(多选下拉等)会被裁剪——含浮层控件的弹窗勿加 */
+.rw-modal-panel--scroll { max-height: calc(100vh - 64px); display: flex; flex-direction: column; }
+.rw-modal-panel--scroll .rw-modal-body { overflow-y: auto; flex: 1; min-height: 0; }
 .rw-modal-header {
   height: 38px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between;
   background: linear-gradient(to bottom, #F8F8F8, #ECECEC); border-bottom: 1px solid #D6D6D6;

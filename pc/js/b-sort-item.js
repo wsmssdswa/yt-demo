@@ -106,7 +106,7 @@ function siEditModal() {
   return `
     <div class="rw-modal" id="siEditMask" style="display:none">
       <div class="rw-modal-mask" onclick="SiPage.closeEdit()"></div>
-      <div class="rw-modal-panel si-panel" style="width:700px">
+      <div class="rw-modal-panel si-panel rw-modal-panel--scroll" style="width:700px">
         <div class="rw-modal-header">
           <span class="rw-modal-title" id="siEditTitle">新增分拣项</span>
           <button class="rw-modal-close" onclick="SiPage.closeEdit()">✕</button>
