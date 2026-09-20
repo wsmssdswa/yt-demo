@@ -114,6 +114,18 @@ function sbRuleTitle(c) {
 /* ---- 演示数据初始化 ---- */
 const SB_CHUTES = sbBuildChutes();
 
+/* 格口规则操作日志(演示数据,新→旧;真实系统写通用操作日志模块,按分拣机+格口号可查) */
+const SB_RULE_LOGS = [
+  { chute: '02', t: '2026-09-20 09:31:20', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【格口看板-规则配置】配置格口 02(分拣机 FJ-01)规则,由「未配规则」改为「产品 包含 美森快船-带电、海运普船-带电」' },
+  { chute: '15', t: '2026-09-19 16:20:05', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【格口看板-规则配置】清空格口 15(分拣机 FJ-01)规则,恢复默认分拣' },
+  { chute: '09', t: '2026-09-19 10:15:44', u: '李四', og: '东腾曼沙项目仓',
+    c: '通过【格口看板-规则配置】配置格口 09(分拣机 FJ-01)规则,由「产品 包含 美森快船-普货」改为「调拨目的仓 包含 德国仓、英国仓」' },
+  { chute: '03', t: '2026-09-18 15:40:12', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【格口看板-规则配置】配置格口 03(分拣机 FJ-01)规则,由「产品 包含 美森快船-带电」改为「产品 包含 美森快船-带电、海运普船-带电、海外卡派-带电 且 渠道 包含 海运直达、海运中转」' },
+];
+
 /* ============================================
    方案列表(基线 V1.3.4)
    ============================================ */
@@ -163,7 +175,54 @@ function sbSolutionsView() {
       <button class="pg-btn" title="下一页">›</button><button class="pg-btn" title="末页">»</button>
       <span class="pg-info">总记录数: <b>${rows.length}</b> 条,总页数: <b>1</b> 页,当前第 <b>1</b> 页</span>
     </div>
-    ${sbBoardModal()}${sbRuleModal()}${sbReleaseModal()}
+    ${sbBoardModal()}${sbRuleModal()}${sbReleaseModal()}${sbLogModal()}
+  `;
+}
+
+/* ============================================
+   弹窗:操作日志(该方案全部格口的规则配置记录,可按格口号筛)
+   ============================================ */
+function sbLogRowsHtml(kw) {
+  const rows = SB_RULE_LOGS.filter(l => !kw || l.chute.includes(kw));
+  if (!rows.length) return '<tr><td colspan="6" class="cr-empty">没有符合条件的操作记录</td></tr>';
+  return rows.map((l, i) => `
+    <tr>
+      <td class="col--num">${i + 1}</td>
+      <td class="col--code">${l.chute}</td>
+      <td>${l.u}</td>
+      <td>${l.t}</td>
+      <td>${l.og || '—'}</td>
+      <td>${l.c}</td>
+    </tr>`).join('');
+}
+
+function sbLogModal() {
+  return `
+    <div class="rw-modal" id="sbLogMask" style="display:none">
+      <div class="rw-modal-mask" onclick="SbPage.closeLog()"></div>
+      <div class="rw-modal-panel rw-modal-panel--log rw-modal-panel--scroll">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title" id="sbLogTitle">操作日志</span>
+          <button class="rw-modal-close" onclick="SbPage.closeLog()">✕</button>
+        </div>
+        <div class="rw-modal-body">
+          <div class="sb-log-filter">
+            <label>格口号</label>
+            <input class="ipt" id="sbLogChute" placeholder="如 03,留空看全部"
+                   onkeydown="if(event.key==='Enter'){SbPage.doLogQuery()}" />
+            <button class="btn" onclick="SbPage.doLogQuery()">🔍 查询</button>
+            <span class="sb-log-count" id="sbLogCount"></span>
+          </div>
+          <table class="grid sb-log-grid" style="width:100%;">
+            <thead><tr><th>NO.</th><th>格口号</th><th>操作人</th><th>操作时间</th><th>操作网点</th><th>操作内容</th></tr></thead>
+            <tbody id="sbLogBody"></tbody>
+          </table>
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn btn--primary" onclick="SbPage.closeLog()">关闭</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -234,6 +293,7 @@ function sbRenderBoardBody() {
       <span class="sb-pick-count">已选中 <b>${SbPage.selChutes.size}</b> 个口</span>
       <button class="btn btn--primary" onclick="SbPage.editRuleChecked()">✏️ 编辑落口规则</button>
       <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
+      <button class="btn" onclick="SbPage.openLog()">📋 操作日志</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
     <div class="sb-board-tip">看板 3s 自动轮询;单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
@@ -461,6 +521,24 @@ const SbPage = {
   },
   closeBoard() { document.getElementById('sbBoardMask').style.display = 'none'; },
 
+  /* ---- 操作日志(该方案各格口的规则配置记录) ---- */
+  openLog() {
+    const s = this.sol || SB_SOLUTIONS[0];
+    document.getElementById('sbLogTitle').textContent =
+      `操作日志 — ${s.solutionName} | ${s.sorterName}(${s.sorterCode})`;
+    document.getElementById('sbLogChute').value = '';
+    this.doLogQuery();
+    document.getElementById('sbLogMask').style.display = 'flex';
+  },
+  closeLog() { document.getElementById('sbLogMask').style.display = 'none'; },
+  doLogQuery() {
+    const kw = (document.getElementById('sbLogChute') || {}).value || '';
+    document.getElementById('sbLogBody').innerHTML = sbLogRowsHtml(kw.trim());
+    const n = SB_RULE_LOGS.filter(l => !kw.trim() || l.chute.includes(kw.trim())).length;
+    document.getElementById('sbLogCount').textContent = kw.trim()
+      ? `格口 ${kw.trim()} 命中 ${n} 条记录` : `共 ${n} 条记录(全部格口)`;
+  },
+
   /* ---- 卡片单击=选中(延时区分双击),双击=编辑规则 ---- */
   cardClick(no) {
     clearTimeout(this._clickTimer);
@@ -504,8 +582,17 @@ const SbPage = {
     });
     if (incomplete) { Helpers.toast('每行条件需填全内容(区间需起止两个数值);删光条件行保存=恢复默认池'); return; }
     const isClear = this.editConds.length === 0;
+    const s = this.sol || SB_SOLUTIONS[0];
+    /* 日志记"改之前长什么样"(排查"这票货为什么落这个口"要回得出改前的规则) */
+    const oldText = c.conds.length ? sbRuleTitle(c) : '未配规则';
     c.conds = this.editConds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
     c.joiner = this.editJoiner;
+    SB_RULE_LOGS.unshift({
+      chute: c.no, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
+      c: isClear
+        ? `通过【格口看板-规则配置】清空格口 ${c.no}(分拣机 ${s.sorterCode})规则,恢复默认分拣`
+        : `通过【格口看板-规则配置】配置格口 ${c.no}(分拣机 ${s.sorterCode})规则,由「${oldText}」改为「${sbRuleTitle(c)}」`,
+    });
     this.closeRule();
     sbRenderBoardBody();
     document.getElementById('sbBoardMask').style.display = 'flex';

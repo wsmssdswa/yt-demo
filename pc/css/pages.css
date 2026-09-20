@@ -359,6 +359,10 @@
 
 /* 4 列日志表(无操作网点列):操作内容自动填充并允许换行显示完全 */
 .rw-log-grid--wrap th:nth-child(4), .rw-log-grid--wrap td:nth-child(4) { width: auto; white-space: normal; word-break: break-all; }
+/* 5 列日志表(含操作网点列):操作内容列自动填充并允许换行 */
+.rw-log-grid--wrap5 th:nth-child(5), .rw-log-grid--wrap5 td:nth-child(5) { width: auto; white-space: normal; word-break: break-all; }
+/* 操作日志弹窗面板(分拣项配置/格口看板):操作内容文案长,比 --wide 再宽一档 */
+.rw-modal-panel--log { width: 880px; }
 
 /* ============================================================
    B2B安检记录查询(b2b-security)
@@ -875,6 +879,17 @@
 .sb-chip-join--hl { color: #00817F; font-weight: 600; }
 .sb-policy-note { margin: 10px 0 4px; font-size: 12px; color: #5B6B84; background: #F0F7FF; border: 1px solid #BAD5F5; border-radius: 4px; padding: 6px 10px; }
 .sb-pick-count { font-size: 12px; color: #5B6B84; }
+/* 看板-操作日志弹窗:筛选条 + 6 列日志表(比通用日志表多"格口号"列) */
+.sb-log-filter { display: flex; align-items: center; gap: 8px; padding: 0 0 8px; }
+.sb-log-filter label { font-size: 12px; color: #333; }
+.sb-log-filter .ipt { width: 150px; }
+.sb-log-count { font-size: 12px; color: #5B6B84; }
+.sb-log-grid th:nth-child(1), .sb-log-grid td:nth-child(1) { width: 44px; text-align: center; }
+.sb-log-grid th:nth-child(2), .sb-log-grid td:nth-child(2) { width: 70px; text-align: center; white-space: nowrap; }
+.sb-log-grid th:nth-child(3), .sb-log-grid td:nth-child(3) { width: 80px; white-space: nowrap; }
+.sb-log-grid th:nth-child(4), .sb-log-grid td:nth-child(4) { width: 160px; white-space: nowrap; }
+.sb-log-grid th:nth-child(5), .sb-log-grid td:nth-child(5) { width: 140px; white-space: nowrap; }
+.sb-log-grid th:nth-child(6), .sb-log-grid td:nth-child(6) { width: auto; white-space: normal; word-break: break-all; }
 /* 看板失效警告条 */
 .sb-warn-bar { font-size: 12px; color: #CF1322; background: #FFF1F0; border: 1px solid #FFA39E; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; }
 /* 应用分组方案弹窗 */

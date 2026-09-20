@@ -148,7 +148,49 @@ function siEditModal() {
   `;
 }
 
-/* 列表运算符列:数量 + 悬浮全量(真实系统 12 运算符,label 较长不宜整列平铺) */
+/* 变更明细:只列发生变化的属性,写成"属性 旧值 → 新值"(对齐日志参数规范;清单类收敛为前 3 项+总数) */
+function siDiffText(before, after) {
+  const out = [];
+  if (before.name !== after.name) out.push(`中文名 ${before.name} → ${after.name}`);
+  const labels = codes => (codes || []).map(c => (SIR_OP_MAP[c] || {}).label || c);
+  const bOps = labels(before.ops).join('、'), aOps = labels(after.ops).join('、');
+  if (bOps !== aOps) out.push(`运算符 ${bOps || '无'} → ${aOps || '无'}`);
+  const kindText = vs => vs.kind === 'manual' ? '手工清单'
+    : vs.kind === 'api' ? `接口数据源·${vs.apiKey || ''}` : '无(数值直接填)';
+  const bvs = before.valSource || {}, avs = after.valSource || {};
+  if ((bvs.kind || '') !== (avs.kind || '')) {
+    out.push(`可选值来源 ${kindText(bvs)} → ${kindText(avs)}`);
+  } else if (avs.kind === 'manual') {
+    const bc = (bvs.values || []).map(v => v.code), ac = (avs.values || []).map(v => v.code);
+    const brief = arr => arr.length > 3 ? `${arr.slice(0, 3).join('、')} 等 ${arr.length} 项` : arr.join('、');
+    const add = ac.filter(c => !bc.includes(c)), del = bc.filter(c => !ac.includes(c));
+    const seg = [];
+    if (add.length) seg.push(`新增 ${brief(add)}`);
+    if (del.length) seg.push(`删除 ${brief(del)}`);
+    if (seg.length) out.push(`可选值 ${seg.join(';')}`);
+  }
+  return out.join(';') || '无变化';
+}
+
+/* 操作日志弹窗(选中分拣项 → 该分拣项的新增/修改/删除记录;对齐退仓/增值页日志弹窗范式) */
+function siLogModal() {
+  return `
+    <div class="rw-modal" id="siLogMask" style="display:none">
+      <div class="rw-modal-mask" onclick="SiPage.closeLog()"></div>
+      <div class="rw-modal-panel rw-modal-panel--log rw-modal-panel--scroll">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title" id="siLogTitle">操作日志</span>
+          <button class="rw-modal-close" onclick="SiPage.closeLog()">✕</button>
+        </div>
+        <div class="rw-modal-body" id="siLogBody"></div>
+        <div class="rw-modal-footer">
+          <button class="btn btn--primary" onclick="SiPage.closeLog()">关闭</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* 列表运算符列:直接列运算符名称,超出由列宽省略号截断,悬浮看全量(含表达式) */
 function siOpsCell(it) {
   const full = it.ops.map(c => {
@@ -214,6 +256,25 @@ const SiPage = {
     document.getElementById('siTotal').textContent = list.length;
   },
   check(key) { this.checked = key; this.render(); },
+
+  /* ---- 操作日志(演示入口:工具栏「日志」+ 选中一行) ---- */
+  openLog() {
+    if (!this.checked) { Helpers.toast('请选择要查看日志的分拣项'); return; }
+    const it = SortItemRegistry.items().find(i => i.key === this.checked);
+    if (!it) return;
+    document.getElementById('siLogTitle').textContent = `操作日志 — ${it.name}`;
+    const rows = SortItemRegistry.logs(it.key);
+    document.getElementById('siLogBody').innerHTML = rows.length
+      ? `<table class="grid rw-log-grid rw-log-grid--wrap5" style="width:100%;">
+           <thead><tr><th>NO.</th><th>操作人</th><th>操作时间</th><th>操作网点</th><th>操作内容</th></tr></thead>
+           <tbody>${rows.map((l, i) => `
+             <tr><td class="col--num">${i + 1}</td><td>${l.u}</td><td>${l.t}</td>
+               <td>${l.og || '—'}</td><td>${l.c}</td></tr>`).join('')}</tbody>
+         </table>`
+      : '<div class="cr-empty">该分拣项暂无操作日志</div>';
+    document.getElementById('siLogMask').style.display = 'flex';
+  },
+  closeLog() { document.getElementById('siLogMask').style.display = 'none'; },
 
   /* 列表工具栏 */
   addNew() {
@@ -323,14 +384,23 @@ const SiPage = {
       if (list.some(i => i.fieldName === field)) { Helpers.toast(`field_name ${field} 已存在`); return; }
       d.key = 'f_' + field; d.fieldName = field; d.name = name;
       list.push(JSON.parse(JSON.stringify(d)));
+      SortItemRegistry.addLog({ key: d.key, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
+        c: `通过【分拣项配置-新增】新增分拣项:${name},字段标识:${field}` });
       Helpers.toast(`分拣项「${name}」已新增,规则页刷新后下拉可见`);
     } else {
       const it = list.find(i => i.key === this.editingKey);
       if (!it) return;
       /* 被引用不再锁编辑;移除的运算符会在引用规则中显示"已失效",保存时给影响提示 */
       const removedOps = (it.ops || []).filter(c => !(d.ops || []).includes(c));
+      const before = JSON.parse(JSON.stringify(it));
       Object.assign(it, d);
       it.updateUser = '庄亚运'; it.updateTime = Helpers.nowTime();
+      /* 无变化不记日志(日志只记真实变更) */
+      const diff = siDiffText(before, it);
+      if (diff !== '无变化') {
+        SortItemRegistry.addLog({ key: it.key, t: it.updateTime, u: '庄亚运', og: '东腾曼沙项目仓',
+          c: `通过【分拣项配置-编辑】修改分拣项:${name},变更:${diff}` });
+      }
       if (it.refCount > 0 && removedOps.length) {
         Helpers.toast(`已保存:被移除的运算符在 ${it.refCount} 条引用规则中显示「已失效」并不再命中`);
       } else {
@@ -351,6 +421,8 @@ const SiPage = {
     const i = list.findIndex(x => x.key === this.checked);
     list.splice(i, 1);
     SortItemRegistry.save(list);
+    SortItemRegistry.addLog({ key: it.key, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
+      c: `通过【分拣项配置-删除】删除分拣项:${it.name},字段标识:${it.fieldName}` });
     this.checked = null;
     this.render();
     Helpers.toast(`分拣项「${it.name}」已删除`);
@@ -368,6 +440,7 @@ document.getElementById('app').innerHTML = Layout.window({
       <button class="btn" onclick="SiPage.addNew()"><span class="ic">➕</span><span>新增</span></button>
       <button class="btn" onclick="SiPage.editChecked()"><span class="ic">✏️</span><span>编辑</span></button>
       <button class="btn" onclick="SiPage.delItem()"><span class="ic">🗑</span><span>删除</span></button>
+      <button class="btn" onclick="SiPage.openLog()"><span class="ic">📋</span><span>日志</span></button>
       <span class="sb-toolbar-note">被规则引用的分拣项不可删除;修改运算符 / 可选值会提示影响的规则数</span>
     </div>
     ${siGrid()}
@@ -377,6 +450,7 @@ document.getElementById('app').innerHTML = Layout.window({
       <span class="pg-info">总记录数: <b id="siTotal"></b> 条</span>
     </div>
     ${siEditModal()}
+    ${siLogModal()}
   `,
 });
 SiPage.render();

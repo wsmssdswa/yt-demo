@@ -10,6 +10,25 @@
    ============================================ */
 
 const SIR_STORAGE_KEY = 'b2bSortItemRegistry_v1';
+/* 操作日志存档 key(演示用;真实系统写通用操作日志模块,按分拣项维度查询) */
+const SIR_LOG_KEY = 'b2bSortItemLogs_v1';
+
+/* 操作日志演示数据(按分拣项 key 归档,新→旧)
+   真实文案规范:完整中文句子 + 【功能名-按钮】来源标注 + 变更类带"属性 旧值 → 新值" */
+const SIR_DEFAULT_LOGS = [
+  { key: 'product', t: '2026-09-19 09:05:33', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【分拣项配置-编辑】修改分拣项:产品,变更:中文名 产品编码 → 产品' },
+  { key: 'product', t: '2026-09-18 15:22:10', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【分拣项配置-编辑】修改分拣项:产品,变更:运算符 等于、包含 → 等于、包含、关键字匹配、匹配开始字符、匹配结束字符' },
+  { key: 'product', t: '2026-09-04 10:00:00', u: '系统内置', og: '—',
+    c: '通过【分拣项配置-新增】新增分拣项:产品,字段标识:product_code' },
+  { key: 'exception', t: '2026-09-18 16:03:41', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【分拣项配置-编辑】修改分拣项:异常类型,变更:可选值 新增 CF、CIF' },
+  { key: 'destOrg', t: '2026-09-19 11:47:02', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【分拣项配置-编辑】修改分拣项:调拨目的仓,变更:可选值 新增 DE-FRA、UK-LON、US-ATL' },
+  { key: 'destCountry', t: '2026-09-19 14:12:55', u: '庄亚运', og: '东腾曼沙项目仓',
+    c: '通过【分拣项配置-删除】删除分拣项:目的国,字段标识:dest_country_code' },
+];
 
 /* 默认种子(与三个规则页演示数据对齐;refCount>0 表示被规则引用,禁止删除)
    ops 省略 = 按数据类型给默认全集(由 items() 归一化填充;旧存档中文 ops 同样被修复) */
@@ -96,6 +115,23 @@ const SortItemRegistry = {
 
   /* 注册项是否被引用(删除保护演示) */
   isReferenced(it) { return it.refCount > 0; },
+
+  /* ---- 操作日志(演示:localStorage 存档;真实系统写通用操作日志模块) ----
+     itemKey 省略 = 全部(删除项的日志也在,便于追溯已删除的分拣项) */
+  logs(itemKey) {
+    let all = null;
+    try {
+      const raw = localStorage.getItem(SIR_LOG_KEY);
+      if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) all = arr; }
+    } catch (e) { /* 回退种子 */ }
+    if (!all) all = SIR_DEFAULT_LOGS.map(l => ({ ...l }));
+    return itemKey ? all.filter(l => l.key === itemKey) : all;
+  },
+  addLog(entry) {
+    const all = this.logs();
+    all.unshift(entry);
+    try { localStorage.setItem(SIR_LOG_KEY, JSON.stringify(all)); } catch (e) { /* 忽略 */ }
+  },
 };
 
 /* ---- 运算符辅助(供三个规则页与配置页共用) ---- */
