@@ -123,7 +123,8 @@ function SIR_valSummary(itemDef, c, ctrl) {
     return m ? m.name : String(v);
   };
   const op = SIR_opOf(c.op);
-  if (ctrl === 'in') return `${itemDef.label}含${c.values.length}`;
+  /* 摘要列出具体值(不显示数量);过长由使用处 CSS 省略号截断,悬浮看全文 */
+  if (ctrl === 'in') return `${itemDef.label}含${(c.values || []).map(nameOf).join('、')}`;
   if (ctrl === 'range') return `${itemDef.label}∈${c.values[0]}~${c.values[1]}`;
   if (ctrl === 'num') return `${itemDef.label}${op ? op.expr : c.op}${c.values[0] || ''}`;
   if (ctrl === 'text') return `${itemDef.label}${op ? op.expr : c.op}${c.values[0] || ''}`;
