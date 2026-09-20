@@ -6,7 +6,7 @@
      · 新增分拣项免发版——保存后到规则页刷新,下拉即出现新验证字段
      · 不选数据类型:值形态由绑定的运行字段性质自动推导(数值/编码清单),
        运算符从真实系统 12 个里自由勾选
-     · 被规则引用的项锁定(运算符/可选值禁改,弹窗内直接禁用)
+     · 被规则引用的项给出影响提示(运算符/可选值仍可改;移除的运算符在规则中显示「已失效」)
      · localStorage 存配置(纯静态跨页共享,演示用)
    ============================================ */
 
@@ -220,24 +220,20 @@ const SiPage = {
     this.draft = JSON.parse(JSON.stringify(it));
     this.openEditForm(`编辑分拣项 — ${it.name}`, it.refCount > 0);
   },
-  openEditForm(title, locked) {
+  openEditForm(title, referenced) {
     document.getElementById('siEditTitle').textContent = title;
     document.getElementById('siFName').value = this.draft.name;
     document.getElementById('siFField').value = this.draft.fieldName;
     document.getElementById('siFField').disabled = !!this.editingKey;   /* field_name 保存后不可改 */
     const lockNote = document.getElementById('siLockNote');
-    if (locked) {
+    if (referenced) {
+      /* 被引用只提示影响面,不锁编辑:移除的运算符在引用规则中显示"已失效"、不再命中 */
       lockNote.style.display = '';
-      lockNote.innerHTML = `🔒 被 ${this.draft.refCount} 条规则引用:运算符 / 可选值已锁定,如需调整请先在规则中摘除;中文名仍可修改`;
+      lockNote.innerHTML = `⚠ 被 ${this.draft.refCount} 条规则引用:运算符 / 可选值仍可修改;移除的运算符在这些规则中会显示「已失效」并停止命中(走默认分拣)`;
     } else {
       lockNote.style.display = 'none';
     }
     this.renderForm();
-    if (locked) {
-      /* 被引用锁定:运算符勾选与编辑器可选值区一并禁用 */
-      document.getElementById('siFOps').querySelectorAll('input').forEach(el => { el.disabled = true; });
-      document.getElementById('siValBody').querySelectorAll('input,select,button').forEach(el => { el.disabled = true; });
-    }
     document.getElementById('siEditMask').style.display = 'flex';
   },
   closeEdit() { document.getElementById('siEditMask').style.display = 'none'; },
@@ -301,18 +297,15 @@ const SiPage = {
     } else {
       const it = list.find(i => i.key === this.editingKey);
       if (!it) return;
-      if (it.refCount > 0) {
-        /* 锁定项 UI 已禁用运算符/可选值,此处兜底:只允许中文名变更 */
-        const lockedF = ['ops', 'valSource'];
-        if (lockedF.some(f => JSON.stringify(d[f]) !== JSON.stringify(it[f]))) {
-          Helpers.toast('该项被规则引用,不允许修改运算符/可选值;请先在规则中摘除'); return;
-        }
-        it.name = name;
-      } else {
-        Object.assign(it, d);
-      }
+      /* 被引用不再锁编辑;移除的运算符会在引用规则中显示"已失效",保存时给影响提示 */
+      const removedOps = (it.ops || []).filter(c => !(d.ops || []).includes(c));
+      Object.assign(it, d);
       it.updateUser = '庄亚运'; it.updateTime = Helpers.nowTime();
-      Helpers.toast(`分拣项「${name}」已保存(演示)`);
+      if (it.refCount > 0 && removedOps.length) {
+        Helpers.toast(`已保存:被移除的运算符在 ${it.refCount} 条引用规则中显示「已失效」并不再命中(演示)`);
+      } else {
+        Helpers.toast(`分拣项「${name}」已保存(演示)`);
+      }
     }
     SortItemRegistry.save(list);
     this.closeEdit();
@@ -345,7 +338,7 @@ document.getElementById('app').innerHTML = Layout.window({
       <button class="btn" onclick="SiPage.addNew()"><span class="ic">➕</span><span>新增</span></button>
       <button class="btn" onclick="SiPage.editChecked()"><span class="ic">✏️</span><span>编辑</span></button>
       <button class="btn" onclick="SiPage.delItem()"><span class="ic">🗑</span><span>删除</span></button>
-      <span class="sb-toolbar-note">分拣项由本页注册表统一维护,规则编辑器下拉从注册表读取——新增分拣项免发版;被规则引用的项不可删除、运算符与可选值锁定</span>
+      <span class="sb-toolbar-note">分拣项由本页注册表统一维护,规则编辑器下拉从注册表读取——新增分拣项免发版;被规则引用的项不可删除,改运算符/可选值会提示影响面</span>
     </div>
     ${siGrid()}
     <div class="pager">
