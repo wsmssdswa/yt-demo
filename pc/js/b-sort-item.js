@@ -82,9 +82,9 @@ function siManualRowsHtml(it) {
   }
   return rows.map((v, i) => `
     <tr>
-      <td><input class="ipt" style="width:100%" placeholder="值 code,如 CIF"
+      <td><input class="ipt" style="width:100%" placeholder="如 CIF"
         value="${v.code}" oninput="SiPage.mv(${i},'code',this.value)" onkeydown="SiPage.mvKey(event)" /></td>
-      <td><input class="ipt" style="width:100%" placeholder="显示名,如 签入失败"
+      <td><input class="ipt" style="width:100%" placeholder="如 签入失败"
         value="${v.name}" oninput="SiPage.mv(${i},'name',this.value)" onkeydown="SiPage.mvKey(event)" /></td>
       <td class="col--check"><button class="si-mrow-del" onclick="SiPage.mvDel(${i})"
         title="删除该行">✕</button></td>
@@ -117,13 +117,13 @@ function siEditModal() {
           <div class="si-sec-title">基本信息</div>
           <div class="rw-form-row">
             <label class="rw-form-label"><span class="rw-req">*</span>中文名</label>
-            <input class="ipt rw-form-ipt" id="siFName" placeholder="规则编辑器下拉显示的名称,如 目的国" />
+            <input class="ipt rw-form-ipt" id="siFName" placeholder="如 目的国" />
           </div>
           <div class="rw-form-row">
             <label class="rw-form-label"><span class="rw-req">*</span>field_name</label>
             <div style="flex:1">
               <input class="ipt rw-form-ipt" id="siFField" placeholder="小写 snake_case,如 dest_country_code" style="width:100%" />
-              <div class="si-dim" id="siFFieldTip">唯一标识,保存后不可修改;须与分拣接口取值的 key 一致(配错表现为规则不命中)</div>
+              <div class="si-dim" id="siFFieldTip">唯一标识,保存后不可修改;须与过机接口取值字段一致</div>
             </div>
           </div>
 
@@ -132,14 +132,13 @@ function siEditModal() {
             <label class="rw-form-label"><span class="rw-req">*</span>运算符</label>
             <div style="flex:1">
               <div class="si-op-grid" id="siFOps"></div>
-              <div class="si-dim">真实系统 12 个运算符全部可选,按需勾选(保存需至少一个);内容控件随运算符变化:包含=多选,等于/不等于=单选,匹配类=文本,比较/区间=数值</div>
+              <div class="si-dim">按需勾选,至少勾选一个;规则行「内容」的填写方式随运算符变化</div>
             </div>
           </div>
 
           <div class="si-sec-title">编辑器可选值</div>
           <div id="siValBody"></div>
         </div>
-        <div class="rw-modal-tip">保存后到规则页(B2B分拣管理-格口看板)刷新,验证字段下拉即出现该项</div>
         <div class="rw-modal-footer">
           <button class="btn" onclick="SiPage.closeEdit()">取消</button>
           <button class="btn btn--primary" onclick="SiPage.saveEdit()">保存</button>
@@ -183,7 +182,7 @@ function siValBodyHtml() {
             <tbody id="siManualRows">${siManualRowsHtml(d)}</tbody>
           </table>
           <button class="btn" style="margin-top:6px" title="在任一输入框按回车也可快速加一行" onclick="SiPage.mvAdd()">➕ 加一行</button>
-          <div class="si-dim" style="margin-top:4px">code 必填且不可重复(匹配用值);显示名留空自动取 code;空行保存时自动忽略</div>
+          <div class="si-dim" style="margin-top:4px">code 必填且不可重复;显示名留空自动取 code;空行保存时自动忽略</div>
         </div>`
       : k === 'api' ? `
         <label class="rw-form-label">数据源</label>
@@ -193,11 +192,11 @@ function siValBodyHtml() {
             <option value="product">产品主数据(SPMS 同步)</option>
             <option value="channel">渠道主数据</option>
           </select>
-          <div class="si-dim" style="margin-top:4px">配规则时实时拉取,随主数据自动更新,无重复维护</div>
+          <div class="si-dim" style="margin-top:4px">随主数据自动更新,无需人工维护</div>
         </div>`
       : `
         <label class="rw-form-label">数值</label>
-        <div class="si-val-static" style="flex:1">配规则时「内容」直接填数值(比较/区间运算符用),无需值清单</div>`}
+        <div class="si-val-static" style="flex:1">规则行「内容」直接填数值,无需维护值清单</div>`}
     </div>`;
 }
 
@@ -240,7 +239,7 @@ const SiPage = {
     if (referenced) {
       /* 被引用只提示影响面,不锁编辑:移除的运算符在引用规则中显示"已失效"、不再命中 */
       lockNote.style.display = '';
-      lockNote.innerHTML = `⚠ 被 ${this.draft.refCount} 条规则引用:运算符 / 可选值仍可修改;移除的运算符在这些规则中会显示「已失效」并停止命中(走默认分拣)`;
+      lockNote.innerHTML = `⚠ 被 ${this.draft.refCount} 条规则引用:修改运算符 / 可选值后,引用规则中的对应条件行会显示「已失效」并停止命中`;
     } else {
       lockNote.style.display = 'none';
     }
@@ -367,7 +366,7 @@ document.getElementById('app').innerHTML = Layout.window({
       <button class="btn" onclick="SiPage.addNew()"><span class="ic">➕</span><span>新增</span></button>
       <button class="btn" onclick="SiPage.editChecked()"><span class="ic">✏️</span><span>编辑</span></button>
       <button class="btn" onclick="SiPage.delItem()"><span class="ic">🗑</span><span>删除</span></button>
-      <span class="sb-toolbar-note">分拣项由本页注册表统一维护,规则编辑器下拉从注册表读取——新增分拣项免发版;被规则引用的项不可删除,改运算符/可选值会提示影响面</span>
+      <span class="sb-toolbar-note">被规则引用的分拣项不可删除;修改运算符 / 可选值会提示影响的规则数</span>
     </div>
     ${siGrid()}
     <div class="pager">
