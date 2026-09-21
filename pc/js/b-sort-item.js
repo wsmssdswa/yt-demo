@@ -148,18 +148,18 @@ function siEditModal() {
   `;
 }
 
-/* 变更明细:只列发生变化的属性,写成"属性 旧值 → 新值"(对齐日志参数规范;清单类收敛为前 3 项+总数) */
+/* 变更明细:只列发生变化的属性,写成"属性:旧值→新值"(对齐日志参数规范;清单类收敛为前 3 项+总数) */
 function siDiffText(before, after) {
   const out = [];
-  if (before.name !== after.name) out.push(`中文名 ${before.name} → ${after.name}`);
+  if (before.name !== after.name) out.push(`中文名:${before.name}→${after.name}`);
   const labels = codes => (codes || []).map(c => (SIR_OP_MAP[c] || {}).label || c);
   const bOps = labels(before.ops).join('、'), aOps = labels(after.ops).join('、');
-  if (bOps !== aOps) out.push(`运算符 ${bOps || '无'} → ${aOps || '无'}`);
+  if (bOps !== aOps) out.push(`运算符:${bOps || '无'}→${aOps || '无'}`);
   const kindText = vs => vs.kind === 'manual' ? '手工清单'
     : vs.kind === 'api' ? `接口数据源·${vs.apiKey || ''}` : '无(数值直接填)';
   const bvs = before.valSource || {}, avs = after.valSource || {};
   if ((bvs.kind || '') !== (avs.kind || '')) {
-    out.push(`可选值来源 ${kindText(bvs)} → ${kindText(avs)}`);
+    out.push(`可选值来源:${kindText(bvs)}→${kindText(avs)}`);
   } else if (avs.kind === 'manual') {
     const bc = (bvs.values || []).map(v => v.code), ac = (avs.values || []).map(v => v.code);
     const brief = arr => arr.length > 3 ? `${arr.slice(0, 3).join('、')} 等 ${arr.length} 项` : arr.join('、');
@@ -167,9 +167,9 @@ function siDiffText(before, after) {
     const seg = [];
     if (add.length) seg.push(`新增 ${brief(add)}`);
     if (del.length) seg.push(`删除 ${brief(del)}`);
-    if (seg.length) out.push(`可选值 ${seg.join(';')}`);
+    if (seg.length) out.push(`可选值:${seg.join('；')}`);
   }
-  return out.join(';') || '无变化';
+  return out.join('；') || '无变化';
 }
 
 /* 操作日志弹窗
@@ -418,7 +418,7 @@ const SiPage = {
       d.key = 'f_' + field; d.fieldName = field; d.name = name;
       list.push(JSON.parse(JSON.stringify(d)));
       SortItemRegistry.addLog({ key: d.key, name, fieldName: field, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
-        c: `通过【分拣项配置-新增】新增分拣项:${name},字段标识:${field}` });
+        c: `通过【分拣项配置-新增】新增分拣项：${name}，字段标识：${field}` });
       Helpers.toast(`分拣项「${name}」已新增,规则页刷新后下拉可见`);
     } else {
       const it = list.find(i => i.key === this.editingKey);
@@ -432,7 +432,7 @@ const SiPage = {
       const diff = siDiffText(before, it);
       if (diff !== '无变化') {
         SortItemRegistry.addLog({ key: it.key, name, fieldName: it.fieldName, t: it.updateTime, u: '庄亚运', og: '东腾曼沙项目仓',
-          c: `通过【分拣项配置-编辑】修改分拣项:${name},变更:${diff}` });
+          c: `通过【分拣项配置-编辑】修改分拣项：${name}，变更：${diff}` });
       }
       if (it.refCount > 0 && removedOps.length) {
         Helpers.toast(`已保存:被移除的运算符在 ${it.refCount} 条引用规则中显示「已失效」并不再命中`);
@@ -455,7 +455,7 @@ const SiPage = {
     list.splice(i, 1);
     SortItemRegistry.save(list);
     SortItemRegistry.addLog({ key: it.key, name: it.name, fieldName: it.fieldName, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
-      c: `通过【分拣项配置-删除】删除分拣项:${it.name},字段标识:${it.fieldName}` });
+      c: `通过【分拣项配置-删除】删除分拣项：${it.name}，字段标识：${it.fieldName}` });
     this.checked = null;
     this.render();
     Helpers.toast(`分拣项「${it.name}」已删除`);

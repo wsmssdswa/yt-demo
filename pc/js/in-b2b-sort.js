@@ -46,14 +46,13 @@ function sbBuildChutes() {
     { item: 'channel', op: 'IN', values: ['HAIYUN-ZHIXIAN', 'HAIYUN-ZHONGZHUAN'] },
   ];
   const ruleCif = [ { item: 'exception', op: 'IN', values: ['CIF'] } ];
-  const ruleDest = [ { item: 'destOrg', op: 'IN', values: ['DE-FRA', 'UK-LON'] } ];
   const rulePieces = [ { item: 'pieces', op: 'GT', values: ['5'] } ];
   const cp = r => r.map(c => ({ ...c, values: c.values.slice() }));
   ['03', '04', '21', '22'].forEach(n => { byNo(n).conds = cp(ruleElecSea); });
   ['05', '06', '23', '24'].forEach(n => { byNo(n).conds = cp(ruleMg); });
   ['07', '08', '27', '28'].forEach(n => { byNo(n).conds = cp(ruleNoElec); });
   ['43', '44'].forEach(n => { byNo(n).conds = cp(ruleCif); });
-  ['09', '10'].forEach(n => { byNo(n).conds = cp(ruleDest); });
+  /* 09/10 留空 = 默认池:演示"未配规则的格口仍按其格口属性参与默认分拣" */
   ['13', '14'].forEach(n => { byNo(n).conds = cp(rulePieces); });
   /* 02 口(单件):单字段规则示例(只按产品圈货) */
   byNo('02').conds = [ { item: 'product', op: 'IN', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC'] } ];
@@ -111,20 +110,36 @@ function sbRuleTitle(c) {
     return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
   }).join(` ${c.joiner} `);
 }
+/* 规则摘要(日志用):条件行超 3 行只记前 3 行与总数(与 PRD 记录参数口径一致) */
+function sbRuleLogText(conds, joiner) {
+  const pick = conds.length > 3 ? conds.slice(0, 3) : conds;
+  const body = pick.map(x => {
+    const def = sbItemDef(x.item);
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
+  }).join(` ${joiner} `);
+  return conds.length > 3 ? `${body} 等 ${conds.length} 行` : body;
+}
+
 /* ---- 演示数据初始化 ---- */
 const SB_CHUTES = sbBuildChutes();
+
+/* 规则失效演示(PRD 功能②业务规则):上一版方案(v20260810,52 个口)给 52 号口配过规则,
+   本版方案(v20260820)已无该格口号 → 规则失效:看板标红提示,过机命中该规则的货转异常口 */
+const SB_STALE_RULES = [
+  { chute: '52', joiner: '且', conds: [ { item: 'product', op: 'IN', values: ['US-KAPAI-ELC'] } ] },
+];
 
 /* 格口规则操作日志(演示数据,新→旧;真实系统写通用操作日志模块,按分拣机+格口号可查)
    sorter 用于"按方案筛"(外层列表选中一行方案 → 只看该分拣机) */
 const SB_RULE_LOGS = [
   { sorter: 'FJ-01', chute: '02', t: '2026-09-20 09:31:20', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【格口看板-规则配置】配置格口 02(分拣机 FJ-01)规则,由「未配规则」改为「产品 包含 美森快船-带电、海运普船-带电」' },
+    c: '通过【格口看板-规则配置】配置格口 02（分拣机 FJ-01）规则，由「未配规则」改为「产品 包含 美森快船-带电、海运普船-带电」' },
   { sorter: 'FJ-01', chute: '15', t: '2026-09-19 16:20:05', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【格口看板-规则配置】清空格口 15(分拣机 FJ-01)规则,恢复默认分拣' },
-  { sorter: 'FJ-01', chute: '09', t: '2026-09-19 10:15:44', u: '李四', og: '东腾曼沙项目仓',
-    c: '通过【格口看板-规则配置】配置格口 09(分拣机 FJ-01)规则,由「产品 包含 美森快船-普货」改为「调拨目的仓 包含 德国仓、英国仓」' },
+    c: '通过【格口看板-规则配置】清空格口 15（分拣机 FJ-01）规则，恢复默认分拣' },
+  { sorter: 'FJ-01', chute: '27', t: '2026-09-19 10:15:44', u: '李四', og: '东腾曼沙项目仓',
+    c: '通过【格口看板-规则配置】配置格口 27（分拣机 FJ-01）规则，由「产品 包含 美森快船-普货」改为「产品 包含 美森快船-普货、海运普船-普货、海外卡派-普货 且 渠道 包含 海运直达」' },
   { sorter: 'FJ-01', chute: '03', t: '2026-09-18 15:40:12', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【格口看板-规则配置】配置格口 03(分拣机 FJ-01)规则,由「产品 包含 美森快船-带电」改为「产品 包含 美森快船-带电、海运普船-带电、海外卡派-带电 且 渠道 包含 海运直达、海运中转」' },
+    c: '通过【格口看板-规则配置】配置格口 03（分拣机 FJ-01）规则，由「产品 包含 美森快船-带电」改为「产品 包含 美森快船-带电、海运普船-带电、海外卡派-带电 且 渠道 包含 海运直达、海运中转」' },
 ];
 
 /* ============================================
@@ -177,7 +192,7 @@ function sbSolutionsView() {
       <button class="pg-btn" title="下一页">›</button><button class="pg-btn" title="末页">»</button>
       <span class="pg-info">总记录数: <b>${rows.length}</b> 条,总页数: <b>1</b> 页,当前第 <b>1</b> 页</span>
     </div>
-    ${sbBoardModal()}${sbRuleModal()}${sbReleaseModal()}${sbLogModal()}
+    ${sbBoardModal()}${sbRuleModal()}${sbReleaseModal()}${sbLogModal()}${sbPickModal()}
   `;
 }
 
@@ -229,6 +244,41 @@ function sbLogModal() {
 }
 
 /* ============================================
+   弹窗:选择值(多选控件「选择…」打开;PC 端范式=勾选列表 + 确定/取消)
+   ============================================ */
+function sbPickModal() {
+  return `
+    <div class="rw-modal rw-modal--nested" id="sbPickMask" style="display:none">
+      <div class="rw-modal-mask" onclick="SbPage.closePick()"></div>
+      <div class="rw-modal-panel" style="width:460px">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title" id="sbPickTitle">选择值</span>
+          <button class="rw-modal-close" onclick="SbPage.closePick()">✕</button>
+        </div>
+        <div class="rw-modal-body">
+          <div class="rw-log-filter">
+            <label>搜索</label>
+            <input class="ipt" id="sbPickKw" placeholder="值 code / 显示名" oninput="SbPage.renderPickList()" />
+            <button class="btn" onclick="SbPage.pickAll(true)">全选</button>
+            <button class="btn" onclick="SbPage.pickAll(false)">清空</button>
+            <span class="rw-log-count" id="sbPickCount"></span>
+          </div>
+          <table class="grid sb-pick-grid" style="width:100%;">
+            <thead><tr><th class="col--check"><input type="checkbox" id="sbPickAllBox"
+              onchange="SbPage.pickAll(this.checked)" /></th><th>值 code</th><th>显示名</th></tr></thead>
+            <tbody id="sbPickBody"></tbody>
+          </table>
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn" onclick="SbPage.closePick()">取消</button>
+          <button class="btn btn--primary" onclick="SbPage.confirmPick()">确定</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================
    弹窗:格口看板(V1.3.4 基线 + 规则直挂口)
    ============================================ */
 function sbBoardCardsHtml() {
@@ -248,11 +298,12 @@ function sbBoardCardsHtml() {
                 title="点击查看未分拣子单明细">${c.cur}/${c.total}件${c.done ? ' 已到齐' : ''}</div>`
         : c.master
           ? `<div class="sb-card-master" title="${c.master}">${c.master}</div><div class="sb-card-free">已落格</div>`
-          : `<div class="sb-card-free">空闲</div>`;
+          : `<div class="sb-card-free">未占用</div>`;
     const confHtml = '';   /* 规则交叉提示已撤(格口不多,看规则摘要可判断);判定逻辑见 git 历史 */
+    /* 规则态与占用态分两行展示:未配规则=默认池(仍按单件/多件正常分配),别与"口没占用"混为一谈 */
     const rule = c.conds.length
-      ? `<div class="sb-card-badge sb-card-badge--rule" title="${sbRuleTitle(c)}">规则:${sbRuleSummary(c)}</div>`
-      : '';
+      ? `<div class="sb-card-badge sb-card-badge--rule" title="已配规则:${sbRuleTitle(c)}">已配规则:${sbRuleSummary(c)}</div>`
+      : `<div class="sb-card-badge sb-card-badge--pool" title="未配规则:该口按其格口属性正常分配(默认分拣)">默认池</div>`;
     return `<div class="sb-card ${cls} ${SbPage.selChutes.has(c.no) ? 'sb-card--sel' : ''}"
                  onclick="SbPage.cardClick('${c.no}')" ondblclick="SbPage.cardDblClick('${c.no}')"
                  title="格口 ${c.no} · ${c.attr}(单击选中,双击编辑规则)">
@@ -260,7 +311,13 @@ function sbBoardCardsHtml() {
         <span class="sb-card-attr" style="color:${sbAttrColor(c.attr)}">${c.attr}</span></div>
       ${mid}${confHtml}${rule}
     </div>`;
-  }).join('');
+  }).join('') + SB_STALE_RULES.map(r => `
+    <div class="sb-card sb-card--stale" title="规则失效:该格口号不在当前方案中;过机命中该规则的货转异常口">
+      <div class="sb-card-top"><span class="sb-card-no">${r.chute}</span>
+        <span class="sb-card-attr" style="color:#CF1322">规则失效</span></div>
+      <div class="sb-card-master">该格口号不在当前方案</div>
+      <div class="sb-card-badge sb-card-badge--stale" title="原规则:${sbRuleTitle(r)}">原规则:${sbRuleSummary(r)}</div>
+    </div>`).join('');
 }
 
 function sbBoardModal() {
@@ -285,11 +342,13 @@ function sbRenderBoardBody() {
   document.getElementById('sbBoardBody').innerHTML = `
     <div class="sb-board-head">
       <span class="sb-legend">
-        <i class="sb-lg sb-lg--free"></i>空闲
+        <i class="sb-lg sb-lg--free"></i>未占用
         <i class="sb-lg sb-lg--multi"></i>多件未到齐
         <i class="sb-lg sb-lg--done"></i>多件已到齐
         <i class="sb-lg sb-lg--abn"></i>异常
-        <i class="sb-lg sb-lg--rule">规则:</i>已配规则
+        <i class="sb-lg sb-lg--pool">默认池</i>未配规则(按单件/多件分配)
+        <i class="sb-lg sb-lg--rule">已配规则:</i>规则摘要
+        <i class="sb-lg sb-lg--stale">规则失效</i>格口号不在当前方案
       </span>
       <span style="flex:1"></span>
       <span class="sb-pick-count">已选中 <b>${SbPage.selChutes.size}</b> 个口</span>
@@ -297,40 +356,13 @@ function sbRenderBoardBody() {
       <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
-    <div class="sb-board-tip">看板 3s 自动轮询;单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池;一票货命中多个口时按格口号顺序落第一个空闲口;多件同票锁同一口</div>
+    <div class="sb-board-tip">单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池,仍按其格口属性正常分配(与"口没占用"是两回事);一票货命中多个口时按格口号数值升序取第一个空闲口;多件同票锁同一口;规则失效的口在看板上标红,命中该规则的货转异常口</div>
   `;
 }
 
 /* ============================================
    弹窗:配置格口规则(单口)
    ============================================ */
-function sbFitChipsInto(el, chipHtmls, phHtml) {
-  if (!chipHtmls.length) { el.innerHTML = phHtml; return; }
-  el.innerHTML = '';
-  let shown = 0;
-  for (const h of chipHtmls) {
-    el.insertAdjacentHTML('beforeend', h);
-    if (el.scrollHeight > el.clientHeight + 2) { el.lastElementChild.remove(); break; }
-    shown++;
-  }
-  const rest = chipHtmls.length - shown;
-  if (rest > 0) {
-    el.insertAdjacentHTML('beforeend', `<span class="sb-msel-more" title="打开下拉查看/取消全部选中项">+${rest} 项</span>`);
-    if (el.scrollHeight > el.clientHeight + 2) {
-      const chips = el.querySelectorAll('.sb-msel-chip');
-      if (chips.length) chips[chips.length - 1].remove();
-    }
-  }
-}
-function sbFitChips(idx) {
-  const el = document.getElementById(`sbValChips_${idx}`);
-  if (!el) return;
-  const c = SbPage.editConds[idx];
-  sbFitChipsInto(el, c.values.map(v =>
-    `<span class="sb-msel-chip" title="${sbNameOf(c.item, v)}">${v}<b onclick="event.stopPropagation();SbPage.removeValChip(${idx},'${v}')">✕</b></span>`),
-    '<span class="sb-msel-ph">选择值(可多选)</span>');
-}
-
 /* 内容值控件:按运算符形态渲染(in=多选 / eq=枚举单选 / num=数值 / range=双值区间 / text=文本) */
 function sbValCtrlHtml(c, idx) {
   const def = sbItemDef(c.item);
@@ -357,16 +389,13 @@ function sbValCtrlHtml(c, idx) {
       `<option value="${v.code}" ${c.values[0] === v.code ? 'selected' : ''}>${v.name}</option>`)).join('');
     return `<select class="sel" style="flex:1;min-width:0" onchange="SbPage.onEqInput(${idx}, this.value)">${opts}</select>`;
   }
-  /* in:多选下拉 */
-  return `<div class="sb-msel" id="sbValBox_${idx}">
-      <div class="sb-msel-toggle" onclick="SbPage.toggleValDrop(${idx}, event)">
-        <span class="sb-msel-chips" id="sbValChips_${idx}"></span>
-        <span class="sb-msel-arrow">▾</span>
-      </div>
-      <div class="sb-msel-drop" id="sbValDrop_${idx}">
-        <input class="ipt" placeholder="搜索代码/名称…" style="width:100%" oninput="SbPage.renderValDrop(${idx})" />
-        <div class="sb-msel-list" id="sbValList_${idx}"></div>
-      </div>
+  /* in:多选 = 只读框显示已选 + 「选择…」打开勾选弹窗
+     (PC 端范式:对齐生产端 DataGridView 勾选列,不做 chips 标签溢出与浮层下拉) */
+  const picked = c.values.map(v => sbNameOf(c.item, v)).join('、');
+  return `<div class="sb-pick" style="flex:1;min-width:0">
+      <input class="ipt sb-pick-ipt" readonly value="${picked}" title="${picked}"
+        placeholder="未选值,点「选择…」勾选" onclick="SbPage.openPick(${idx})" />
+      <button class="btn sb-pick-btn" onclick="SbPage.openPick(${idx})">选择…</button>
     </div>`;
 }
 
@@ -496,6 +525,8 @@ const SbPage = {
   selChutes: new Set(),       /* 看板选中的格口(单击;配合编辑规则/释放) */
   _clickTimer: null,          /* 单击/双击区分定时器 */
   ruleNo: null,               /* 规则弹窗编辑的格口号 */
+  pickIdx: null,              /* 值勾选弹窗正在编辑的条件行下标 */
+  pickDraft: [],              /* 值勾选弹窗草稿(确定才写回条件行) */
   logSorter: null,            /* 操作日志弹窗的方案范围(未选中行=null 表示全部方案) */
   editConds: [],
   editJoiner: '且',
@@ -590,14 +621,14 @@ const SbPage = {
     const isClear = this.editConds.length === 0;
     const s = this.sol || SB_SOLUTIONS[0];
     /* 日志记"改之前长什么样"(排查"这票货为什么落这个口"要回得出改前的规则) */
-    const oldText = c.conds.length ? sbRuleTitle(c) : '未配规则';
+    const oldText = c.conds.length ? sbRuleLogText(c.conds, c.joiner) : '未配规则';
     c.conds = this.editConds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
     c.joiner = this.editJoiner;
     SB_RULE_LOGS.unshift({
       sorter: s.sorterCode, chute: c.no, t: Helpers.nowTime(), u: '庄亚运', og: '东腾曼沙项目仓',
       c: isClear
-        ? `通过【格口看板-规则配置】清空格口 ${c.no}(分拣机 ${s.sorterCode})规则,恢复默认分拣`
-        : `通过【格口看板-规则配置】配置格口 ${c.no}(分拣机 ${s.sorterCode})规则,由「${oldText}」改为「${sbRuleTitle(c)}」`,
+        ? `通过【格口看板-规则配置】清空格口 ${c.no}（分拣机 ${s.sorterCode}）规则，恢复默认分拣`
+        : `通过【格口看板-规则配置】配置格口 ${c.no}（分拣机 ${s.sorterCode}）规则，由「${oldText}」改为「${sbRuleLogText(c.conds, c.joiner)}」`,
     });
     this.closeRule();
     sbRenderBoardBody();
@@ -606,11 +637,15 @@ const SbPage = {
   },
 
   /* ---- 条件行(flex 行式) ---- */
+  /* 新增条件行:同一字段可配多行(「满足其一」下取并集,可表达多段区间);
+     字段都用过时沿用最后一行的字段,不再拦截 */
   addCond() {
-    if (this.editConds.length >= SB_COND_ITEMS.length) { Helpers.toast('条件项已全部使用'); return; }
-    const free = SB_COND_ITEMS.find(d => !this.editConds.some(x => x.item === d.key));
-    if (!free) { Helpers.toast('条件项已全部使用'); return; }
-    this.editConds.push({ item: free.key, op: free.ops[0], values: [] });
+    const used = this.editConds.map(x => x.item);
+    const free = SB_COND_ITEMS.find(d => !used.includes(d.key));
+    const last = this.editConds[this.editConds.length - 1];
+    const pick = free || (last ? sbItemDef(last.item) : SB_COND_ITEMS[0]);
+    const ops = (pick.ops && pick.ops.length) ? pick.ops : ['IN'];
+    this.editConds.push({ item: pick.key, op: ops[0], values: [] });
     this.refreshCondBox();
   },
   removeCond(idx) {
@@ -655,50 +690,58 @@ const SbPage = {
   },
   refreshCondBox() {
     document.getElementById('sbCondBox').innerHTML = sbCondRowsHtml();
-    this.editConds.forEach((c, i) => sbFitChips(i));
     sbRenderPreview();
   },
 
-  /* ---- 值选择(行内下拉多选) ---- */
-  toggleValDrop(idx, ev) {
-    ev.stopPropagation();
-    const drop = document.getElementById(`sbValDrop_${idx}`);
-    if (!drop) return;
-    document.querySelectorAll('.sb-msel-drop.is-open').forEach(d => { if (d !== drop) d.classList.remove('is-open'); });
-    drop.classList.toggle('is-open');
-    if (drop.classList.contains('is-open')) this.renderValDrop(idx);
-  },
-  renderValDrop(idx) {
+  /* ---- 值勾选弹窗(多选控件点「选择…」;确定才写回条件行) ---- */
+  openPick(idx) {
     const c = this.editConds[idx];
     if (!c) return;
     const def = sbItemDef(c.item);
-    const box = document.getElementById(`sbValBox_${idx}`);
-    const drop = document.getElementById(`sbValDrop_${idx}`);
-    if (!box || !drop) return;
-    const kw = (box.querySelector('.ipt') || {}).value || '';
-    const list = def.values.filter(v =>
-      !kw || v.code.includes(kw.trim().toUpperCase()) || v.name.includes(kw.trim()));
-    drop.querySelector('.sb-msel-list').innerHTML = list.length ? list.map(v => `
-      <label class="sb-vpick-item">
-        <input type="checkbox" ${c.values.includes(v.code) ? 'checked' : ''}
-          onchange="SbPage.onValCheck(${idx},'${v.code}', this.checked)" />
-        <span class="sb-vpick-code">${v.code}</span><span class="sb-vpick-name">${v.name}</span>
-      </label>`).join('') : '<div class="sb-cond-note" style="padding:8px">无匹配值</div>';
+    if (!def.values || !def.values.length) { Helpers.toast('该分拣项暂无可选值'); return; }
+    this.pickIdx = idx;
+    this.pickDraft = c.values.slice();
+    document.getElementById('sbPickTitle').textContent = `选择值 — ${def.label}`;
+    document.getElementById('sbPickKw').value = '';
+    this.renderPickList();
+    document.getElementById('sbPickMask').style.display = 'flex';
   },
-  onValCheck(idx, code, on) {
-    const values = this.editConds[idx].values;
-    if (on) { values.push(code); } else {
-      const i = values.indexOf(code); if (i >= 0) values.splice(i, 1);
-    }
-    sbFitChips(idx);
-    sbRenderPreview();
+  closePick() { document.getElementById('sbPickMask').style.display = 'none'; },
+  renderPickList() {
+    const c = this.editConds[this.pickIdx];
+    if (!c) return;
+    const def = sbItemDef(c.item);
+    const all = def.values || [];
+    const kw = (document.getElementById('sbPickKw').value || '').trim();
+    const list = all.filter(v => !kw || v.code.includes(kw.toUpperCase()) || v.name.includes(kw));
+    document.getElementById('sbPickBody').innerHTML = list.length ? list.map(v => `
+      <tr class="${this.pickDraft.includes(v.code) ? 'row--selected' : ''}" onclick="SbPage.pickRow('${v.code}')">
+        <td class="col--check"><input type="checkbox" ${this.pickDraft.includes(v.code) ? 'checked' : ''}
+          onclick="event.stopPropagation();SbPage.pickRow('${v.code}')" /></td>
+        <td class="col--code">${v.code}</td>
+        <td>${v.name}</td>
+      </tr>`).join('') : '<tr><td colspan="3" class="cr-empty">无匹配值</td></tr>';
+    document.getElementById('sbPickCount').textContent =
+      `已选 ${this.pickDraft.length} / ${all.length} 项`;
+    const box = document.getElementById('sbPickAllBox');
+    if (box) box.checked = !!all.length && this.pickDraft.length === all.length;
   },
-  removeValChip(idx, code) {
-    const values = this.editConds[idx].values;
-    const i = values.indexOf(code); if (i >= 0) values.splice(i, 1);
-    sbFitChips(idx);
-    this.renderValDrop(idx);
-    sbRenderPreview();
+  pickRow(code) {
+    const i = this.pickDraft.indexOf(code);
+    if (i >= 0) this.pickDraft.splice(i, 1); else this.pickDraft.push(code);
+    this.renderPickList();
+  },
+  pickAll(on) {
+    const c = this.editConds[this.pickIdx];
+    if (!c) return;
+    this.pickDraft = on ? (sbItemDef(c.item).values || []).map(v => v.code) : [];
+    this.renderPickList();
+  },
+  confirmPick() {
+    const c = this.editConds[this.pickIdx];
+    if (c) c.values = this.pickDraft.slice();
+    this.closePick();
+    this.refreshCondBox();
   },
 
   /* 释放格口(选中单口,基线乐观锁交互) */
@@ -731,9 +774,3 @@ document.getElementById('app').innerHTML = Layout.window({
 });
 SbPage.render();
 Helpers.startClock();
-
-/* 点击下拉外部时收起所有值下拉 */
-document.addEventListener('click', e => {
-  if (e.target.closest('.sb-msel')) return;
-  document.querySelectorAll('.sb-msel-drop.is-open').forEach(d => d.classList.remove('is-open'));
-});

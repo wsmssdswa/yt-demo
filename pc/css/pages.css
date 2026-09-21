@@ -997,3 +997,20 @@
 .si-op-item input { margin: 0; }
 .si-op-lbl { color: #333; }
 .si-op-expr { color: #8C8C8C; font-size: 11px; font-family: Consolas, monospace; }
+
+
+/* === B2B分拣管理页 · 规则失效态 / 默认池二态 / 值勾选弹窗(2026-09-21 评审待改) === */
+.sb-card.sb-card--stale { border-color: #FF4D4F; border-style: dashed; background: #FFF8F6; }
+.sb-card--stale .sb-card-no { color: #CF1322; }
+.sb-card--stale .sb-card-master { color: #CF1322; }
+.sb-card-badge--pool { color: #8C8C8C; background: #F5F5F5; }
+.sb-card-badge--stale { color: #CF1322; background: #FFECEC; }
+.sb-lg--pool { width: auto; height: auto; border-radius: 0; color: #8C8C8C; font-size: 12px; }
+.sb-lg--stale { width: auto; height: auto; border-radius: 0; color: #CF1322; font-size: 12px; }
+/* 多选值控件:只读框 + 勾选弹窗(替代浮层多选下拉) */
+.sb-pick { display: flex; align-items: center; gap: 6px; }
+.sb-pick-ipt { flex: 1; min-width: 0; cursor: pointer; background: #fff; }
+.sb-pick-btn { flex: none; }
+.rw-modal--nested { z-index: 2100; }
+.sb-pick-grid th, .sb-pick-grid td { text-align: left; }
+.sb-pick-grid th:nth-child(1), .sb-pick-grid td:nth-child(1) { width: 40px; text-align: center; }
