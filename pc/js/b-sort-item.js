@@ -4,7 +4,7 @@
    规则编辑器(B2B分拣管理-格口看板)的验证字段下拉从注册表读取。
    本页演示:
      · 新增分拣项免发版——保存后到规则页刷新,下拉即出现新验证字段
-     · 值形态由「编辑器可选值」决定:配了值清单=编码清单;选「无」时需选数据类型(数字/字符串)
+     · 值形态由「编辑器可选值」决定:配了值清单=编码清单;选「无」时需选数据类型(数值/文本)
        → 数值/文本。运算符从真实系统 12 个里自由勾选
      · 被规则引用的项给出影响提示(运算符/可选值仍可改;移除的运算符在规则中显示「已失效」)
      · localStorage 存配置(纯静态跨页共享,演示用)
@@ -17,7 +17,7 @@ const siValSourceText = it => {
   if (!vs) return '无';
   if (vs.kind === 'manual') return `手工清单(${(vs.values || []).length} 项)`;
   if (vs.kind === 'api') return `接口数据源·${vs.apiKey || ''}(${vs.note || ''})`;
-  return `无(${vs.dataType === 'str' ? '字符串' : vs.dataType === 'num' ? '数字' : '未选数据类型'}直接填)`;
+  return `无(${vs.dataType === 'str' ? '文本' : vs.dataType === 'num' ? '数值' : '未选数据类型'}直接填)`;
 };
 
 /* ---- 列表行 ---- */
@@ -157,12 +157,12 @@ function siDiffText(before, after) {
   if (bOps !== aOps) out.push(`运算符:${bOps || '无'}→${aOps || '无'}`);
   const kindText = vs => vs.kind === 'manual' ? '手工清单'
     : vs.kind === 'api' ? `接口数据源·${vs.apiKey || ''}`
-      : `无(${vs.dataType === 'str' ? '字符串' : '数字'}直接填)`;
+      : `无(${vs.dataType === 'str' ? '文本' : '数值'}直接填)`;
   const bvs = before.valSource || {}, avs = after.valSource || {};
   if ((bvs.kind || '') !== (avs.kind || '')) {
     out.push(`可选值来源:${kindText(bvs)}→${kindText(avs)}`);
   } else if (avs.kind === 'none') {
-    const bdt = bvs.dataType === 'str' ? '字符串' : '数字', adt = avs.dataType === 'str' ? '字符串' : '数字';
+    const bdt = bvs.dataType === 'str' ? '文本' : '数值', adt = avs.dataType === 'str' ? '文本' : '数值';
     if (bdt !== adt) out.push(`数据类型:${bdt}→${adt}`);
   } else if (avs.kind === 'manual') {
     const bc = (bvs.values || []).map(v => v.code), ac = (avs.values || []).map(v => v.code);
@@ -221,7 +221,7 @@ function siOpsCell(it) {
 }
 
 /* 编辑器可选值区(三选:手工清单 / 接口数据源 / 无-直接填值;决定值形态
-   选「无」时需选数据类型:数字→数值 / 字符串→文本) */
+   选「无」时需选数据类型:数值 / 文本) */
 function siValBodyHtml() {
   const d = SiPage.draft;
   const vs = d.valSource || { kind: 'manual', values: [] };
@@ -264,9 +264,9 @@ function siValBodyHtml() {
         <div style="flex:1">
           <div style="display:flex;align-items:center">
             <label class="lrb-check" style="margin-right:14px"><input type="radio" name="siVDataType" value="num"
-              ${dt === 'num' ? 'checked' : ''} onchange="SiPage.setDataType('num')" />数字</label>
+              ${dt === 'num' ? 'checked' : ''} onchange="SiPage.setDataType('num')" />数值</label>
             <label class="lrb-check"><input type="radio" name="siVDataType" value="str"
-              ${dt === 'str' ? 'checked' : ''} onchange="SiPage.setDataType('str')" />字符串</label>
+              ${dt === 'str' ? 'checked' : ''} onchange="SiPage.setDataType('str')" />文本</label>
           </div>
         </div>`}
     </div>`;
@@ -379,7 +379,7 @@ const SiPage = {
     }
     this.renderForm();
   },
-  /* 数据类型:仅「无」时可选(数字→数值 / 字符串→文本) */
+  /* 数据类型:仅「无」时可选(数值 / 文本;值形态与其同值) */
   setDataType(t) {
     if (this.draft.valSource.kind !== 'none') return;
     this.draft.valSource.dataType = t === 'str' ? 'str' : 'num';
@@ -425,7 +425,7 @@ const SiPage = {
     if (!d.ops.length) { Helpers.toast('请至少勾选一个运算符'); return; }
     /* 数据类型必填(仅「可选值来源=无」时):不预选,漏选直接拦截 */
     if (d.valSource.kind === 'none' && d.valSource.dataType !== 'num' && d.valSource.dataType !== 'str') {
-      Helpers.toast('请选择数据类型(数字 / 字符串)'); return;
+      Helpers.toast('请选择数据类型(数值 / 文本)'); return;
     }
     /* 手工清单校验:至少一行且 code 非空不重复(清单型才查) */
     if (d.valSource.kind === 'manual') {
