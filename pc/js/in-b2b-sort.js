@@ -2,7 +2,7 @@
    in-b2b-sort.js — B2B分拣管理页
    模型(2026-08-26 定稿):规则直挂格口(单层)
      · 每个格口直接配条件规则(验证字段+验证类型+内容,多条件 全部满足/满足其一)
-     · 未配规则的口=默认池(按单件/多件正常分配);异常口可配规则(异常类型字段区分)
+     · 未配规则的口按其格口属性正常分配(默认分拣);异常口可配规则(异常类型字段区分)
      · 一票货命中多个口的规则 → 按格口号顺序落第一个空闲口;多件同票锁同一口
      · 口满/异常 → 转异常口;SIMS 透传(CCOS 回传格口号,SIMS 不自行路由)
      · 方案与格口由 SIMS 同步(本页列表只读);格口规则在看板中按格口直接配置
@@ -52,7 +52,7 @@ function sbBuildChutes() {
   ['05', '06', '23', '24'].forEach(n => { byNo(n).conds = cp(ruleMg); });
   ['07', '08', '27', '28'].forEach(n => { byNo(n).conds = cp(ruleNoElec); });
   ['43', '44'].forEach(n => { byNo(n).conds = cp(ruleCif); });
-  /* 09/10 留空 = 默认池:演示"未配规则的格口仍按其格口属性参与默认分拣" */
+  /* 09/10 留空 = 未配规则:演示"未配规则的格口仍按其格口属性参与默认分拣" */
   ['13', '14'].forEach(n => { byNo(n).conds = cp(rulePieces); });
   /* 02 口(单件):单字段规则示例(只按产品圈货) */
   byNo('02').conds = [ { item: 'product', op: 'IN', values: ['US-MATSU-ELC', 'US-HAIYUN-ELC'] } ];
@@ -300,10 +300,10 @@ function sbBoardCardsHtml() {
           ? `<div class="sb-card-master" title="${c.master}">${c.master}</div><div class="sb-card-free">已落格</div>`
           : `<div class="sb-card-free">未占用</div>`;
     const confHtml = '';   /* 规则交叉提示已撤(格口不多,看规则摘要可判断);判定逻辑见 git 历史 */
-    /* 规则态与占用态分两行展示:未配规则=默认池(仍按单件/多件正常分配),别与"口没占用"混为一谈 */
+    /* 规则态与占用态分两行展示:未配规则的格口按其格口属性正常分配,别与"口没占用"混为一谈 */
     const rule = c.conds.length
       ? `<div class="sb-card-badge sb-card-badge--rule" title="已配规则:${sbRuleTitle(c)}">已配规则:${sbRuleSummary(c)}</div>`
-      : `<div class="sb-card-badge sb-card-badge--pool" title="未配规则:该口按其格口属性正常分配(默认分拣)">默认池</div>`;
+      : `<div class="sb-card-badge sb-card-badge--pool" title="未配规则:该口按其格口属性正常分配(默认分拣)">未配规则</div>`;
     return `<div class="sb-card ${cls} ${SbPage.selChutes.has(c.no) ? 'sb-card--sel' : ''}"
                  onclick="SbPage.cardClick('${c.no}')" ondblclick="SbPage.cardDblClick('${c.no}')"
                  title="格口 ${c.no} · ${c.attr}(单击选中,双击编辑规则)">
@@ -346,7 +346,7 @@ function sbRenderBoardBody() {
         <i class="sb-lg sb-lg--multi"></i>多件未到齐
         <i class="sb-lg sb-lg--done"></i>多件已到齐
         <i class="sb-lg sb-lg--abn"></i>异常
-        <i class="sb-lg sb-lg--pool">默认池</i>未配规则(按单件/多件分配)
+        <i class="sb-lg sb-lg--pool">未配规则</i>按单件/多件正常分配
         <i class="sb-lg sb-lg--rule">已配规则:</i>规则摘要
         <i class="sb-lg sb-lg--stale">规则失效</i>格口号不在当前方案
       </span>
@@ -356,7 +356,7 @@ function sbRenderBoardBody() {
       <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
-    <div class="sb-board-tip">单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口=默认池,仍按其格口属性正常分配(与"口没占用"是两回事);一票货命中多个口时按格口号数值升序取第一个空闲口;多件同票锁同一口;规则失效的口在看板上标红,命中该规则的货转异常口</div>
+    <div class="sb-board-tip">单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口按其格口属性正常分配(与"口没占用"是两回事);一票货命中多个口时按格口号数值升序取第一个空闲口;多件同票锁同一口;规则失效的口在看板上标红,命中该规则的货转异常口</div>
   `;
 }
 
@@ -425,7 +425,7 @@ function sbCondRowHtml(c, idx) {
 
 /* 规则预览(实时反映当前条件行;连接词直接用 且/或,读起来通顺) */
 function sbRulePreviewText() {
-  if (!SbPage.editConds.length) return '未配规则:该格口将作为默认池,按单件/多件正常分配';
+  if (!SbPage.editConds.length) return '未配规则:该格口按单件/多件正常分配';
   const body = SbPage.editConds.map(x => {
     const def = sbItemDef(x.item);
     return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
@@ -463,7 +463,7 @@ function sbRuleInfoHtml(c) {
     <span>分拣方案:<b>${s.solutionName}</b>(${s.version})</span>
     <span>格口号:<b>${c.no}</b></span>
     <span>属性:<b>${c.attr}</b></span>
-    <span>当前规则:<b>${c.conds.length ? sbRuleSummary(c) : '默认池(未配规则)'}</b></span>`;
+    <span>当前规则:<b>${c.conds.length ? sbRuleSummary(c) : '未配规则(按单件/多件分配)'}</b></span>`;
 }
 
 function sbRuleModal() {
@@ -617,7 +617,7 @@ const SbPage = {
       const def = sbItemDef(x.item);
       return !SIR_valOk(x, SIR_ctrlOf(def.type, x.op));
     });
-    if (incomplete) { Helpers.toast('每行条件需填全内容(区间需起止两个数值);删光条件行保存=恢复默认池'); return; }
+    if (incomplete) { Helpers.toast('每行条件需填全内容(区间需起止两个数值);删光条件行保存=恢复默认分拣'); return; }
     const isClear = this.editConds.length === 0;
     const s = this.sol || SB_SOLUTIONS[0];
     /* 日志记"改之前长什么样"(排查"这票货为什么落这个口"要回得出改前的规则) */
@@ -633,7 +633,7 @@ const SbPage = {
     this.closeRule();
     sbRenderBoardBody();
     document.getElementById('sbBoardMask').style.display = 'flex';
-    Helpers.toast(isClear ? `格口 ${c.no} 已恢复默认池` : `格口 ${c.no} 规则已保存`);
+    Helpers.toast(isClear ? `格口 ${c.no} 已恢复默认分拣` : `格口 ${c.no} 规则已保存`);
   },
 
   /* ---- 条件行(flex 行式) ---- */

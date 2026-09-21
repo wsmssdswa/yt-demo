@@ -999,7 +999,7 @@
 .si-op-expr { color: #8C8C8C; font-size: 11px; font-family: Consolas, monospace; }
 
 
-/* === B2B分拣管理页 · 规则失效态 / 默认池二态 / 值勾选弹窗(2026-09-21 评审待改) === */
+/* === B2B分拣管理页 · 规则失效态 / 未配规则二态 / 值勾选弹窗(2026-09-21 评审待改) === */
 .sb-card.sb-card--stale { border-color: #FF4D4F; border-style: dashed; background: #FFF8F6; }
 .sb-card--stale .sb-card-no { color: #CF1322; }
 .sb-card--stale .sb-card-master { color: #CF1322; }
