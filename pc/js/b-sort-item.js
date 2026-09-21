@@ -260,7 +260,7 @@ function siValBodyHtml() {
           <div class="si-dim" style="margin-top:4px">随主数据自动更新,无需人工维护</div>
         </div>`
       : `
-        <label class="rw-form-label">数据类型 <span style="color:#CF1322">*</span></label>
+        <label class="rw-form-label" title="必选：决定值形态(数值/文本)与「等于/不等于」的输入框形态">数据类型 <span style="color:#CF1322">*</span></label>
         <div style="flex:1">
           <div style="display:flex;align-items:center">
             <label class="lrb-check" style="margin-right:14px"><input type="radio" name="siVDataType" value="num"
@@ -268,7 +268,6 @@ function siValBodyHtml() {
             <label class="lrb-check"><input type="radio" name="siVDataType" value="str"
               ${dt === 'str' ? 'checked' : ''} onchange="SiPage.setDataType('str')" />字符串</label>
           </div>
-          <div class="si-dim" style="margin-top:4px">必选,不预选:决定值形态(数值/文本)与「等于/不等于」的输入框形态;规则行「内容」直接填值,无需维护值清单</div>
         </div>`}
     </div>`;
 }
