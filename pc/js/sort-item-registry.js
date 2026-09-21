@@ -43,7 +43,7 @@ const SIR_DEFAULT_ITEMS = [
       { code: 'CIF', name: '签入失败' }, { code: 'CF', name: '格口已满' }] },
     refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
   { key: 'pieces', name: '主单件数', fieldName: 'order_pieces', type: 'num',
-    valSource: { kind: 'none', note: '数值输入,无可选值' },
+    valSource: { kind: 'none', dataType: 'num', note: '数值输入,无可选值' },
     refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
 ];
 
@@ -66,12 +66,17 @@ const SortItemRegistry = {
       const opsArr = Array.isArray(it.ops) ? it.ops : [];
       /* 空数组 every 恒 true:需显式判空;种子/旧档缺 ops 时兜底(新建默认不勾,用户自己选) */
       if (!opsArr.length || !opsArr.every(c => SIR_OP_MAP[c])) {
-        it.ops = SIR_OPS_BY_TYPE[it.type === 'num' ? 'num' : 'enum'].slice();
+        it.ops = (SIR_OPS_BY_TYPE[it.type] || SIR_OPS_BY_TYPE.enum).slice();
       }
       if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
-        it.valSource = it.type === 'num'
-          ? { kind: 'none', note: '数值输入,无可选值' }
-          : { kind: 'manual', values: [] };
+        it.valSource = it.type === 'enum'
+          ? { kind: 'manual', values: [] }
+          : { kind: 'none', dataType: it.type === 'str' ? 'str' : 'num', note: '直接填值,无可选值' };
+      }
+      /* 旧档迁移:选「无」但没选过数据类型的老项按老口径补「数字」(必填+不预选只针对新配置) */
+      if (it.valSource.kind === 'none'
+        && it.valSource.dataType !== 'num' && it.valSource.dataType !== 'str') {
+        it.valSource.dataType = 'num';
       }
     });
     return list;
@@ -95,8 +100,8 @@ const SortItemRegistry = {
      apiMaps: { apiKey: [{code,name}...] } 页面内置主数据常量映射 */
   buildCondItems(apiMaps) {
     return this.list().map(it => {
-      const base = { key: it.key, label: it.name, ops: it.ops.slice() };
-      if (it.type === 'num') { base.type = 'num'; return base; }
+      const base = { key: it.key, label: it.name, ops: it.ops.slice(), type: it.type };
+      if (it.type !== 'enum') return base;           /* 数值/字符串:规则里直接填值,无候选清单 */
       const vs = it.valSource;
       const values = vs.kind === 'manual'
         ? (vs.values || []).map(v => ({ code: v.code, name: v.name }))
@@ -129,12 +134,15 @@ const SortItemRegistry = {
 
 /* ---- 运算符辅助(供三个规则页与配置页共用) ---- */
 const SIR_opOf = code => SIR_OP_MAP[code] || null;
-/* 内容控件形态:op 的 ctrl 对数值字段的 EQ/NE 退化为数值输入 */
+/* 内容控件形态:op 的 ctrl 决定;「等于/不等于」按值形态落到具体控件
+   (数值→数字框 / 字符串→文本框 / 编码清单→单选下拉) */
 const SIR_ctrlOf = (itemType, opCode) => {
   const o = SIR_OP_MAP[opCode];
   if (!o) return 'in';
-  if (itemType === 'num' && o.ctrl === 'eq') return 'num';
-  return o.ctrl;
+  if (o.ctrl !== 'eq') return o.ctrl;
+  if (itemType === 'num') return 'num';
+  if (itemType === 'str') return 'text';
+  return 'eq';
 };
 /* 内容空态校验:各控件形态要求 */
 const SIR_valOk = (c, ctrl) => {
@@ -201,15 +209,19 @@ const SIR_OPS = [
 const SIR_OP_MAP = {};
 SIR_OPS.forEach(o => { SIR_OP_MAP[o.code] = o; });
 
-/* 值形态由「编辑器可选值」配置自然推导(不设数据类型/绑定层,2026-09-07 定):
-   配了值清单(手工/接口)=enum(下拉选值);选「无」(数值直接填)=num */
+/* 值形态由「编辑器可选值」配置决定:
+   配了值清单(手工/接口)=enum(编码清单,下拉选值);选「无」=按所选数据类型 num(数字,默认)/str(字符串)
+   ——2026-09-07 去掉独立数据类型,2026-09-21 以「仅选无时需要」的形态加回 */
 const SIR_typeOf = it => {
-  if (it.type === 'num' || it.type === 'enum') return it.type;   /* 旧存档兼容:已有 type 保留 */
-  if (!it.valSource || it.valSource.kind === 'none') return 'num';
-  return 'enum';
+  const vs = it.valSource;
+  if (vs && vs.kind && vs.kind !== 'none') return 'enum';        /* 有值清单 = 编码清单 */
+  if (vs && vs.dataType === 'str') return 'str';
+  if (!vs && it.type === 'str') return 'str';                    /* 旧存档兼容:已有 type 保留 */
+  return 'num';
 };
 /* 数据兜底默认运算符集(仅种子/旧档缺 ops 时用;新建默认不勾,用户自己选) */
 const SIR_OPS_BY_TYPE = {
   enum: SIR_OPS.filter(o => o.kinds.includes("str")).map(o => o.code),
+  str: SIR_OPS.filter(o => o.kinds.includes("str")).map(o => o.code),
   num: SIR_OPS.filter(o => o.kinds.includes("num")).map(o => o.code),
 };

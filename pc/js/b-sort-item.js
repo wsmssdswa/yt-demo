@@ -4,20 +4,20 @@
    规则编辑器(B2B分拣管理-格口看板)的验证字段下拉从注册表读取。
    本页演示:
      · 新增分拣项免发版——保存后到规则页刷新,下拉即出现新验证字段
-     · 不选数据类型:值形态由绑定的运行字段性质自动推导(数值/编码清单),
-       运算符从真实系统 12 个里自由勾选
+     · 值形态由「编辑器可选值」决定:配了值清单=编码清单;选「无」时需选数据类型(数字/字符串)
+       → 数值/文本。运算符从真实系统 12 个里自由勾选
      · 被规则引用的项给出影响提示(运算符/可选值仍可改;移除的运算符在规则中显示「已失效」)
      · localStorage 存配置(纯静态跨页共享,演示用)
    ============================================ */
 
-/* ---- 值形态(内部推导,不劳用户选) ---- */
-const siTypeName = t => t === 'num' ? '数值' : '编码清单';
+/* ---- 值形态(由可选值配置决定;选「无」时由数据类型决定 数值/文本) ---- */
+const siTypeName = t => t === 'num' ? '数值' : t === 'str' ? '文本' : '编码清单';
 const siValSourceText = it => {
   const vs = it.valSource;
   if (!vs) return '无';
   if (vs.kind === 'manual') return `手工清单(${(vs.values || []).length} 项)`;
   if (vs.kind === 'api') return `接口数据源·${vs.apiKey || ''}(${vs.note || ''})`;
-  return '无(数值直接填)';
+  return `无(${vs.dataType === 'str' ? '字符串' : vs.dataType === 'num' ? '数字' : '未选数据类型'}直接填)`;
 };
 
 /* ---- 列表行 ---- */
@@ -156,10 +156,14 @@ function siDiffText(before, after) {
   const bOps = labels(before.ops).join('、'), aOps = labels(after.ops).join('、');
   if (bOps !== aOps) out.push(`运算符:${bOps || '无'}→${aOps || '无'}`);
   const kindText = vs => vs.kind === 'manual' ? '手工清单'
-    : vs.kind === 'api' ? `接口数据源·${vs.apiKey || ''}` : '无(数值直接填)';
+    : vs.kind === 'api' ? `接口数据源·${vs.apiKey || ''}`
+      : `无(${vs.dataType === 'str' ? '字符串' : '数字'}直接填)`;
   const bvs = before.valSource || {}, avs = after.valSource || {};
   if ((bvs.kind || '') !== (avs.kind || '')) {
     out.push(`可选值来源:${kindText(bvs)}→${kindText(avs)}`);
+  } else if (avs.kind === 'none') {
+    const bdt = bvs.dataType === 'str' ? '字符串' : '数字', adt = avs.dataType === 'str' ? '字符串' : '数字';
+    if (bdt !== adt) out.push(`数据类型:${bdt}→${adt}`);
   } else if (avs.kind === 'manual') {
     const bc = (bvs.values || []).map(v => v.code), ac = (avs.values || []).map(v => v.code);
     const brief = arr => arr.length > 3 ? `${arr.slice(0, 3).join('、')} 等 ${arr.length} 项` : arr.join('、');
@@ -216,11 +220,13 @@ function siOpsCell(it) {
   return `<span title="${full}">${names}</span>`;
 }
 
-/* 编辑器可选值区(三选:手工清单 / 接口数据源 / 无-数值直接填;决定值形态) */
+/* 编辑器可选值区(三选:手工清单 / 接口数据源 / 无-直接填值;决定值形态
+   选「无」时需选数据类型:数字→数值 / 字符串→文本) */
 function siValBodyHtml() {
   const d = SiPage.draft;
   const vs = d.valSource || { kind: 'manual', values: [] };
   const k = vs.kind === 'none' ? 'none' : vs.kind;
+  const dt = vs.dataType === 'str' ? 'str' : vs.dataType === 'num' ? 'num' : '';   /* 不预选,必填 */
   return `
     <div class="rw-form-row" style="margin-bottom:8px">
       <label class="rw-form-label">可选值来源</label>
@@ -229,7 +235,7 @@ function siValBodyHtml() {
       <label class="lrb-check" style="margin-right:14px"><input type="radio" name="siVKind" value="api"
         ${k === 'api' ? 'checked' : ''} onchange="SiPage.setValKind('api')" />接口数据源</label>
       <label class="lrb-check"><input type="radio" name="siVKind" value="none"
-        ${k === 'none' ? 'checked' : ''} onchange="SiPage.setValKind('none')" />无(数值直接填)</label>
+        ${k === 'none' ? 'checked' : ''} onchange="SiPage.setValKind('none')" />无(直接填值)</label>
     </div>
     <div class="rw-form-row" id="siValContent" style="margin-bottom:0">
       ${k === 'manual' ? `
@@ -254,8 +260,16 @@ function siValBodyHtml() {
           <div class="si-dim" style="margin-top:4px">随主数据自动更新,无需人工维护</div>
         </div>`
       : `
-        <label class="rw-form-label">数值</label>
-        <div class="si-val-static" style="flex:1">规则行「内容」直接填数值,无需维护值清单</div>`}
+        <label class="rw-form-label">数据类型 <span style="color:#CF1322">*</span></label>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center">
+            <label class="lrb-check" style="margin-right:14px"><input type="radio" name="siVDataType" value="num"
+              ${dt === 'num' ? 'checked' : ''} onchange="SiPage.setDataType('num')" />数字</label>
+            <label class="lrb-check"><input type="radio" name="siVDataType" value="str"
+              ${dt === 'str' ? 'checked' : ''} onchange="SiPage.setDataType('str')" />字符串</label>
+          </div>
+          <div class="si-dim" style="margin-top:4px">必选,不预选:决定值形态(数值/文本)与「等于/不等于」的输入框形态;规则行「内容」直接填值,无需维护值清单</div>
+        </div>`}
     </div>`;
 }
 
@@ -356,12 +370,20 @@ const SiPage = {
   setValKind(kind) {
     const d = this.draft;
     if (kind === 'none') {
-      d.valSource = { kind: 'none', note: '数值输入,无可选值' };
+      const prev = d.valSource && (d.valSource.dataType === 'str' || d.valSource.dataType === 'num')
+        ? d.valSource.dataType : null;              /* 保留已选;没选过就留空,由用户必选 */
+      d.valSource = { kind: 'none', dataType: prev, note: '直接填值,无可选值' };
     } else if (kind === 'manual') {
       d.valSource = { kind, values: (d.valSource && d.valSource.values) || [] };
     } else {
       d.valSource = { kind, apiKey: (d.valSource && d.valSource.apiKey) || 'product', note: '产品主数据(SPMS 同步)' };
     }
+    this.renderForm();
+  },
+  /* 数据类型:仅「无」时可选(数字→数值 / 字符串→文本) */
+  setDataType(t) {
+    if (this.draft.valSource.kind !== 'none') return;
+    this.draft.valSource.dataType = t === 'str' ? 'str' : 'num';
     this.renderForm();
   },
   /* 手工清单行编辑 */
@@ -402,6 +424,10 @@ const SiPage = {
     if (!name) { Helpers.toast('请填写中文名'); return; }
     const d = this.draft;
     if (!d.ops.length) { Helpers.toast('请至少勾选一个运算符'); return; }
+    /* 数据类型必填(仅「可选值来源=无」时):不预选,漏选直接拦截 */
+    if (d.valSource.kind === 'none' && d.valSource.dataType !== 'num' && d.valSource.dataType !== 'str') {
+      Helpers.toast('请选择数据类型(数字 / 字符串)'); return;
+    }
     /* 手工清单校验:至少一行且 code 非空不重复(清单型才查) */
     if (d.valSource.kind === 'manual') {
       const rows = d.valSource.values || [];
