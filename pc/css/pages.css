@@ -891,6 +891,8 @@
 .sb-log-grid th:nth-child(6), .sb-log-grid td:nth-child(6) { width: auto; white-space: normal; word-break: break-all; }
 /* 看板失效警告条 */
 .sb-warn-bar { font-size: 12px; color: #CF1322; background: #FFF1F0; border: 1px solid #FFA39E; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; }
+/* 已废弃页面横幅(该页不开发,仅留口径参考) */
+.deprecated-bar { margin: 10px 12px 0; font-size: 12px; color: #7A5C00; background: #FFFBE6; border: 1px solid #FFE58F; border-radius: 4px; padding: 8px 12px; line-height: 1.7; }
 /* 应用分组方案弹窗 */
 .sb-apply-summary { margin-top: 10px; border: 1px solid #E5EAF0; border-radius: 4px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 /* 多选下拉(方案选择) */

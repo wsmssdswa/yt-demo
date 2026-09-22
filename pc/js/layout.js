@@ -62,7 +62,7 @@ const Layout = {
       { key: 'b-channel',    label: '渠道配置' },
       { key: 'b-push',       label: '推送配置' },
       { key: 'b-b2b-bin',    label: 'B2B推荐库位配置' },
-      { key: 'b-sort-item',  label: '分拣项' },
+      { key: 'b-sort-item',  label: '分拣项(已废弃)' },
     ]},
   ],
 
