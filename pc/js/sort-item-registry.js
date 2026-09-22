@@ -1,95 +1,42 @@
 /* ============================================
-   sort-item-registry.js — 分拣项注册表(共享演示模块)
-   方案(2026-09-04 定稿):分拣项(规则验证字段)由注册表统一维护,
-   规则编辑器下拉从注册表读取——配置页新增/启停一项,规则页即时感知(免发版)。
-   纯静态演示实现:
-     · 默认种子内置于 SIR_DEFAULT_ITEMS;localStorage 有存档则用之(跨页共享)
-     · 每项声明: key(规则内引用)/ name(中文名)/ field_name(SIMS 风格键名,仅展示)
-       / type(enum|num,由可选值推导)/ ops(运算符集)/ 编辑器可选值来源/ refCount
-     · 枚举可选值来源分两种: manual(注册表自带 code+name 清单) / api(页面常量表,调用方传映射)
+   sort-item-registry.js — 分拣项内置清单(共享演示模块)
+   方案(2026-09-22):分拣项由 CCOS 代码内置,不提供配置页——
+   新增分拣维度须开发在过机接口补取值后登记,"自助新增"并不能免发版。
+   本模块为规则页(B2B分拣管理-格口看板)提供只读的条件项字典:
+     · 每项声明: key(规则内引用)/ name(中文名)/ fieldName(过机接口字段标识)
+       / valSource(候选值来源: 接口主数据 / 系统枚举 / 无-规则内直接填)
+     · 值形态由候选值来源推导: enum 编码清单 / num 数值 / str 文本
+     · 运算符不单独配置:按值形态自动取适用集(真实系统 12 个运算符的子集)
    ============================================ */
 
-const SIR_STORAGE_KEY = 'b2bSortItemRegistry_v1';
-/* 操作日志存档 key(演示用;真实系统写通用操作日志模块,按分拣项维度查询) */
-const SIR_LOG_KEY = 'b2bSortItemLogs_v1';
-
-/* 操作日志演示数据(按分拣项 key 归档,新→旧;带 name/fieldName 供日志列表展示——分拣项删除后
-   仍要知道这条日志属于谁。真实文案规范:完整中文句子 + 【功能名-按钮】来源 + 变更类"属性 旧值 → 新值") */
-const SIR_DEFAULT_LOGS = [
-  { key: 'product', name: '产品', fieldName: 'product_code', t: '2026-09-19 09:05:33', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【分拣项配置-编辑】修改分拣项：产品，变更：中文名:产品编码→产品' },
-  { key: 'product', name: '产品', fieldName: 'product_code', t: '2026-09-18 15:22:10', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【分拣项配置-编辑】修改分拣项：产品，变更：运算符:等于、包含→等于、包含、关键字匹配、匹配开始字符、匹配结束字符' },
-  { key: 'product', name: '产品', fieldName: 'product_code', t: '2026-09-04 10:00:00', u: '系统内置', og: '—',
-    c: '通过【分拣项配置-新增】新增分拣项：产品，字段标识：product_code' },
-  { key: 'exception', name: '异常类型', fieldName: 'b2b_exception_type', t: '2026-09-18 16:03:41', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【分拣项配置-编辑】修改分拣项：异常类型，变更：可选值:新增 CF、CIF' },
-  /* 已删除的分拣项:日志仍在,用来验证"删除后还能查到是谁删的" */
-  { key: 'destCountry', name: '目的国', fieldName: 'dest_country_code', t: '2026-09-19 14:12:55', u: '庄亚运', og: '东腾曼沙项目仓',
-    c: '通过【分拣项配置-删除】删除分拣项：目的国，字段标识：dest_country_code' },
-];
-
-/* 默认种子(与三个规则页演示数据对齐;refCount>0 表示被规则引用,禁止删除)
-   ops 省略 = 按数据类型给默认全集(由 items() 归一化填充;旧存档中文 ops 同样被修复) */
-const SIR_DEFAULT_ITEMS = [
-  { key: 'product', name: '产品', fieldName: 'product_code', type: 'enum',
-    valSource: { kind: 'api', apiKey: 'product', note: '产品主数据(SPMS 同步)' },
-    refCount: 8, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
-  { key: 'channel', name: '渠道', fieldName: 'server_channel_code', type: 'enum',
-    valSource: { kind: 'api', apiKey: 'channel', note: '渠道主数据' },
-    refCount: 6, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
-  { key: 'exception', name: '异常类型', fieldName: 'b2b_exception_type', type: 'enum',
-    valSource: { kind: 'manual', values: [
-      { code: 'CIF', name: '签入失败' }, { code: 'CF', name: '格口已满' }] },
-    refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
-  { key: 'pieces', name: '主单件数', fieldName: 'order_pieces', type: 'num',
-    valSource: { kind: 'none', dataType: 'num', note: '数值输入,无可选值' },
-    refCount: 2, updateUser: '系统内置', updateTime: '2026-09-04 10:00:00' },
+/* 系统内置分拣项(与过机接口取值字段一一对应;新增项由开发实现取值后在此登记) */
+const SIR_BUILTIN_ITEMS = [
+  { key: 'product', name: '产品', fieldName: 'product_code',
+    valSource: { kind: 'api', apiKey: 'product', note: '产品主数据(SPMS 同步)' } },
+  { key: 'channel', name: '渠道', fieldName: 'server_channel_code',
+    valSource: { kind: 'api', apiKey: 'channel', note: '渠道主数据' } },
+  { key: 'exception', name: '异常类型', fieldName: 'b2b_exception_type',
+    valSource: { kind: 'enum', values: [
+      { code: 'CIF', name: '签入失败' }, { code: 'CF', name: '格口已满' }] } },
+  { key: 'pieces', name: '主单件数', fieldName: 'order_pieces',
+    valSource: { kind: 'none', dataType: 'num' } },
 ];
 
 const SortItemRegistry = {
-  /* 读取注册表:localStorage 存档优先,否则默认种子 */
+  /* 只读清单:值形态与运算符集随项派生,不落存储、不可编辑 */
   items() {
-    let list = null;
-    try {
-      const raw = localStorage.getItem(SIR_STORAGE_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr) && arr.length) list = arr;
-      }
-    } catch (e) { /* file:// 个别环境禁 localStorage,回退种子 */ }
-    if (!list) list = SIR_DEFAULT_ITEMS.map(i => JSON.parse(JSON.stringify(i)));
-    /* 归一化:项结构校验 + 值形态(type)由可选值配置推导 + ops 缺失/非法按值形态给默认集 */
-    list = list.filter(it => it && typeof it === 'object' && it.key);
-    list.forEach(it => {
-      it.type = SIR_typeOf(it);
-      const opsArr = Array.isArray(it.ops) ? it.ops : [];
-      /* 空数组 every 恒 true:需显式判空;种子/旧档缺 ops 时兜底(新建默认不勾,用户自己选) */
-      if (!opsArr.length || !opsArr.every(c => SIR_OP_MAP[c])) {
-        it.ops = (SIR_OPS_BY_TYPE[it.type] || SIR_OPS_BY_TYPE.enum).slice();
-      }
-      if (!Array.isArray(it.valSource) && (!it.valSource || typeof it.valSource !== 'object')) {
-        it.valSource = it.type === 'enum'
-          ? { kind: 'manual', values: [] }
-          : { kind: 'none', dataType: it.type === 'str' ? 'str' : 'num', note: '直接填值,无可选值' };
-      }
-      /* 旧档迁移:选「无」但没选过数据类型的老项按老口径补「数字」(必填+不预选只针对新配置) */
-      if (it.valSource.kind === 'none'
-        && it.valSource.dataType !== 'num' && it.valSource.dataType !== 'str') {
-        it.valSource.dataType = 'num';
-      }
+    return SIR_BUILTIN_ITEMS.map(it => {
+      const type = SIR_typeOf(it);
+      const copy = JSON.parse(JSON.stringify(it));
+      copy.type = type;
+      copy.ops = (SIR_OPS_BY_TYPE[type] || SIR_OPS_BY_TYPE.enum).slice();
+      return copy;
     });
-    return list;
   },
 
-  /* 全量注册项(规则编辑器下拉用;无启停概念,所有项均可选) */
+  /* 全量注册项(规则编辑器下拉用) */
   list() {
     return this.items();
-  },
-
-  save(list) {
-    try { localStorage.setItem(SIR_STORAGE_KEY, JSON.stringify(list)); return true; }
-    catch (e) { return false; }
   },
 
   find(key) {
@@ -101,41 +48,21 @@ const SortItemRegistry = {
   buildCondItems(apiMaps) {
     return this.list().map(it => {
       const base = { key: it.key, label: it.name, ops: it.ops.slice(), type: it.type };
-      if (it.type !== 'enum') return base;           /* 数值/字符串:规则里直接填值,无候选清单 */
+      if (it.type !== 'enum') return base;           /* 数值/文本:规则里直接填值,无候选清单 */
       const vs = it.valSource;
-      const values = vs.kind === 'manual'
+      const values = vs.kind === 'enum'
         ? (vs.values || []).map(v => ({ code: v.code, name: v.name }))
         : (apiMaps && apiMaps[vs.apiKey]) || [];
       base.values = values;
       return base;
     });
   },
-
-  /* 注册项是否被引用(删除保护演示) */
-  isReferenced(it) { return it.refCount > 0; },
-
-  /* ---- 操作日志(演示:localStorage 存档;真实系统写通用操作日志模块) ----
-     itemKey 省略 = 全部(删除项的日志也在,便于追溯已删除的分拣项) */
-  logs(itemKey) {
-    let all = null;
-    try {
-      const raw = localStorage.getItem(SIR_LOG_KEY);
-      if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) all = arr; }
-    } catch (e) { /* 回退种子 */ }
-    if (!all) all = SIR_DEFAULT_LOGS.map(l => ({ ...l }));
-    return itemKey ? all.filter(l => l.key === itemKey) : all;
-  },
-  addLog(entry) {
-    const all = this.logs();
-    all.unshift(entry);
-    try { localStorage.setItem(SIR_LOG_KEY, JSON.stringify(all)); } catch (e) { /* 忽略 */ }
-  },
 };
 
-/* ---- 运算符辅助(供三个规则页与配置页共用) ---- */
+/* ---- 运算符辅助(供规则页与清单页共用) ---- */
 const SIR_opOf = code => SIR_OP_MAP[code] || null;
 /* 内容控件形态:op 的 ctrl 决定;「等于/不等于」按值形态落到具体控件
-   (数值→数字框 / 字符串→文本框 / 编码清单→单选下拉) */
+   (数值→数字框 / 文本→文本框 / 编码清单→单选下拉) */
 const SIR_ctrlOf = (itemType, opCode) => {
   const o = SIR_OP_MAP[opCode];
   if (!o) return 'in';
@@ -209,17 +136,17 @@ const SIR_OPS = [
 const SIR_OP_MAP = {};
 SIR_OPS.forEach(o => { SIR_OP_MAP[o.code] = o; });
 
-/* 值形态由「编辑器可选值」配置决定:
-   配了值清单(手工/接口)=enum(编码清单,下拉选值);选「无」=按所选数据类型 num(数字,默认)/str(字符串)
-   ——2026-09-07 去掉独立数据类型,2026-09-21 以「仅选无时需要」的形态加回 */
+/* 值形态由候选值来源决定:
+   配了值清单(接口主数据 / 系统枚举)=enum(编码清单,下拉选值);选「无」=按数据类型 num(数值)/str(文本)
+   ——2026-09-07 去掉独立数据类型,2026-09-21 以「仅选无时需要」的形态加回,
+   2026-09-22 分拣项改内置后类型随之写死在清单里,不再由用户选 */
 const SIR_typeOf = it => {
   const vs = it.valSource;
   if (vs && vs.kind && vs.kind !== 'none') return 'enum';        /* 有值清单 = 编码清单 */
   if (vs && vs.dataType === 'str') return 'str';
-  if (!vs && it.type === 'str') return 'str';                    /* 旧存档兼容:已有 type 保留 */
   return 'num';
 };
-/* 数据兜底默认运算符集(仅种子/旧档缺 ops 时用;新建默认不勾,用户自己选) */
+/* 运算符集:按值形态自动给出(数值 8 个 / 文本·编码清单 6 个),不单独配置 */
 const SIR_OPS_BY_TYPE = {
   enum: SIR_OPS.filter(o => o.kinds.includes("str")).map(o => o.code),
   str: SIR_OPS.filter(o => o.kinds.includes("str")).map(o => o.code),

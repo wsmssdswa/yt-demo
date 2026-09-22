@@ -59,8 +59,8 @@ function sbBuildChutes() {
   return list;
 }
 
-/* ---- 条件项字典(2026-09-04 起从分拣项注册表读取,本页不再写死) ---- */
-/* 产品/渠道为"接口数据源"型分拣项的取值表(模拟 CCOS 主数据,注册表引用) */
+/* ---- 条件项字典(2026-09-04 起来自分拣项内置清单,本页不再写死) ---- */
+/* 产品/渠道为"接口数据源"型分拣项的取值表(模拟 CCOS 主数据,内置清单引用) */
 const SB_PRODUCTS = [
   { code: 'US-MATSU-ELC',  name: '美森快船-带电' },
   { code: 'US-MATSU-REG',  name: '美森快船-普货' },
@@ -82,9 +82,9 @@ const SB_CHANNELS = [
   { code: 'KONGYUN-JIJI',       name: '空运急件' },
 ];
 const SB_COND_ITEMS = SortItemRegistry.buildCondItems({ product: SB_PRODUCTS, channel: SB_CHANNELS });
-/* 兜底:预置规则引用的 key 若已被注册表删除,按原名展示不崩 */
+/* 兜底:预置规则引用的 key 若不在内置清单内(演示数据未对齐),按原名展示不崩 */
 const sbItemDef = k => SB_COND_ITEMS.find(d => d.key === k)
-  || { key: k, label: `(已移除)${k}`, type: 'enum', ops: ['IN'], values: [] };
+  || { key: k, label: `(未登记)${k}`, type: 'enum', ops: ['IN'], values: [] };
 const sbNameOf = (item, code) => {
   const def = sbItemDef(item);
   if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */
@@ -94,20 +94,18 @@ const sbNameOf = (item, code) => {
 
 /* ---- 工具 ---- */
 const sbAttrColor = a => a === '单件' ? '#2E7D32' : (a === '多件' ? '#1565C0' : '#C62828');
-/* 失效标记:该行运算符已从分拣项移除——匹配不命中,显示上显式标注(防"下拉显示成第一个候选"的误导) */
-const sbDeadMark = (def, x) => (def.ops || []).includes(x.op) ? '' : '（已失效）';
 /* 条件行 → 压缩摘要(卡片徽标用) */
 function sbRuleSummary(c) {
   return c.conds.map(x => {
     const def = sbItemDef(x.item);
-    return SIR_valSummary(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
+    return SIR_valSummary(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${c.joiner} `);
 }
 /* 条件行 → 完整文本(title 悬浮/日志用) */
 function sbRuleTitle(c) {
   return c.conds.map(x => {
     const def = sbItemDef(x.item);
-    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${c.joiner} `);
 }
 /* 规则摘要(日志用):条件行超 3 行只记前 3 行与总数(与 PRD 记录参数口径一致) */
@@ -115,7 +113,7 @@ function sbRuleLogText(conds, joiner) {
   const pick = conds.length > 3 ? conds.slice(0, 3) : conds;
   const body = pick.map(x => {
     const def = sbItemDef(x.item);
-    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${joiner} `);
   return conds.length > 3 ? `${body} 等 ${conds.length} 行` : body;
 }
@@ -404,14 +402,12 @@ function sbCondRowHtml(c, idx) {
   /* 同字段可多行(不限制):「满足其一」下取并集(可表达多段区间),「全部满足」下取交集 */
   const itemOpts = SB_COND_ITEMS.map(d =>
     `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}>${d.label}</option>`).join('');
-  /* 运算符下拉:value=code, 文案=中文名(悬浮英文符号/关键字);
-     已从分拣项移除的运算符补回候选并标注"已失效",保证显示=数据 */
-  const opCodes = (def.ops || []).includes(c.op) ? def.ops : [c.op].concat(def.ops || []);
-  const opOpts = opCodes.map(code => {
+  /* 运算符下拉:候选=该分拣项值形态的运算符全集(内置固定,不存在失效缺项);
+     value=code, 文案=中文名(悬浮英文符号/关键字) */
+  const opOpts = (def.ops || []).map(code => {
     const o = SIR_opOf(code);
-    const dead = !(def.ops || []).includes(code);
     return `<option value="${code}" ${code === c.op ? 'selected' : ''}
-      ${o ? `title="${o.expr}"` : ''}>${o ? o.label : code}${dead ? '（已失效）' : ''}</option>`;
+      ${o ? `title="${o.expr}"` : ''}>${o ? o.label : code}</option>`;
   }).join('');
   return `
     <div class="sb-crow">
@@ -428,7 +424,7 @@ function sbRulePreviewText() {
   if (!SbPage.editConds.length) return '未配规则:该格口按单件/多件正常分配';
   const body = SbPage.editConds.map(x => {
     const def = sbItemDef(x.item);
-    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op)) + sbDeadMark(def, x);
+    return SIR_valText(def, x, SIR_ctrlOf(def.type, x.op));
   }).join(` ${SbPage.editJoiner} `);
   return `落口规则:${body}`;
 }

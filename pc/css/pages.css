@@ -889,14 +889,6 @@
 .sb-log-grid th:nth-child(4), .sb-log-grid td:nth-child(4) { width: 160px; white-space: nowrap; }
 .sb-log-grid th:nth-child(5), .sb-log-grid td:nth-child(5) { width: 140px; white-space: nowrap; }
 .sb-log-grid th:nth-child(6), .sb-log-grid td:nth-child(6) { width: auto; white-space: normal; word-break: break-all; }
-/* 分拣项配置-操作日志弹窗:7 列(多"分拣项/字段标识";分拣项删除后日志仍可查) */
-.si-log-grid th:nth-child(1), .si-log-grid td:nth-child(1) { width: 44px; text-align: center; }
-.si-log-grid th:nth-child(2), .si-log-grid td:nth-child(2) { width: 130px; white-space: nowrap; }
-.si-log-grid th:nth-child(3), .si-log-grid td:nth-child(3) { width: 150px; white-space: nowrap; }
-.si-log-grid th:nth-child(4), .si-log-grid td:nth-child(4) { width: 80px; white-space: nowrap; }
-.si-log-grid th:nth-child(5), .si-log-grid td:nth-child(5) { width: 160px; white-space: nowrap; }
-.si-log-grid th:nth-child(6), .si-log-grid td:nth-child(6) { width: 140px; white-space: nowrap; }
-.si-log-grid th:nth-child(7), .si-log-grid td:nth-child(7) { width: auto; white-space: normal; word-break: break-all; }
 /* 看板失效警告条 */
 .sb-warn-bar { font-size: 12px; color: #CF1322; background: #FFF1F0; border: 1px solid #FFA39E; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; }
 /* 应用分组方案弹窗 */
@@ -953,51 +945,6 @@
 .cr-cond-grid .sel { width: 100%; box-sizing: border-box; }
 .cr-cond-grid .cr-empty { text-align: center; color: #999; padding: 10px; cursor: default; }
 .sb-rule-preview { margin-top: 10px; font-size: 12px; color: #1F4E79; background: #F0F7FF; border: 1px solid #C9E0F5; border-radius: 4px; padding: 7px 10px; line-height: 1.6; word-break: break-all; }
-
-/* ============================================
-   b-sort-item 分拣项配置(注册表)
-   ============================================ */
-.si-mrow-del { flex: none; width: 24px; height: 24px; border: none; background: none; color: #999; cursor: pointer; border-radius: 3px; }
-.si-mrow-del:hover { color: #E81123; background: #FFECEC; }
-.si-dup { border-color: #C62828 !important; background: #FFF1F0 !important; }
-.si-panel .rw-form-label { width: 88px; }
-.si-sec-title {
-  font-size: 13px; font-weight: 600; color: #1F4E79;
-  border-left: 3px solid #00A99D; padding-left: 8px;
-  margin: 14px 0 10px; line-height: 1.2;
-}
-.si-sec-title:first-of-type { margin-top: 0; }
-.si-lock-note {
-  font-size: 12px; color: #7A5C00; background: #FFFBE6;
-  border: 1px solid #FFE58F; border-radius: 4px;
-  padding: 6px 10px; margin-bottom: 12px; line-height: 1.6;
-}
-.si-dim { font-size: 11px; color: #999; line-height: 1.6; margin-top: 3px; }
-.si-val-static {
-  font-size: 12px; color: #666; background: #FAFAFA;
-  border: 1px dashed #D9D9D9; border-radius: 4px;
-  padding: 10px 12px; line-height: 1.6;
-}
-#siValBody .grid th { font-size: 11px; padding: 4px 6px; background: #F7F9FC; }
-#siValBody .grid td { padding: 3px 4px; }
-#siValBody .grid input.ipt { height: 24px; box-sizing: border-box; }
-#siFType:disabled, #siFBind:disabled { background: #F5F5F5; color: #999; cursor: not-allowed; }
-
-/* ============================================
-   b-sort-item 运算符勾选网格(去数据类型后)
-   ============================================ */
-.si-op-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; }
-.si-op-item {
-  display: flex; align-items: center; gap: 5px; font-size: 12px;
-  padding: 3px 6px; border: 1px solid #E3E9F0; border-radius: 4px;
-  background: #FAFCFE; cursor: pointer; user-select: none;
-}
-.si-op-item:hover { border-color: #00A99D; }
-.si-op-item--faint { opacity: .55; }
-.si-op-item input { margin: 0; }
-.si-op-lbl { color: #333; }
-.si-op-expr { color: #8C8C8C; font-size: 11px; font-family: Consolas, monospace; }
-
 
 /* === B2B分拣管理页 · 规则失效态 / 未配规则二态 / 值勾选弹窗(2026-09-21 评审待改) === */
 .sb-card.sb-card--stale { border-color: #FF4D4F; border-style: dashed; background: #FFF8F6; }
