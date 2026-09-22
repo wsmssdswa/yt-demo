@@ -786,15 +786,47 @@
 .col--check { text-align: center; }
 .col--check input { cursor: pointer; }
 .lrb-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; cursor: pointer; }
-/* 选择框(线上 uctrlProductMultiSelect 只读形态) */
-.lrb-pick-wrap { flex: 1; }
-.lrb-pick { height: 28px; line-height: 26px; padding: 0 8px; border: 1px solid #C9D2DC; border-radius: 3px;
-  background: #fff; font-size: 12px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  cursor: pointer; }
-.lrb-pick:hover { border-color: #4A7FB5; }
-.lrb-pick--empty { color: #999; }
-.lrb-pick--locked { background: #F3F5F7; color: #666; cursor: not-allowed; }
-.lrb-pick--locked:hover { border-color: #C9D2DC; }
+/* 编辑弹窗(两个分组框:规则信息 / 匹配维度[双页签]) */
+.lrb-edit-body { display: flex; flex-direction: column; gap: 16px; }
+.lrb-gb { position: relative; border: 1px solid #C9D2DC; border-radius: 2px; padding: 18px 14px 12px; }
+.lrb-gb-title { position: absolute; top: -9px; left: 10px; background: #fff; padding: 0 4px; font-size: 12px; color: #333; }
+.lrb-gb-inner { display: flex; flex-direction: column; gap: 8px; }
+.lrb-gb-inner--fill { gap: 0; }
+.lrb-form-row { display: flex; align-items: center; gap: 2px; }
+.lrb-form-label { width: 76px; font-size: 12px; color: #333; text-align: right; flex: none; }
+.lrb-req { width: 10px; color: #E81123; font-size: 12px; text-align: center; flex: none; }
+/* 维度页签(销售产品 / 调拨目的网点;标题带已选数) */
+.lrb-tabs { display: flex; gap: 2px; border-bottom: 1px solid #D6D6D6; margin-bottom: 8px; }
+.lrb-tab { padding: 5px 14px; font-size: 12px; color: #333; background: #EFEFEF;
+  border: 1px solid #D6D6D6; border-bottom: none; border-radius: 3px 3px 0 0;
+  cursor: pointer; position: relative; top: 1px; }
+.lrb-tab--active { background: #fff; font-weight: 600; }
+.lrb-pane-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.lrb-pane-count { font-size: 12px; color: #888; }
+.lrb-pane-grid { max-height: 186px; overflow-y: auto; border: 1px solid #E5EAF0; border-radius: 3px; }
+.lrb-inner-grid { width: 100%; }
+.lrb-inner-grid tbody td { font-size: 12px; }
+/* 行内操作链接(移除;实现为蓝字下划线、悬停变红) */
+.lrb-link { color: #1A66C2; text-decoration: underline; cursor: pointer; }
+.lrb-link:hover { color: #E81123; }
+/* 可搜索库位下拉(线上 uctrlLocationSearchable:输入即筛 + 候选下拉) */
+.lrb-loc { display: inline-flex; flex-direction: column; gap: 2px; }
+.lrb-loc-main { position: relative; display: inline-flex; align-items: center; }
+.lrb-loc-input { width: 100%; height: 26px; box-sizing: border-box; padding-right: 20px; }
+.lrb-loc-input:disabled { background: #F3F5F7; color: #666; }
+.lrb-loc-arrow { position: absolute; right: 6px; font-size: 10px; color: #666; cursor: pointer; user-select: none; }
+.lrb-loc-drop { position: absolute; top: 27px; left: 0; right: 0; max-height: 190px; overflow-y: auto;
+  background: #fff; border: 1px solid #C9D2DC; border-radius: 3px; box-shadow: 0 4px 12px rgba(0,0,0,.12); z-index: 20; }
+.lrb-loc-item { display: flex; justify-content: space-between; gap: 10px; padding: 3px 8px; font-size: 12px; cursor: pointer; }
+.lrb-loc-item-code { font-family: Consolas, monospace; }
+.lrb-loc-item-area { color: #999; }
+.lrb-loc-item:hover { background: #E8F0FE; }
+.lrb-loc-empty { padding: 8px; font-size: 12px; color: #999; text-align: center; }
+.lrb-loc-area { font-size: 11px; color: #888; padding-left: 2px; min-height: 15px; }
+/* 列表 13 列固定宽,窄屏横向滚动(对标 WinForms 固定列宽) */
+.lrb-grid { min-width: 1210px; }
+/* 日志弹窗(线上 frmNote:操作时间/操作人/日志内容) */
+.lrb-log-grid { max-height: 320px; overflow-y: auto; border: 1px solid #E5EAF0; border-radius: 3px; }
 /* 选择弹窗(线上 FormProductMultiSelector:已选在左/待选在右/中间添加移除) */
 .lrb-picker-panel:focus { outline: none; }
 .lrb-picker { display: flex; gap: 10px; align-items: stretch; }
@@ -809,10 +841,6 @@
 .lrb-picker-mid { display: flex; flex-direction: column; justify-content: center; gap: 14px; }
 .abn-tag--ok { background: #F6FFED; color: #389E0D; border: 1px solid #B7EB8F; }
 .abn-tag:not([class*="abn-status"]):not(.abn-tag--ok) { background: #F5F5F5; color: #888; border: 1px solid #D9D9D9; }
-.lrb-loc-count { font-size: 12px; color: #666; margin-bottom: 8px; }
-.lrb-loc-list { max-height: 260px; overflow-y: auto; border: 1px solid #E5EAF0; border-radius: 4px; }
-.lrb-loc-item { padding: 5px 12px; font-size: 12px; font-family: Consolas, monospace; color: #333; border-bottom: 1px solid #F0F3F7; }
-.lrb-loc-item:last-child { border-bottom: none; }
 
 /* === B2B分拣管理页(in-b2b-sort) === */
 .sb-toolbar-note { margin-left: 10px; font-size: 11px; color: #8C8C8C; }

@@ -1,59 +1,73 @@
 /* ============================================
-   wh-loc-rule.js — 库位推荐规则配置页(调拨网点方案)
-   基线 = 线上 FrmRecommendRule 三窗体还原版;本次叠加「调拨网点」条件:
-     1. 行粒度 = 条件集(一条配置意图一行):产品集 + 调拨网点集 + 库位 + 自动上架;
-        产品与其他条件项平等,均值多选(产品与调拨网点至少配一项),不按产品拆行
-     2. 产品选择对齐线上 uctrlProductMultiSelect:只读框(点击选择产品/已选摘要)
-        → 弹「产品选择」弹窗(待选在左/已选在右双表格+各自搜索框+添加/移除按钮,
-        双击行或选中行+按钮操作,保存回显摘要,>2 个显前两+等N个,悬停显全量);
-        调拨网点为新增字段,跟随同款弹窗式交互(网点代码+网点名称两列)
-     3. 调拨网点留空 = 不限;签入时经 LNMS 实时获取推荐调拨网点参与匹配
-     4. 多条件固定「全部满足」(AND-only);新建默认停用(对齐线上 rule_status=0)
-     5. 防重复 = 同网点+完全相同条件集拦截;命中重叠(可能同时命中)保存拦截,
-        库内两两互斥,签入匹配唯一命中(先创建先生效仅作防并发兜底)
+   wh-loc-rule.js — 库位推荐规则配置页(p967_2062 实现还原版)
+   对齐 2026-09 线上实现(FrmRecommendRuleQuery / FrmRecommendRuleEdit):
+     1. 一条规则一行:操作网点 + 单个推荐库位 + 匹配维度(销售产品集 / 调拨目的网点集)+ 自动上架;
+        新建默认停用;"销售产品/调拨目的网点至少配置一项"
+     2. 查询区两行:①操作网点 / 推荐库位 / 启用状态 / 是否自动上架  ②产品代码 / 调拨目的网点;
+        推荐库位为可搜索下拉(候选跟随操作网点,未选网点时禁用);工具栏含「查看日志」
+     3. 编辑弹窗分两组:「规则信息」( * 操作网点 / * 推荐库位 / 是否自动上架)
+        +「匹配维度」(销售产品 / 调拨目的网点两个页签,页签标题带已选数,
+        行内「操作/移除」链接逐行移除,「添加」经双表格穿梭弹窗)
+     4. 校验:维度至少一项;新增校验库位(不在网点下则拦);同网点+同库位不可重复;
+        编辑时操作网点与推荐库位锁定不可改
+     5. 操作日志(log_type=RecommendRuleLog):新增/修改/删除/启停各一条,「查看日志」查看
    ============================================ */
 
-/* ---- 演示数据(products=产品条件集必配;destOrgs=调拨网点条件集,空=不限) ---- */
+/* ---- 组织机构(操作网点取登录人所属网点;调拨目的网点候选=全量组织) ---- */
+const LR_ORGS = [
+  { code: 'CN0007', name: '东腾曼沙项目仓' },
+  { code: 'CN0012', name: '东腾美西中转仓' },
+  { code: 'CNSHA',  name: '上海仓' },
+  { code: 'CNDGG',  name: '东莞仓' },
+  { code: 'USLAX',  name: '洛杉矶仓' },
+  { code: 'USNYC',  name: '纽约仓' },
+  { code: 'USCHI',  name: '芝加哥仓' },
+];
+/* 操作网点下拉(演示:登录人所属网点集合) */
+const LR_OPS = ['CN0007', 'CN0012'];
+/* 登录人所属网点(新增/查询默认值) */
+const LR_USER_OG = 'CN0007';
+
+/* ---- 库位与库区(候选跟随操作网点;编辑页展示「所属库区」) ---- */
+const LR_WAREHOUSE = {
+  CN0007: [
+    { code: 'A-01-01', area: 'A区' }, { code: 'A-01-02', area: 'A区' },
+    { code: 'B-02-01', area: 'B区' }, { code: 'B-02-04', area: 'B区' },
+    { code: 'B-06-01', area: 'B区' }, { code: 'B-06-02', area: 'B区' },
+    { code: 'C-01-01', area: 'C区' }, { code: 'C-01-05', area: 'C区' },
+    { code: 'C-02-02', area: 'C区' }, { code: 'C-02-08', area: 'C区' },
+    { code: 'T-01-01', area: 'T区' },
+  ],
+  CN0012: [
+    { code: 'F-03-01', area: 'F区' },
+    { code: 'G-01-01', area: 'G区' }, { code: 'G-01-04', area: 'G区' },
+    { code: 'G-05-01', area: 'G区' }, { code: 'G-05-02', area: 'G区' },
+    { code: 'G-05-03', area: 'G区' },
+  ],
+};
+
+/* ---- 演示数据(一行=一条规则;products/destOrgs 存编码,展示时翻译) ---- */
 const LR_ROWS = [
-  { id:1, og:'东腾曼沙项目仓',
-    products:['US-MATSU-REG'], destOrgs:['上海仓'],
-    locations:['A-01-01','A-01-02'], status:1, autoShelf:0,
+  { id:1, og:'CN0007', location:'A-01-01', products:['US-MATSU-REG'], destOrgs:['CNSHA'], status:1, autoShelf:0,
     createTime:'2026-05-12 09:30:22', updateTime:'2026-08-02 15:10:08', createUser:'庄亚运', updateUser:'庄亚运' },
-  { id:2, og:'东腾曼沙项目仓',
-    products:['US-MATSU-REG'], destOrgs:['洛杉矶仓'],
-    locations:['B-02-01'], status:1, autoShelf:0,
+  { id:2, og:'CN0007', location:'B-02-01', products:['US-MATSU-REG'], destOrgs:['USLAX'], status:1, autoShelf:0,
     createTime:'2026-05-12 10:12:08', updateTime:'2026-07-25 16:10:08', createUser:'庄亚运', updateUser:'李丽' },
-  { id:3, og:'东腾曼沙项目仓',
-    products:['US-MATSU-ELC','US-KAPAI-ELC'], destOrgs:[],
-    locations:['B-02-01','B-02-04'], status:1, autoShelf:1,
+  { id:3, og:'CN0007', location:'B-02-04', products:['US-MATSU-ELC','US-KAPAI-ELC'], destOrgs:[], status:1, autoShelf:1,
     createTime:'2026-05-20 14:22:41', updateTime:'2026-06-18 11:05:33', createUser:'王强', updateUser:'王强' },
-  { id:4, og:'东腾曼沙项目仓',
-    products:['US-HAIYUN-REG'], destOrgs:[],
-    locations:['C-01-01','C-01-05','C-02-02','C-02-08'], status:0, autoShelf:0,
+  { id:4, og:'CN0007', location:'C-01-01', products:['US-HAIYUN-REG'], destOrgs:[], status:0, autoShelf:0,
     createTime:'2026-06-01 11:08:15', updateTime:'2026-06-01 11:08:15', createUser:'王强', updateUser:'王强' },
-  { id:5, og:'东腾美西中转仓',
-    products:['US-MATSU-REG'], destOrgs:[],
-    locations:['G-01-01','G-01-04'], status:1, autoShelf:0,
+  { id:5, og:'CN0012', location:'G-01-01', products:['US-MATSU-REG'], destOrgs:[], status:1, autoShelf:0,
     createTime:'2026-06-15 10:05:44', updateTime:'2026-06-15 10:05:44', createUser:'王强', updateUser:'王强' },
-  { id:6, og:'东腾美西中转仓',
-    products:['US-HAIYUN-REG'], destOrgs:['纽约仓'],
-    locations:['F-03-01'], status:0, autoShelf:0,
+  { id:6, og:'CN0012', location:'F-03-01', products:['US-HAIYUN-REG'], destOrgs:['USNYC'], status:0, autoShelf:0,
     createTime:'2026-06-18 16:22:09', updateTime:'2026-06-18 16:22:09', createUser:'李丽', updateUser:'李丽' },
-  { id:7, og:'东腾曼沙项目仓',
-    products:['US-BAOHUO-REG'], destOrgs:[],
-    locations:['B-06-01','B-06-02'], status:1, autoShelf:1,
+  { id:7, og:'CN0007', location:'B-06-01', products:['US-BAOHUO-REG'], destOrgs:[], status:1, autoShelf:1,
     createTime:'2026-07-19 11:31:57', updateTime:'2026-08-10 09:02:33', createUser:'庄亚运', updateUser:'庄亚运' },
-  { id:8, og:'东腾美西中转仓',
-    products:['US-KAPAI-ELC'], destOrgs:['芝加哥仓','纽约仓'],
-    locations:['G-05-01','G-05-02','G-05-03'], status:1, autoShelf:0,
+  { id:8, og:'CN0012', location:'G-05-01', products:['US-KAPAI-ELC'], destOrgs:['USCHI','USNYC'], status:1, autoShelf:0,
     createTime:'2026-07-28 14:47:20', updateTime:'2026-08-21 17:25:41', createUser:'张敏', updateUser:'张敏' },
-  { id:9, og:'东腾曼沙项目仓',
-    products:[], destOrgs:['芝加哥仓'],
-    locations:['T-01-01'], status:1, autoShelf:0,
+  { id:9, og:'CN0007', location:'T-01-01', products:[], destOrgs:['USCHI'], status:1, autoShelf:0,
     createTime:'2026-08-28 09:15:33', updateTime:'2026-08-28 09:15:33', createUser:'李丽', updateUser:'李丽' },
 ];
 
-const LR_OGS = ['东腾曼沙项目仓', '东腾美西中转仓'];
 const LR_PRODUCT_DICT = [
   { code: 'US-MATSU-REG',  name: '美森快船-普货', en: 'Matson Express General' },
   { code: 'US-MATSU-ELC',  name: '美森快船-带电', en: 'Matson Express Electronic' },
@@ -63,76 +77,69 @@ const LR_PRODUCT_DICT = [
   { code: 'US-BAOHUO-REG', name: '普船带电-普货', en: 'Ocean Freight Electronic' },
 ];
 const LR_PRODUCTS = LR_PRODUCT_DICT.map(p => p.code);
+
+/* ---- 翻译/拼接辅助 ---- */
 function lrProductName(code) {
   const hit = LR_PRODUCT_DICT.find(p => p.code === code);
   return hit ? hit.name : code;
 }
-/* 调拨网点字典:网点代码(NetworkCoding 风格)+ 网点名称;规则/展示主键仍用名称 */
-const LR_DEST_ORGS = [
-  { code: 'CNSHA', name: '上海仓' },
-  { code: 'USLAX', name: '洛杉矶仓' },
-  { code: 'USNYC', name: '纽约仓' },
-  { code: 'USCHI', name: '芝加哥仓' },
-];
-
-/* 推荐库位列显示:≤3 个逗号分隔,超出取前 3 + "…共N个"(对齐线上 FormatLocationDisplay) */
-function lrLocDisplay(locs) {
-  if (!locs.length) return '';
-  if (locs.length <= 3) return locs.join(', ');
-  return `${locs.slice(0, 3).join(', ')} …共${locs.length}个`;
+function lrOgName(code) {
+  const hit = LR_ORGS.find(o => o.code === code);
+  return hit ? hit.name : code;
+}
+/* 列表列:多值逗号连接,空集合给空串(与实现一致,不补占位) */
+function lrJoinCodes(codes) { return codes.length ? codes.join(', ') : ''; }
+function lrJoinProductNames(codes) { return codes.length ? codes.map(lrProductName).join(', ') : ''; }
+function lrJoinOgNames(codes) { return codes.length ? codes.map(lrOgName).join(', ') : ''; }
+/* 网点下库位候选 */
+function lrLocOptions(ogCode) { return LR_WAREHOUSE[ogCode] || []; }
+function lrLocArea(ogCode, locCode) {
+  const hit = lrLocOptions(ogCode).find(l => l.code === locCode);
+  return hit ? hit.area : '';
 }
 
-/* 产品列:代码(名称);多产品显首个 + 等N个;未配置(仅调拨网点)= - */
-function lrProductCell(products) {
-  if (!products.length) return '-';
-  if (products.length === 1) return `${products[0]}(${lrProductName(products[0])})`;
-  return `${products[0]}(${lrProductName(products[0])}) 等${products.length}个`;
+/* ---- 可搜索库位下拉(线上 uctrlLocationSearchable;编辑页带「所属库区」提示行) ---- */
+function lrLocSearch(id, opts) {
+  opts = opts || {};
+  return `
+    <div class="lrb-loc${opts.area ? '' : ' lrb-loc--flat'}" id="${id}Wrap">
+      <div class="lrb-loc-main">
+        <input class="ipt lrb-loc-input" id="${id}" autocomplete="off"
+          placeholder="${opts.ph || '输入或选择库位'}" ${opts.width ? `style="width:${opts.width}px"` : ''}
+          oninput="LrPage.locInput('${id}')" onfocus="LrPage.locFocus('${id}')" />
+        <span class="lrb-loc-arrow" onclick="LrPage.locToggle('${id}')">▾</span>
+        <div class="lrb-loc-drop" id="${id}Drop" style="display:none"></div>
+      </div>
+      ${opts.area ? `<div class="lrb-loc-area" id="${id}Area">所属库区：</div>` : ''}
+    </div>
+  `;
 }
 
-/* 调拨网点列:纯文本拼接;未配置显示 - */
-function lrDestOrgCell(destOrgs) {
-  return destOrgs.length ? destOrgs.join(', ') : '-';
-}
-
-/* 条件摘要(线上防重复句式):产品/调拨多值顿号连接,未配置 = 不限 */
-function lrCondStr(products, destOrgs) {
-  return `产品「${products.length ? products.join('、') : '不限'}」调拨网点「${destOrgs.length ? destOrgs.join('、') : '不限'}」`;
-}
-
-
-function lrCondSig(products, destOrgs) {
-  return JSON.stringify({ p: [...products].sort(), d: [...destOrgs].sort() });
-}
-
-/* 条件集重叠判定(AND 语义):产品集有交集 且 调拨集有交集(空 = 不限 = 全交集) */
-function lrCondOverlap(a, b) {
-  const prodHit = !a.products.length || !b.products.length ||
-    a.products.some(p => b.products.includes(p));
-  const destHit = !a.destOrgs.length || !b.destOrgs.length ||
-    a.destOrgs.some(d => b.destOrgs.includes(d));
-  return prodHit && destHit;
-}
-
-/* ---- 查询区(线上 4 条件 + 调拨网点筛选) ---- */
+/* ---- 查询区(两行:第一行 5 项含查询按钮,第二行 产品代码/调拨目的网点) ---- */
 function lrQueryPanel() {
   const f = (label, control) => `<div class="qf"><label>${label}</label>${control}</div>`;
   return `
     <div class="query-panel qp">
       <div class="qp-row qp-row--main">
+        ${f('操作网点', `<select class="sel" id="lrQOg" style="width:170px" onchange="LrPage.onQueryOgChange()">
+          <option value="">全部</option>${LR_OPS.map(c => `<option value="${c}"${c === LR_USER_OG ? ' selected' : ''}>${lrOgName(c)}</option>`).join('')}
+        </select>`)}
+        ${f('推荐库位', lrLocSearch('lrQLoc', { width: 180 }))}
         ${f('启用状态', `<select class="sel" id="lrQStatus"><option value="-1">全部</option><option value="1">启用</option><option value="0">停用</option></select>`)}
-        ${f('产品代码', `<select class="sel" id="lrQProduct"><option value="">全部</option>${LR_PRODUCTS.map(p => `<option>${p}</option>`).join('')}</select>`)}
-        ${f('操作网点', `<select class="sel" id="lrQOg"><option value="">全部</option>${LR_OGS.map(o => `<option>${o}</option>`).join('')}</select>`)}
         ${f('是否自动上架', `<select class="sel" id="lrQAuto"><option value="-1">全部</option><option value="1">是</option><option value="0">否</option></select>`)}
-        ${f('调拨网点', `<select class="sel" id="lrQDestOrg"><option value="">全部</option>${LR_DEST_ORGS.map(o => `<option>${o.name}</option>`).join('')}</select>`)}
         <div class="qp-actions">
           <button class="btn btn--primary" onclick="LrPage.doQuery()">🔍 查询</button>
         </div>
+      </div>
+      <div class="qp-row">
+        ${f('产品代码', `<select class="sel" id="lrQProduct"><option value="">全部</option>${LR_PRODUCTS.map(p => `<option>${p}</option>`).join('')}</select>`)}
+        ${f('调拨目的网点', `<select class="sel" id="lrQDestOrg" style="width:170px"><option value="">全部</option>${LR_ORGS.map(o => `<option value="${o.code}">${o.name}</option>`).join('')}</select>`)}
       </div>
     </div>
   `;
 }
 
-/* ---- 工具栏(线上 6 按钮) ---- */
+/* ---- 工具栏(实现 7 按钮:新建/编辑/启用/停用/删除/导出/查看日志) ---- */
 function lrToolbar() {
   const btn = (icon, text, fn) =>
     `<button class="btn" onclick="${fn}"><span class="ic">${icon}</span><span>${text}</span></button>`;
@@ -144,19 +151,22 @@ function lrToolbar() {
       ${btn('⏸', '停用', 'LrPage.updateStatus(0)')}
       ${btn('🗑', '删除', 'LrPage.deleteChecked()')}
       ${btn('📤', '导出', 'LrPage.doExport()')}
+      ${btn('📋', '查看日志', 'LrPage.showLog()')}
     </div>
   `;
 }
 
-/* ---- 列表(线上列结构 + 新增调拨网点列;产品代码/名称合并一列;一行 = 一条条件集规则) ---- */
+/* ---- 列表(实现列:规则编号/操作网点/推荐库位/产品代码/产品名称/调拨目的网点/启用状态/是否自动上架/创建时间/更新时间/创建人/更新人) ---- */
 function lrGridHtml() {
   return LrPage.rows.map(r => `
     <tr data-id="${r.id}">
       <td class="col--check"><input type="checkbox" data-id="${r.id}" onchange="LrPage.toggleCheck(this)" /></td>
-      <td>${r.og}</td>
-      <td class="col--code" title="${r.products.join('、')}">${lrProductCell(r.products)}</td>
-      <td title="${r.destOrgs.length ? r.destOrgs.join('、') : '未配置,任何调拨网点均可命中'}">${lrDestOrgCell(r.destOrgs)}</td>
-      <td class="col--code cell-link" title="双击查看库位明细" onclick="LrPage.showLocations(${r.id})">${lrLocDisplay(r.locations)}</td>
+      <td class="col--num">${r.id}</td>
+      <td>${lrOgName(r.og)}</td>
+      <td class="col--code">${r.location}</td>
+      <td class="col--code" title="${lrJoinCodes(r.products)}">${lrJoinCodes(r.products)}</td>
+      <td title="${lrJoinProductNames(r.products)}">${lrJoinProductNames(r.products)}</td>
+      <td title="${lrJoinOgNames(r.destOrgs)}">${lrJoinOgNames(r.destOrgs)}</td>
       <td>${r.status === 1 ? '<span class="abn-tag abn-tag--ok">启用</span>' : '<span class="abn-tag">停用</span>'}</td>
       <td>${r.autoShelf === 1 ? '是' : '否'}</td>
       <td>${r.createTime}</td>
@@ -170,27 +180,31 @@ function lrGridHtml() {
 function lrGrid() {
   return `
     <div class="grid-wrap wh-grid-wrap">
-      <table class="grid wh-grid">
+      <table class="grid wh-grid lrb-grid">
         <colgroup>
           <col style="width:36px" />
-          <col style="width:120px" />
-          <col style="min-width:210px" />
-          <col style="width:120px" />
-          <col style="min-width:170px" />
+          <col style="width:62px" />
+          <col style="width:112px" />
+          <col style="width:88px" />
+          <col style="width:132px" />
+          <col style="width:118px" />
+          <col style="width:118px" />
           <col style="width:64px" />
-          <col style="width:84px" />
-          <col style="width:145px" />
-          <col style="width:145px" />
-          <col style="width:64px" />
-          <col style="width:64px" />
+          <col style="width:86px" />
+          <col style="width:134px" />
+          <col style="width:134px" />
+          <col style="width:62px" />
+          <col style="width:62px" />
         </colgroup>
         <thead>
           <tr>
             <th></th>
+            <th>规则编号</th>
             <th>操作网点</th>
-            <th title="产品代码与名称合并展示;多产品显首个+等N个;悬浮查看全量">产品</th>
-            <th title="调拨网点条件;未配置=不限,任何调拨网点均可命中">调拨网点</th>
             <th>推荐库位</th>
+            <th>产品代码</th>
+            <th>产品名称</th>
+            <th>调拨目的网点</th>
             <th>启用状态</th>
             <th>是否自动上架</th>
             <th>创建时间</th>
@@ -222,51 +236,73 @@ function lrPager() {
   `;
 }
 
-/* 选择框(线上 uctrlProductMultiSelect 形态:只读框,点击弹窗选择,回显摘要) */
-function lrPickField(id, openFn, ph) {
-  return `
-    <div class="lrb-pick-wrap">
-      <div class="lrb-pick" id="${id}" onclick="${openFn}" title="">${ph}</div>
-    </div>
-  `;
-}
-
-/* ---- 编辑弹窗(线上平铺形态 + 调拨网点字段) ---- */
+/* ---- 编辑弹窗(两个分组框:规则信息 / 匹配维度[双页签]) ---- */
 function lrEditModal() {
   return `
     <div class="rw-modal" id="lrEditMask" style="display:none">
       <div class="rw-modal-mask"></div>
-      <div class="rw-modal-panel" style="width:560px">
+      <div class="rw-modal-panel lrb-edit-panel" style="width:800px">
         <div class="rw-modal-header">
           <span class="rw-modal-title">编辑规则</span>
           <button class="rw-modal-close" onclick="LrPage.closeEdit()">✕</button>
         </div>
-        <div class="rw-modal-body">
-          <div class="rw-form-row">
-            <label class="rw-form-label">操作网点：</label>
-            <select class="sel" id="lrFOg" style="flex:1">
-              ${LR_OGS.map(o => `<option>${o}</option>`).join('')}
-            </select>
-          </div>
-          <div class="rw-form-row" style="align-items:flex-start">
-            <label class="rw-form-label">产品代码：</label>
-            ${lrPickField('lrFProduct', 'LrPage.openPicker(\'product\')', '点击选择产品')}
-          </div>
-          <div class="rw-form-row" style="align-items:flex-start">
-            <label class="rw-form-label">调拨网点：</label>
-            <div style="flex:1">
-              ${lrPickField('lrFDestOrg', 'LrPage.openPicker(\'destOrg\')', '点击选择调拨网点')}
-              <div class="sb-cond-note">未选择 = 不限(产品与调拨网点至少填一项)</div>
+        <div class="rw-modal-body lrb-edit-body">
+          <div class="lrb-gb">
+            <div class="lrb-gb-title">规则信息</div>
+            <div class="lrb-gb-inner">
+              <div class="lrb-form-row">
+                <span class="lrb-req">*</span>
+                <label class="lrb-form-label">操作网点：</label>
+                <select class="sel" id="lrFOg" style="width:400px" onchange="LrPage.onEditOgChange()">
+                  ${LR_OPS.map(c => `<option value="${c}">${lrOgName(c)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="lrb-form-row">
+                <span class="lrb-req">*</span>
+                <label class="lrb-form-label">推荐库位：</label>
+                ${lrLocSearch('lrFLoc', { area: true, width: 400, ph: '输入或选择库位' })}
+              </div>
+              <div class="lrb-form-row">
+                <span class="lrb-req"></span>
+                <label class="lrb-form-label"></label>
+                <label class="lrb-check"><input type="checkbox" id="lrFAutoShelf" /> 是否自动上架</label>
+              </div>
             </div>
           </div>
-          <div class="rw-form-row" style="align-items:flex-start">
-            <label class="rw-form-label">推荐库位：</label>
-            <textarea class="ipt" id="lrFLocations" rows="5" style="flex:1;resize:vertical;font-family:Consolas,monospace"
-              placeholder="多个库位用换行或逗号分隔,最多 100 个"></textarea>
-          </div>
-          <div class="rw-form-row">
-            <label class="rw-form-label"></label>
-            <label class="lrb-check"><input type="checkbox" id="lrFAutoShelf" /> 是否自动上架</label>
+          <div class="lrb-gb lrb-gb--grow">
+            <div class="lrb-gb-title">匹配维度</div>
+            <div class="lrb-gb-inner lrb-gb-inner--fill">
+              <div class="lrb-tabs">
+                <div class="lrb-tab lrb-tab--active" id="lrTabProduct" onclick="LrPage.switchTab('product')">销售产品 (0)</div>
+                <div class="lrb-tab" id="lrTabDestOrg" onclick="LrPage.switchTab('destOrg')">调拨目的网点 (0)</div>
+              </div>
+              <div class="lrb-pane" id="lrPaneProduct">
+                <div class="lrb-pane-bar">
+                  <button class="btn" onclick="LrPage.openPicker('product')">添加</button>
+                  <span class="lrb-pane-count" id="lrProdCount">已选 0 项</span>
+                </div>
+                <div class="lrb-pane-grid">
+                  <table class="grid lrb-inner-grid">
+                    <colgroup><col style="width:200px" /><col style="width:300px" /><col style="width:60px" /></colgroup>
+                    <thead><tr><th>产品代码</th><th>产品名称</th><th>操作</th></tr></thead>
+                    <tbody id="lrProdRows"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="lrb-pane" id="lrPaneDestOrg" style="display:none">
+                <div class="lrb-pane-bar">
+                  <button class="btn" onclick="LrPage.openPicker('destOrg')">添加</button>
+                  <span class="lrb-pane-count" id="lrOrgCount">已选 0 项</span>
+                </div>
+                <div class="lrb-pane-grid">
+                  <table class="grid lrb-inner-grid">
+                    <colgroup><col style="width:200px" /><col style="width:300px" /><col style="width:60px" /></colgroup>
+                    <thead><tr><th>网点代码</th><th>网点名称</th><th>操作</th></tr></thead>
+                    <tbody id="lrOrgRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="rw-modal-footer">
@@ -278,29 +314,7 @@ function lrEditModal() {
   `;
 }
 
-/* ---- 推荐库位明细弹窗(线上 FrmRecommendRuleLocations) ---- */
-function lrLocationsModal() {
-  return `
-    <div class="rw-modal" id="lrLocMask" style="display:none">
-      <div class="rw-modal-mask"></div>
-      <div class="rw-modal-panel" style="width:420px">
-        <div class="rw-modal-header">
-          <span class="rw-modal-title" id="lrLocTitle">推荐库位</span>
-          <button class="rw-modal-close" onclick="document.getElementById('lrLocMask').style.display='none'">✕</button>
-        </div>
-        <div class="rw-modal-body">
-          <div class="lrb-loc-count" id="lrLocCount">共 0 个库位</div>
-          <div class="lrb-loc-list" id="lrLocList"></div>
-        </div>
-        <div class="rw-modal-footer">
-          <button class="btn" onclick="document.getElementById('lrLocMask').style.display='none'">关闭</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/* ---- 选择弹窗(线上 FormProductMultiSelector 布局微调:待选在左/已选在右,中间添加/移除) ---- */
+/* ---- 选择弹窗(已选在左/待选在右,双击或按钮添加移除;产品三列/网点两列) ---- */
 function lrPickerModal() {
   return `
     <div class="rw-modal" id="lrPickerMask" style="display:none">
@@ -313,22 +327,6 @@ function lrPickerModal() {
         <div class="rw-modal-body">
           <div class="lrb-picker">
             <div class="lrb-picker-col">
-              <div class="lrb-picker-head" id="lrPickerPendHead">待选产品</div>
-              <input class="ipt lrb-picker-search" id="lrPickerPendFilter" placeholder="输入代码/名称过滤"
-                oninput="LrPage.pickerFilter('pend')" />
-              <div class="lrb-picker-gridwrap">
-                <table class="grid lrb-picker-grid">
-                  <colgroup id="lrPickerPendCols"></colgroup>
-                  <thead id="lrPickerPendHeadRow"></thead>
-                  <tbody id="lrPickerPendBody"></tbody>
-                </table>
-              </div>
-            </div>
-            <div class="lrb-picker-mid">
-              <button class="btn" id="lrPickerAddBtn" onclick="LrPage.pickerAdd()">添加</button>
-              <button class="btn" id="lrPickerRemoveBtn" onclick="LrPage.pickerRemove()">移除</button>
-            </div>
-            <div class="lrb-picker-col">
               <div class="lrb-picker-head" id="lrPickerSelHead">已选产品</div>
               <input class="ipt lrb-picker-search" id="lrPickerSelFilter" placeholder="输入代码/名称过滤"
                 oninput="LrPage.pickerFilter('sel')" />
@@ -337,6 +335,22 @@ function lrPickerModal() {
                   <colgroup id="lrPickerSelCols"></colgroup>
                   <thead id="lrPickerSelHeadRow"></thead>
                   <tbody id="lrPickerSelBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="lrb-picker-mid">
+              <button class="btn" id="lrPickerAddBtn" onclick="LrPage.pickerAdd()">添加</button>
+              <button class="btn" id="lrPickerRemoveBtn" onclick="LrPage.pickerRemove()">移除</button>
+            </div>
+            <div class="lrb-picker-col">
+              <div class="lrb-picker-head" id="lrPickerPendHead">待选产品</div>
+              <input class="ipt lrb-picker-search" id="lrPickerPendFilter" placeholder="输入代码/名称过滤"
+                oninput="LrPage.pickerFilter('pend')" />
+              <div class="lrb-picker-gridwrap">
+                <table class="grid lrb-picker-grid">
+                  <colgroup id="lrPickerPendCols"></colgroup>
+                  <thead id="lrPickerPendHeadRow"></thead>
+                  <tbody id="lrPickerPendBody"></tbody>
                 </table>
               </div>
             </div>
@@ -351,24 +365,68 @@ function lrPickerModal() {
   `;
 }
 
+/* ---- 日志弹窗(线上 frmNote;列:操作时间/操作人/日志内容) ---- */
+function lrLogModal() {
+  return `
+    <div class="rw-modal" id="lrLogMask" style="display:none">
+      <div class="rw-modal-mask"></div>
+      <div class="rw-modal-panel" style="width:670px">
+        <div class="rw-modal-header">
+          <span class="rw-modal-title">日志</span>
+          <button class="rw-modal-close" onclick="LrPage.closeLog()">✕</button>
+        </div>
+        <div class="rw-modal-body">
+          <div class="lrb-log-grid">
+            <table class="grid lrb-inner-grid">
+              <colgroup><col style="width:150px" /><col style="width:90px" /><col /></colgroup>
+              <thead><tr><th>操作时间</th><th>操作人</th><th>日志内容</th></tr></thead>
+              <tbody id="lrLogRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="rw-modal-footer">
+          <button class="btn" onclick="LrPage.closeLog()">关闭</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* ---- 页面逻辑 ---- */
 const LrPage = {
   rows: LR_ROWS.slice(),
   checked: new Set(),
+  currentId: 0,
   editingId: 0,
-  productTags: [],
-  destOrgTags: [],
-  /* 选择弹窗状态(mode: product|destOrg;cur: 当前选中行 {side, key}) */
+  tabMode: 'product',
+  prodRows: [],
+  orgRows: [],
+  /* 库位下拉状态 */
+  loc: { id: '', open: false },
+  /* 选择弹窗状态 */
   picker: { mode: '', sel: [], pendFilter: '', selFilter: '', cur: null },
+
+  /* ================= 查询 ================= */
+  onQueryOgChange() {
+    /* 换网点后候选整体重载;未选网点则禁用(实现同款:候选跟随操作网点) */
+    const el = document.getElementById('lrQLoc');
+    const og = document.getElementById('lrQOg').value;
+    el.value = '';
+    LrPage.closeLocDrop();
+    el.disabled = !og;
+    el.placeholder = og ? '输入或选择库位' : '请先选择操作网点';
+  },
 
   doQuery() {
     const og = document.getElementById('lrQOg').value;
+    const loc = document.getElementById('lrQLoc').value.trim();
     const pd = document.getElementById('lrQProduct').value;
     const st = document.getElementById('lrQStatus').value;
     const au = document.getElementById('lrQAuto').value;
     const de = document.getElementById('lrQDestOrg').value;
     this.rows = LR_ROWS.filter(r =>
       (!og || r.og === og) &&
+      (!loc || r.location === loc) &&
       (!pd || r.products.includes(pd)) &&
       (st === '-1' || String(r.status) === st) &&
       (au === '-1' || String(r.autoShelf) === au) &&
@@ -387,49 +445,157 @@ const LrPage = {
 
   getCheckedRows() { return this.rows.filter(r => this.checked.has(r.id)); },
 
-  editChecked() {
-    const rows = this.getCheckedRows();
-    if (!rows.length) { Helpers.toast('请勾选要修改的规则！'); return; }
-    if (rows.length > 1) { Helpers.toast('编辑仅支持单选！'); return; }
-    this.openEdit(rows[0].id);
+  /* ================= 库位可搜索下拉 ================= */
+  locOgOf(id) {
+    return id === 'lrQLoc' ? document.getElementById('lrQOg').value : document.getElementById('lrFOg').value;
+  },
+  locCandidates(id) { return lrLocOptions(this.locOgOf(id)); },
+
+  renderLocDrop(id, keyword) {
+    const kw = (keyword || '').trim();
+    const list = this.locCandidates(id).filter(l => !kw || l.code.toUpperCase().includes(kw.toUpperCase()));
+    const box = document.getElementById(id + 'Drop');
+    box.innerHTML = list.length
+      ? list.map(l => `<div class="lrb-loc-item" onclick="LrPage.locPick('${id}','${l.code}')">
+          <span class="lrb-loc-item-code">${l.code}</span><span class="lrb-loc-item-area">${l.area}</span></div>`).join('')
+      : '<div class="lrb-loc-empty">无匹配的库位</div>';
+    box.style.display = 'block';
+    this.loc = { id, open: true };
   },
 
+  closeLocDrop() {
+    document.querySelectorAll('.lrb-loc-drop').forEach(d => { d.style.display = 'none'; });
+    this.loc = { id: '', open: false };
+  },
+
+  locFocus(id) {
+    if (document.getElementById(id).disabled) return;
+    this.renderLocDrop(id, '');
+  },
+
+  locToggle(id) {
+    const el = document.getElementById(id);
+    if (el.disabled) return;
+    if (this.loc.open && this.loc.id === id) { this.closeLocDrop(); return; }
+    this.renderLocDrop(id, '');
+  },
+
+  locInput(id) {
+    if (document.getElementById(id).disabled) return;
+    this.renderLocDrop(id, document.getElementById(id).value);
+    this.updateLocArea(id);
+  },
+
+  locPick(id, code) {
+    document.getElementById(id).value = code;
+    this.closeLocDrop();
+    this.updateLocArea(id);
+  },
+
+  /* 编辑页「所属库区」提示行(线上:命中显库区,手打无效值显「无效库位」) */
+  updateLocArea(id) {
+    const areaEl = document.getElementById(id + 'Area');
+    if (!areaEl) return;
+    const v = document.getElementById(id).value.trim();
+    if (!v) { areaEl.textContent = '所属库区：'; return; }
+    const area = lrLocArea(this.locOgOf(id), v);
+    areaEl.textContent = area ? `所属库区：${area}` : '所属库区：无效库位';
+  },
+
+  /* ================= 编辑弹窗 ================= */
   openEdit(id) {
     this.editingId = id;
     const row = id > 0 ? this.rows.find(r => r.id === id) : null;
-    /* 新建默认回显当前用户网点(线上行为);编辑时网点+产品锁定 */
-    this.productTags = row ? [...row.products] : [];
-    this.destOrgTags = row ? [...row.destOrgs] : [];
-    document.getElementById('lrFOg').disabled = !!row;
-    this.renderPickFields();
-    if (row) {
-      document.getElementById('lrFOg').value = row.og;
-      document.getElementById('lrFLocations').value = row.locations.join('\n');
-      document.getElementById('lrFAutoShelf').checked = row.autoShelf === 1;
-    } else {
-      document.getElementById('lrFOg').value = LR_OGS[0];
-      document.getElementById('lrFLocations').value = '';
-      document.getElementById('lrFAutoShelf').checked = false;
-    }
+    const isCreate = !row;
+
+    /* 编辑时操作网点与推荐库位锁定不可改 */
+    const ogSel = document.getElementById('lrFOg');
+    ogSel.disabled = !isCreate;
+    ogSel.value = isCreate ? LR_USER_OG : row.og;
+
+    const locInput = document.getElementById('lrFLoc');
+    locInput.disabled = !isCreate;
+    locInput.classList.toggle('lrb-loc-locked', !isCreate);
+    locInput.value = isCreate ? '' : row.location;
+    this.updateLocArea('lrFLoc');
+
+    document.getElementById('lrFAutoShelf').checked = isCreate ? false : row.autoShelf === 1;
+
+    this.prodRows = isCreate ? [] : row.products.map(c => ({ code: c, name: lrProductName(c) }));
+    this.orgRows = isCreate ? [] : row.destOrgs.map(c => ({ code: c, name: lrOgName(c) }));
+    this.renderProdRows();
+    this.renderOrgRows();
+    this.switchTab('product');
+    this.closeLocDrop();
+
     document.getElementById('lrEditMask').style.display = 'flex';
   },
 
-  closeEdit() { document.getElementById('lrEditMask').style.display = 'none'; },
-
-  /* ---- 选择弹窗(线上 uctrlProductMultiSelect + FormProductMultiSelector 同款) ---- */
-  pickerAll() {
-    return this.picker.mode === 'product' ? LR_PRODUCT_DICT : LR_DEST_ORGS;
+  closeEdit() {
+    this.closeLocDrop();
+    document.getElementById('lrEditMask').style.display = 'none';
   },
-  pickerKey(item) { return this.picker.mode === 'product' ? item.code : item.name; },
-  pickerLabel() { return this.picker.mode === 'product' ? '产品' : '调拨网点'; },
+
+  onEditOgChange() {
+    /* 新增态换网点 → 库位候选重载并清空(原库位失效) */
+    if (this.editingId > 0) return;
+    const locInput = document.getElementById('lrFLoc');
+    locInput.value = '';
+    this.updateLocArea('lrFLoc');
+    this.closeLocDrop();
+  },
+
+  switchTab(mode) {
+    this.tabMode = mode;
+    document.getElementById('lrTabProduct').classList.toggle('lrb-tab--active', mode === 'product');
+    document.getElementById('lrTabDestOrg').classList.toggle('lrb-tab--active', mode === 'destOrg');
+    document.getElementById('lrPaneProduct').style.display = mode === 'product' ? 'block' : 'none';
+    document.getElementById('lrPaneDestOrg').style.display = mode === 'destOrg' ? 'block' : 'none';
+  },
+
+  renderProdRows() {
+    document.getElementById('lrProdRows').innerHTML = this.prodRows.map(p => `
+      <tr><td class="col--code">${p.code}</td><td>${p.name}</td>
+      <td><a class="lrb-link" onclick="LrPage.removeProd('${p.code}')">移除</a></td></tr>`).join('');
+    document.getElementById('lrProdCount').textContent = `已选 ${this.prodRows.length} 项`;
+    document.getElementById('lrTabProduct').textContent = `销售产品 (${this.prodRows.length})`;
+  },
+
+  renderOrgRows() {
+    document.getElementById('lrOrgRows').innerHTML = this.orgRows.map(o => `
+      <tr><td class="col--code">${o.code}</td><td>${o.name}</td>
+      <td><a class="lrb-link" onclick="LrPage.removeOrg('${o.code}')">移除</a></td></tr>`).join('');
+    document.getElementById('lrOrgCount').textContent = `已选 ${this.orgRows.length} 项`;
+    document.getElementById('lrTabDestOrg').textContent = `调拨目的网点 (${this.orgRows.length})`;
+  },
+
+  removeProd(code) {
+    this.prodRows = this.prodRows.filter(p => p.code !== code);
+    this.renderProdRows();
+  },
+
+  removeOrg(code) {
+    this.orgRows = this.orgRows.filter(o => o.code !== code);
+    this.renderOrgRows();
+  },
+
+  /* ================= 选择弹窗(双表格穿梭) ================= */
+  pickerAll() {
+    return this.picker.mode === 'product'
+      ? LR_PRODUCT_DICT
+      : LR_ORGS.map(o => ({ code: o.code, name: o.name, en: '' }));
+  },
+  pickerKey(item) { return item.code; },
+  pickerLabel() { return this.picker.mode === 'product' ? '产品' : '网点'; },
 
   openPicker(mode) {
-    if (mode === 'product' && this.editingId > 0) { Helpers.toast('产品不可修改'); return; }
     this.picker.mode = mode;
     this.picker.pendFilter = '';
     this.picker.selFilter = '';
     this.picker.cur = null;
-    this.picker.sel = mode === 'product' ? [...this.productTags] : [...this.destOrgTags];
+    this.picker.sel = mode === 'product'
+      ? this.prodRows.map(p => p.code)
+      : this.orgRows.map(o => o.code);
     const label = this.pickerLabel();
     document.getElementById('lrPickerTitle').textContent = `${label}选择`;
     document.getElementById('lrPickerSelHead').textContent = `已选${label}`;
@@ -452,7 +618,7 @@ const LrPage = {
     const all = this.pickerAll();
     const selSet = new Set(this.picker.sel);
     const match = (item, q) => !q || [item.code, item.name, item.en]
-      .filter(Boolean).some(v => v.includes(q));
+      .filter(Boolean).some(v => v.toUpperCase().includes(q.toUpperCase()));
     const selRows = all.filter(i => selSet.has(this.pickerKey(i)) && match(i, this.picker.selFilter));
     const pendRows = all.filter(i => !selSet.has(this.pickerKey(i)) && match(i, this.picker.pendFilter));
 
@@ -489,7 +655,6 @@ const LrPage = {
     this.renderPicker();
   },
 
-  /* 添加:待选当前行(或双击行) → 已选;无当前行提示(线上无选中时静默,原型提示更直观) */
   pickerAdd(key) {
     key = key || (this.picker.cur && this.picker.cur.side === 'pend' && this.picker.cur.key);
     if (!key) { Helpers.toast(`请先选中待选${this.pickerLabel()}`); return; }
@@ -498,7 +663,6 @@ const LrPage = {
     this.renderPicker();
   },
 
-  /* 移除:已选当前行(或双击行) → 移出 */
   pickerRemove(key) {
     key = key || (this.picker.cur && this.picker.cur.side === 'sel' && this.picker.cur.key);
     if (!key) { Helpers.toast(`请先选中已选${this.pickerLabel()}`); return; }
@@ -508,107 +672,76 @@ const LrPage = {
   },
 
   savePicker() {
-    /* 产品上限对齐线上服务端校验(产品数量不能超过20) */
-    if (this.picker.mode === 'product' && this.picker.sel.length > 20) {
-      Helpers.toast('产品数量不能超过20'); return;
+    if (this.picker.mode === 'product') {
+      this.prodRows = this.picker.sel.map(code => ({ code, name: lrProductName(code) }));
+      this.renderProdRows();
+    } else {
+      this.orgRows = this.picker.sel.map(code => ({ code, name: lrOgName(code) }));
+      this.renderOrgRows();
     }
-    if (this.picker.mode === 'product') this.productTags = [...this.picker.sel];
-    else this.destOrgTags = [...this.picker.sel];
-    this.renderPickFields();
     document.getElementById('lrPickerMask').style.display = 'none';
   },
 
   closePicker() { document.getElementById('lrPickerMask').style.display = 'none'; },
 
-  /* ---- 选择框回显摘要(线上 UpdateDisplay:≤2 全显中文名,>2 前两+等N,悬停显全量) ---- */
-  renderPickFields() {
-    const pBox = document.getElementById('lrFProduct');
-    const pNames = this.productTags.map(lrProductName);
-    pBox.classList.toggle('lrb-pick--locked', this.editingId > 0);
-    if (!pNames.length) {
-      pBox.textContent = '点击选择产品';
-      pBox.classList.add('lrb-pick--empty');
-      pBox.title = '';
-    } else {
-      pBox.classList.remove('lrb-pick--empty');
-      pBox.textContent = pNames.length <= 2
-        ? pNames.join('、')
-        : `${pNames[0]}、${pNames[1]} 等${pNames.length}个产品`;
-      pBox.title = pNames.join('、');
-    }
-    const dBox = document.getElementById('lrFDestOrg');
-    if (!this.destOrgTags.length) {
-      dBox.textContent = '点击选择调拨网点';
-      dBox.classList.add('lrb-pick--empty');
-      dBox.title = '';
-    } else {
-      dBox.classList.remove('lrb-pick--empty');
-      dBox.textContent = this.destOrgTags.length <= 2
-        ? this.destOrgTags.join('、')
-        : `${this.destOrgTags[0]}、${this.destOrgTags[1]} 等${this.destOrgTags.length}个网点`;
-      dBox.title = this.destOrgTags.join('、');
-    }
-  },
-
+  /* ================= 保存 ================= */
   saveEdit() {
-    /* 库位解析对齐线上:换行/半角逗号/中文逗号分隔,去空白去重 */
-    const raw = document.getElementById('lrFLocations').value || '';
-    const locs = [...new Set(raw.split(/[\n,，]/).map(s => s.trim()).filter(Boolean))];
-    if (!locs.length) { Helpers.toast('请至少添加一个推荐库位'); return; }
-    if (locs.length > 100) { Helpers.toast('推荐库位数量不能超过100'); return; }
-    /* 产品与调拨网点至少配置一项(都空 = 无条件,不允许) */
-    if (!this.productTags.length && !this.destOrgTags.length) {
-      Helpers.toast('产品与调拨网点至少配置一项'); return;
-    }
+    const isCreate = this.editingId === 0;
     const og = document.getElementById('lrFOg').value;
-    if (!og) { Helpers.toast('请选择操作网点'); return; }
+    let loc = '';
 
-    if (this.editingId === 0) {
-      /* 防重复:同网点+完全相同条件集(产品集+调拨网点集);文案对齐线上防重复句式 */
-      const sig = lrCondSig(this.productTags, this.destOrgTags);
-      if (LR_ROWS.some(r => r.og === og && lrCondSig(r.products, r.destOrgs) === sig)) {
-        Helpers.toast(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在相同条件的规则，不可重复创建`); return;
+    if (isCreate) {
+      if (!og) { Helpers.toast('请选择操作网点'); return; }
+      loc = document.getElementById('lrFLoc').value.trim();
+      if (!loc) { Helpers.toast('请选择推荐库位'); return; }
+      if (!this.locCandidates('lrFLoc').some(l => l.code === loc)) {
+        Helpers.toast(`库位「${loc}」不在当前操作网点下，请从下拉列表中选择`); return;
       }
-    }
-    /* 重叠拦截:与同网点任意已有规则(含停用)可能同时命中 → 不允许保存,
-       库内规则两两互斥,签入匹配永远唯一命中(先创建先生效退化为防并发的兜底) */
-    const overlapRow = LR_ROWS.find(r =>
-      r.og === og && r.id !== this.editingId &&
-      lrCondSig(r.products, r.destOrgs) !== lrCondSig(this.productTags, this.destOrgTags) &&
-      lrCondOverlap({ products: this.productTags, destOrgs: this.destOrgTags }, r));
-    if (overlapRow) {
-      Helpers.toast(`操作网点「${og}」下${lrCondStr(this.productTags, this.destOrgTags)}已存在可能同时命中的规则，不可创建，请调整或停用已有规则`); return;
+    } else {
+      loc = document.getElementById('lrFLoc').value.trim();
     }
 
-    if (this.editingId === 0) {
-      /* 一条规则一行(条件集粒度);新建默认停用(对齐线上 rule_status=0,手动启用生效) */
-      const now = Helpers.nowTime();
+    if (!this.prodRows.length && !this.orgRows.length) {
+      Helpers.toast('销售产品与调拨目的网点至少配置一项'); return;
+    }
+
+    /* 同网点 + 同推荐库位不可重复(服务端兜底文案) */
+    if (isCreate && LR_ROWS.some(r => r.og === og && r.location === loc)) {
+      Helpers.toast(`操作网点「${og}」下推荐库位「${loc}」已存在规则，不可重复创建`); return;
+    }
+
+    const now = Helpers.nowTime();
+    if (isCreate) {
       const maxId = Math.max(...LR_ROWS.map(r => r.id));
       LR_ROWS.push({
-        id: maxId + 1, og,
-        products: [...this.productTags], destOrgs: [...this.destOrgTags],
-        locations: [...locs], status: 0, autoShelf: document.getElementById('lrFAutoShelf').checked ? 1 : 0,
+        id: maxId + 1, og, location: loc,
+        products: this.prodRows.map(p => p.code),
+        destOrgs: this.orgRows.map(o => o.code),
+        status: 0, autoShelf: document.getElementById('lrFAutoShelf').checked ? 1 : 0,
         createTime: now, updateTime: now, createUser: '当前用户', updateUser: '当前用户',
       });
-      this.rows = LR_ROWS.slice();
-      document.getElementById('lrGridBody').innerHTML = lrGridHtml();
-      document.getElementById('lrTotal').textContent = this.rows.length;
-      Helpers.toast('创建成功(新建默认停用,请勾选启用)');
+      Helpers.toast('新增成功！');
     } else {
       const row = LR_ROWS.find(r => r.id === this.editingId);
       if (row) {
-        row.products = [...this.productTags];
-        row.destOrgs = [...this.destOrgTags];
-        row.locations = [...locs];
+        row.products = this.prodRows.map(p => p.code);
+        row.destOrgs = this.orgRows.map(o => o.code);
         row.autoShelf = document.getElementById('lrFAutoShelf').checked ? 1 : 0;
-        row.updateTime = Helpers.nowTime();
+        row.updateTime = now;
         row.updateUser = '当前用户';
-        this.rows = LR_ROWS.slice();
-        document.getElementById('lrGridBody').innerHTML = lrGridHtml();
       }
       Helpers.toast('修改成功！');
     }
     this.closeEdit();
+    this.doQuery();
+  },
+
+  /* ================= 工具栏其它操作 ================= */
+  editChecked() {
+    const rows = this.getCheckedRows();
+    if (!rows.length) { Helpers.toast('请勾选要修改的规则！'); return; }
+    if (rows.length > 1) { Helpers.toast('编辑仅支持单选！'); return; }
+    this.openEdit(rows[0].id);
   },
 
   updateStatus(target) {
@@ -621,8 +754,8 @@ const LrPage = {
     }
     const verb = target === 1 ? '启用' : '停用';
     if (confirm(`确定${verb}选中的 ${rows.length} 条规则？`)) {
-      rows.forEach(r => r.status = target);
-      document.getElementById('lrGridBody').innerHTML = lrGridHtml();
+      rows.forEach(r => { r.status = target; r.updateTime = Helpers.nowTime(); r.updateUser = '当前用户'; });
+      this.doQuery();
       Helpers.toast(`${verb}成功`);
     }
   },
@@ -633,29 +766,45 @@ const LrPage = {
     if (confirm(`确定删除选中的 ${rows.length} 条规则？删除后不可恢复`)) {
       LR_ROWS.length = 0;
       LR_ROWS.push(...this.rows.filter(r => !this.checked.has(r.id)));
-      this.rows = LR_ROWS.slice();
-      this.checked.clear();
-      document.getElementById('lrGridBody').innerHTML = lrGridHtml();
-      document.getElementById('lrTotal').textContent = this.rows.length;
+      this.doQuery();
       Helpers.toast('删除成功');
     }
   },
 
-  /* 导出:按库位逐行展开,文件名对齐线上「推荐库位明细_yyyyMMddHHmmss.xls」 */
+  /* 导出:一个维度值一行平铺,文件名对齐实现「推荐库位明细_yyyyMMddHHmmss.xls」 */
   doExport() {
+    if (!confirm('确定导出推荐库位明细？')) return;
     const ts = Helpers.nowTime().replace(/[-: ]/g, '');
-    Helpers.toast(`导出成功：推荐库位明细_${ts}.xls`);
+    Helpers.toast(`导出成功！推荐库位明细_${ts}.xls`);
   },
 
-  showLocations(id) {
-    const row = this.rows.find(r => r.id === id);
-    if (!row) return;
-    document.getElementById('lrLocTitle').textContent = `推荐库位 — ${row.og} / ${row.products.join('、')}`;
-    document.getElementById('lrLocCount').textContent = row.locations.length
-      ? `共 ${row.locations.length} 个库位` : '该规则下暂无库位';
-    document.getElementById('lrLocList').innerHTML = row.locations
-      .map((c, i) => `<div class="lrb-loc-item">${i + 1}.  ${c}</div>`).join('');
-    document.getElementById('lrLocMask').style.display = 'flex';
+  /* ================= 查看日志 ================= */
+  showLog() {
+    const row = this.rows.find(r => r.id === this.currentId);
+    if (!row) { Helpers.toast('请选择要查看日志的规则！'); return; }
+    document.getElementById('lrLogRows').innerHTML = this.buildLogs(row).map(l => `
+      <tr><td>${l.time}</td><td>${l.user}</td><td>${l.text}</td></tr>`).join('');
+    document.getElementById('lrLogMask').style.display = 'flex';
+  },
+
+  closeLog() { document.getElementById('lrLogMask').style.display = 'none'; },
+
+  /* 日志内容模板对齐实现(新增/修改/删除/启停各一条,log_type=RecommendRuleLog) */
+  buildLogs(row) {
+    const logs = [{
+      time: row.createTime, user: row.createUser,
+      text: `新增推荐库位，销售产品${row.products.length}个，目的网点${row.destOrgs.length}个`,
+    }];
+    if (row.updateTime !== row.createTime) {
+      logs.push({
+        time: row.updateTime, user: row.updateUser,
+        text: `修改推荐库位，销售产品${row.products.length}个，目的网点${row.destOrgs.length}个`,
+      });
+    }
+    if (row.status === 0 && row.updateTime !== row.createTime) {
+      logs.push({ time: row.updateTime, user: row.updateUser, text: '修改状态：停用' });
+    }
+    return logs.reverse();
   },
 };
 
@@ -671,24 +820,33 @@ document.getElementById('app').innerHTML = Layout.window({
     ${lrGrid()}
     ${lrPager()}
     ${lrEditModal()}
-    ${lrLocationsModal()}
     ${lrPickerModal()}
+    ${lrLogModal()}
   `,
 });
 
 Helpers.startClock();
 
+/* 行选中态(查看日志按当前行取,实现同款) */
 document.addEventListener('click', e => {
   const tr = e.target.closest('.wh-grid tbody tr');
-  if (!tr || e.target.closest('input')) return;
+  if (!tr || e.target.closest('input') || e.target.closest('.lrb-loc-drop')) return;
   document.querySelectorAll('.wh-grid tbody tr.row--selected').forEach(r => r.classList.remove('row--selected'));
   tr.classList.add('row--selected');
+  LrPage.currentId = Number(tr.dataset.id);
 });
 
-/* 选择弹窗键盘操作(线上:待选表格 Enter=添加,已选表格 Delete=移除) */
+/* 点击空白处收起库位候选下拉 */
+document.addEventListener('click', e => {
+  if (e.target.closest('.lrb-loc')) return;
+  LrPage.closeLocDrop();
+});
+
+/* 选择弹窗键盘操作(实现:待选表格 Enter=添加,已选表格 Delete=移除) */
 document.addEventListener('keydown', e => {
   const mask = document.getElementById('lrPickerMask');
-  if (!mask || mask.style.display === 'none') return;
-  if (e.key === 'Enter') { e.preventDefault(); LrPage.pickerAdd(); }
-  else if (e.key === 'Delete') { e.preventDefault(); LrPage.pickerRemove(); }
+  if (mask && mask.style.display !== 'none') {
+    if (e.key === 'Enter') { e.preventDefault(); LrPage.pickerAdd(); }
+    else if (e.key === 'Delete') { e.preventDefault(); LrPage.pickerRemove(); }
+  }
 });
