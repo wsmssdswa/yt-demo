@@ -885,9 +885,6 @@
 .sb-chip-dim { font-size: 11px; color: #8C8C8C; }
 /* 格口范围标签 */
 .sb-chute-tag { display: inline-block; border: 1px solid; border-radius: 3px; font-size: 11px; font-family: Consolas, monospace; padding: 0 5px; margin-right: 3px; }
-.sb-chute-tag--stale { border-color: #FF4D4F; color: #CF1322; background: #FFF1F0; text-decoration: line-through; }
-.sb-stale-tag { display: inline-block; font-size: 11px; color: #CF1322; background: #FFECEC; border: 1px solid #FFA39E; border-radius: 3px; padding: 0 5px; }
-.sb-rule-stale-row td { background: #FFF8F6 !important; }
 /* 编辑弹窗 */
 .sb-cond-box { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .sb-cond-line { display: flex; align-items: center; gap: 8px; }
@@ -950,7 +947,7 @@
 .ss-apply-main { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; }
 .ss-apply-idx { color: #8C8C8C; font-size: 12px; flex: none; }
 .ss-apply-machine { color: #1F4E79; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.ss-apply-main > .abn-tag, .ss-apply-main > .sb-stale-tag { flex: none; }
+.ss-apply-main > .abn-tag { flex: none; }
 .ss-apply-sub { display: flex; align-items: center; gap: 14px; margin: 3px 0 0 20px; font-size: 11px; color: #8C8C8C; white-space: nowrap; }
 .ss-apply-chutes { font-family: Consolas, monospace; color: #444; }
 
@@ -976,14 +973,9 @@
 .cr-cond-grid .cr-empty { text-align: center; color: #999; padding: 10px; cursor: default; }
 .sb-rule-preview { margin-top: 10px; font-size: 12px; color: #1F4E79; background: #F0F7FF; border: 1px solid #C9E0F5; border-radius: 4px; padding: 7px 10px; line-height: 1.6; word-break: break-all; }
 
-/* === B2B分拣管理页 · 规则失效态 / 未配规则二态 / 值勾选弹窗(2026-09-21 评审待改) === */
-.sb-card.sb-card--stale { border-color: #FF4D4F; border-style: dashed; background: #FFF8F6; }
-.sb-card--stale .sb-card-no { color: #CF1322; }
-.sb-card--stale .sb-card-master { color: #CF1322; }
+/* === B2B分拣管理页 · 未配规则二态 / 值勾选弹窗(2026-09-21 评审待改) === */
 .sb-card-badge--pool { color: #8C8C8C; background: #F5F5F5; }
-.sb-card-badge--stale { color: #CF1322; background: #FFECEC; }
 .sb-lg--pool { width: auto; height: auto; border-radius: 0; color: #8C8C8C; font-size: 12px; }
-.sb-lg--stale { width: auto; height: auto; border-radius: 0; color: #CF1322; font-size: 12px; }
 /* 多选值控件:只读框 + 勾选弹窗(替代浮层多选下拉) */
 .sb-pick { display: flex; align-items: center; gap: 6px; }
 .sb-pick-ipt { flex: 1; min-width: 0; cursor: pointer; background: #fff; }

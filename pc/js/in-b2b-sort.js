@@ -126,12 +126,6 @@ function sbRuleLogText(conds, joiner) {
 /* ---- 演示数据初始化 ---- */
 const SB_CHUTES = sbBuildChutes();
 
-/* 规则失效演示(PRD 功能②业务规则):上一版方案(v20260810,52 个口)给 52 号口配过规则,
-   本版方案(v20260820)已无该格口号 → 规则失效:看板标红提示,过机命中该规则的货转异常口 */
-const SB_STALE_RULES = [
-  { chute: '52', joiner: '且', conds: [ { item: 'product', op: 'IN', values: ['US-KAPAI-ELC'] } ] },
-];
-
 /* 格口规则操作日志(演示数据,新→旧;真实系统写通用操作日志模块,按分拣机+格口号可查)
    sorter 用于"按方案筛"(外层列表选中一行方案 → 只看该分拣机) */
 const SB_RULE_LOGS = [
@@ -143,6 +137,9 @@ const SB_RULE_LOGS = [
     c: '通过【格口看板-规则配置】配置格口 27（分拣机 FJ-01）规则，由「产品 包含 美森快船-普货」改为「产品 包含 美森快船-普货、海运普船-普货、海外卡派-普货 且 渠道 包含 海运直达」' },
   { sorter: 'FJ-01', chute: '03', t: '2026-09-18 15:40:12', u: '庄亚运', og: '东腾曼沙项目仓',
     c: '通过【格口看板-规则配置】配置格口 03（分拣机 FJ-01）规则，由「产品 包含 美森快船-带电」改为「产品 包含 美森快船-带电、海运普船-带电、海外卡派-带电 且 渠道 包含 海运直达、海运中转」' },
+  /* 方案换版自动清理(服务端行为,系统记日志留痕) */
+  { sorter: 'FJ-01', chute: '52', t: '2026-08-20 09:12:40', u: '系统', og: '东腾曼沙项目仓',
+    c: '通过【方案换版】同步新版本方案（v20260810 → v20260820），格口号 52 不在新方案中，自动清理该口规则；原规则：产品 包含 海外卡派-带电' },
 ];
 
 /* ============================================
@@ -314,13 +311,7 @@ function sbBoardCardsHtml() {
         <span class="sb-card-attr" style="color:${sbAttrColor(c.attr)}">${c.attr}</span></div>
       ${mid}${confHtml}${rule}
     </div>`;
-  }).join('') + SB_STALE_RULES.map(r => `
-    <div class="sb-card sb-card--stale" title="规则失效:该格口号不在当前方案中;过机命中该规则的货转异常口">
-      <div class="sb-card-top"><span class="sb-card-no">${r.chute}</span>
-        <span class="sb-card-attr" style="color:#CF1322">规则失效</span></div>
-      <div class="sb-card-master">该格口号不在当前方案</div>
-      <div class="sb-card-badge sb-card-badge--stale" title="原规则:${sbRuleTitle(r)}">原规则:${sbRuleSummary(r)}</div>
-    </div>`).join('');
+  }).join('');
 }
 
 function sbBoardModal() {
@@ -351,7 +342,6 @@ function sbRenderBoardBody() {
         <i class="sb-lg sb-lg--abn"></i>异常
         <i class="sb-lg sb-lg--pool">未配规则</i>按单件/多件正常分配
         <i class="sb-lg sb-lg--rule">已配规则:</i>规则摘要
-        <i class="sb-lg sb-lg--stale">规则失效</i>格口号不在当前方案
       </span>
       <span style="flex:1"></span>
       <span class="sb-pick-count">已选中 <b>${SbPage.selChutes.size}</b> 个口</span>
@@ -359,7 +349,7 @@ function sbRenderBoardBody() {
       <button class="btn" onclick="SbPage.openRelease()">🔓 释放格口</button>
     </div>
     <div class="sb-board-wrap">${sbBoardCardsHtml()}</div>
-    <div class="sb-board-tip">单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口按其格口属性正常分配(与"口没占用"是两回事);一票货命中多个口时按格口号数值升序取第一个空闲口;多件同票锁同一口;规则失效的口在看板上标红,命中该规则的货转异常口</div>
+    <div class="sb-board-tip">单击格口选中(可多选,配合释放格口),双击(或选中后点「编辑落口规则」)=配置该口规则,规则直挂口无方案实体;未配规则的口按其格口属性正常分配(与"口没占用"是两回事);一票货命中多个口时按格口号数值升序取第一个空闲口;多件同票锁同一口</div>
   `;
 }
 
