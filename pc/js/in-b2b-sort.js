@@ -85,6 +85,11 @@ const SB_COND_ITEMS = SortItemRegistry.buildCondItems({ product: SB_PRODUCTS, ch
 /* 兜底:预置规则引用的 key 若不在内置清单内(演示数据未对齐),按原名展示不崩 */
 const sbItemDef = k => SB_COND_ITEMS.find(d => d.key === k)
   || { key: k, label: `(未登记)${k}`, type: 'enum', ops: ['IN'], values: [] };
+/* 规则可用字段:按格口属性过滤——单件口的件数恒为 1(货类判定先行),任何件数条件都恒真/恒假,
+   故不提供「主单件数」;多件口可配(内容最小填 2)、异常口不限(异常件件数不定) */
+const sbItemsFor = attr => attr === '单件'
+  ? SB_COND_ITEMS.filter(d => d.key !== 'pieces')
+  : SB_COND_ITEMS.slice();
 const sbNameOf = (item, code) => {
   const def = sbItemDef(item);
   if (!def.values) return String(code);   /* 数值字段无枚举,直接显示数值 */
@@ -366,7 +371,9 @@ function sbValCtrlHtml(c, idx) {
   const def = sbItemDef(c.item);
   const ctrl = SIR_ctrlOf(def.type, c.op);
   if (ctrl === 'num') {
-    return `<input type="number" class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
+    /* 主单件数在多件口最小填 2:件数=1 的货只在单件口范围内,配 1 永不命中 */
+    const min = (c.item === 'pieces' && SbPage.curAttr() === '多件') ? 2 : '';
+    return `<input type="number"${min ? ` min="${min}"` : ''} class="ipt" style="flex:1;min-width:0" placeholder="填写数值"
       value="${c.values[0] || ''}" oninput="SbPage.onNumInput(${idx}, this.value)" />`;
   }
   if (ctrl === 'range') {
@@ -399,9 +406,13 @@ function sbValCtrlHtml(c, idx) {
 
 function sbCondRowHtml(c, idx) {
   const def = sbItemDef(c.item);
-  /* 同字段可多行(不限制):「满足其一」下取并集(可表达多段区间),「全部满足」下取交集 */
-  const itemOpts = SB_COND_ITEMS.map(d =>
-    `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}>${d.label}</option>`).join('');
+  /* 同字段可多行(不限制):「满足其一」下取并集(可表达多段区间),「全部满足」下取交集;
+     字段候选按格口属性过滤(单件口不给件数维度);历史数据用了本口不适用的字段时补进候选并标注,保证显示=数据 */
+  const items = sbItemsFor(SbPage.curAttr());
+  const stale = !items.some(d => d.key === c.item);
+  const itemOpts = items.map(d =>
+    `<option value="${d.key}" ${d.key === c.item ? 'selected' : ''}>${d.label}</option>`).join('')
+    + (stale ? `<option value="${c.item}" selected>${def.label}（该口不适用）</option>` : '');
   /* 运算符下拉:候选=该分拣项值形态的运算符全集(内置固定,不存在失效缺项);
      value=code, 文案=中文名(悬浮英文符号/关键字) */
   const opOpts = (def.ops || []).map(code => {
@@ -531,6 +542,12 @@ const SbPage = {
     document.getElementById('sbView').innerHTML = sbSolutionsView();
   },
 
+  /* 当前编辑格口的属性(单件/多件/异常)——字段候选与件数下限随属性而定 */
+  curAttr() {
+    const c = SB_CHUTES.find(x => x.no === this.ruleNo);
+    return c ? c.attr : '';
+  },
+
   /* ---- 方案列表 ---- */
   filterSolutions() {
     const name = (document.getElementById('sbQName') || {}).value || '';
@@ -596,9 +613,12 @@ const SbPage = {
     this.ruleNo = no;
     document.getElementById('sbRuleTitle').textContent = `配置格口规则 — ${no} 号口(${c.attr})`;
     document.getElementById('sbRuleInfo').innerHTML = sbRuleInfoHtml(c);
-    this.editConds = c.conds.length
-      ? c.conds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }))
-      : [{ item: SB_COND_ITEMS[0].key, op: SB_COND_ITEMS[0].ops[0], values: [] }];
+    if (c.conds.length) {
+      this.editConds = c.conds.map(x => ({ item: x.item, op: x.op, values: x.values.slice() }));
+    } else {
+      const d0 = sbItemsFor(c.attr)[0];      /* 首行默认字段(单件口跳过件数维度) */
+      this.editConds = [{ item: d0.key, op: d0.ops[0], values: [] }];
+    }
     this.editJoiner = c.joiner || '且';
     this.refreshCondBox();
     document.getElementById('sbRuleMask').style.display = 'flex';
@@ -614,6 +634,12 @@ const SbPage = {
       return !SIR_valOk(x, SIR_ctrlOf(def.type, x.op));
     });
     if (incomplete) { Helpers.toast('每行条件需填全内容(区间需起止两个数值);删光条件行保存=恢复默认分拣'); return; }
+    /* 主单件数(多件口)最小填 2:件数=1 的货只在单件口范围内,配 1 永不命中 */
+    if (c.attr === '多件') {
+      const tooSmall = this.editConds.some(x => x.item === 'pieces'
+        && (x.values || []).some(v => v !== '' && v != null && Number(v) < 2));
+      if (tooSmall) { Helpers.toast('主单件数最小填 2(件数 1 的货只在单件口范围内匹配,填 1 不会命中)'); return; }
+    }
     const isClear = this.editConds.length === 0;
     const s = this.sol || SB_SOLUTIONS[0];
     /* 日志记"改之前长什么样"(排查"这票货为什么落这个口"要回得出改前的规则) */
@@ -636,10 +662,11 @@ const SbPage = {
   /* 新增条件行:同一字段可配多行(「满足其一」下取并集,可表达多段区间);
      字段都用过时沿用最后一行的字段,不再拦截 */
   addCond() {
+    const items = sbItemsFor(this.curAttr());
     const used = this.editConds.map(x => x.item);
-    const free = SB_COND_ITEMS.find(d => !used.includes(d.key));
+    const free = items.find(d => !used.includes(d.key));
     const last = this.editConds[this.editConds.length - 1];
-    const pick = free || (last ? sbItemDef(last.item) : SB_COND_ITEMS[0]);
+    const pick = free || (last ? sbItemDef(last.item) : items[0]);
     const ops = (pick.ops && pick.ops.length) ? pick.ops : ['IN'];
     this.editConds.push({ item: pick.key, op: ops[0], values: [] });
     this.refreshCondBox();
