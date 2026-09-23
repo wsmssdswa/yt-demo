@@ -469,8 +469,7 @@ function sbRuleInfoHtml(c) {
     <span>分拣机:<b>${s.sorterCode} · ${s.sorterName}</b></span>
     <span>分拣方案:<b>${s.solutionName}</b>(${s.version})</span>
     <span>格口号:<b>${c.no}</b></span>
-    <span>属性:<b>${c.attr}</b></span>
-    <span>当前规则:<b>${c.conds.length ? sbRuleSummary(c) : '未配规则(按单件/多件分配)'}</b></span>`;
+    <span>属性:<b>${c.attr}</b></span>`;
 }
 
 function sbRuleModal() {
