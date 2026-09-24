@@ -118,20 +118,22 @@ function SIR_valText(itemDef, c, ctrl) {
 
 /* ---- 全局运算符字典(2026-09-04 用户提供,真实系统全集 12 个) ----
    code=存储标识, label=中文名, expr=符号/关键字, kinds=适用字段性质, ctrl=值控件形态
-   ctrl: num=数值单值 / range=数值区间(起止双值) / eq=单选 / in=多选 / text=文本(关键字/前后缀) */
+   ctrl: num=数值单值 / range=数值区间(起止双值) / eq=单选 / in=多选 / text=文本(关键字/前后缀)
+   数组顺序 = 界面下拉的展示顺序(SIR_OPS_BY_TYPE 按 kinds 过滤后沿用此序):
+   等值 → 比较 → 区间;文本项排在数值项之后 */
 const SIR_OPS = [
-  { code: 'GT',        label: '大于',         expr: '>',        kinds: ['num'],  ctrl: 'num' },
   { code: 'EQ',        label: '等于',         expr: '=',        kinds: ['num', 'str'], ctrl: 'eq' },
-  { code: 'IN',        label: '包含',         expr: 'IN',       kinds: ['str'], ctrl: 'in' },
-  { code: 'BETWEEN',   label: '区间-左开右闭', expr: 'BETWEEN',  kinds: ['num'],  ctrl: 'range' },
+  { code: 'NE',        label: '不等于',        expr: '<>',      kinds: ['num', 'str'], ctrl: 'eq' },
+  { code: 'GT',        label: '大于',         expr: '>',        kinds: ['num'],  ctrl: 'num' },
+  { code: 'GE',        label: '大于等于',      expr: '>=',       kinds: ['num'],  ctrl: 'num' },
   { code: 'LT',        label: '小于',         expr: '<',        kinds: ['num'],  ctrl: 'num' },
   { code: 'LE',        label: '小于等于',      expr: '<=',       kinds: ['num'],  ctrl: 'num' },
-  { code: 'GE',        label: '大于等于',      expr: '>=',       kinds: ['num'],  ctrl: 'num' },
+  { code: 'BETWEEN',   label: '区间-左开右闭', expr: 'BETWEEN',  kinds: ['num'],  ctrl: 'range' },
   { code: 'INTERVAL',  label: '区间-左闭右闭', expr: 'INTERVAL', kinds: ['num'],  ctrl: 'range' },
+  { code: 'IN',        label: '包含',         expr: 'IN',       kinds: ['str'],  ctrl: 'in' },
   { code: 'KWMATCH',   label: '关键字匹配',    expr: 'KWMATCH',  kinds: ['str'], ctrl: 'text' },
   { code: 'MATCHSTART',label: '匹配开始字符',  expr: 'MATCHSTART', kinds: ['str'], ctrl: 'text' },
   { code: 'MATCHEND',  label: '匹配结束字符',  expr: 'MATCHEND', kinds: ['str'], ctrl: 'text' },
-  { code: 'NE',        label: '不等于',        expr: '<>',      kinds: ['num', 'str'], ctrl: 'eq' },
 ];
 const SIR_OP_MAP = {};
 SIR_OPS.forEach(o => { SIR_OP_MAP[o.code] = o; });
