@@ -313,23 +313,30 @@
   margin: 8px 12px 16px;
   border-radius: 8px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 11px;   /* 真机 320dp 宽:子单号 21 字符在 12px 下需 157px,超出列宽,降为 11px(实测 144px) */
 }
 .task-thead,
 .task-tr {
   display: grid;
-  grid-template-columns: 2.6fr 0.8fr 1.1fr 0.7fr;   /* 单号(YT...U001 较长)给最宽,时间最窄 */
+  grid-template-columns: 148px 40px 60px 1fr;   /* 320dp 实测:单号 22 字符等宽 11px≈133px / 分拣码标签≈39 / 库位 9 字符等宽≈55 / 时间吃剩余 */
   align-items: center;
-  gap: 4px;
-  padding: 10px 8px;
+  gap: 3px;
+  padding: 10px 5px;
 }
-/* 单号列:子单号较长,防溢出换行(超长尾部省略) */
-.task-thead .col-no,
-.task-tr .col-no {
+/* 各列统一:不换行 + 超长省略 + 允许收缩。
+   每行(.task-tr)是独立 grid,若内容撑破或换行,行与行、行与表头的列宽会漂移 → 表格对不齐 */
+.task-thead > span,
+.task-tr > span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;   /* grid 子项允许收缩,否则 ellipsis 不生效 */
+  min-width: 0;
+}
+/* 单号与库位是定长编码:用等宽字体,宽度不随字符组合变化
+   (比例字体下 "AA-BB-001" 放得下、"MM-NN-102" 放不下,会出现随机截断) */
+.task-table .col-no,
+.task-table .col-loc {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
 }
 .task-thead {
   background: #fafafa;
@@ -349,19 +356,99 @@
   color: #333;
   background: #F0F0F0;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 2px 5px;
   text-align: center;
   justify-self: start;
 }
-.col-time { color: #999; font-size: 11px; }
-/* 退仓列表:隐藏库位列,grid 改为 3 列
-   用固定 fr 比例(非 auto):表头与数据行内容长短不一,auto 会各自算出不同列宽导致错位;
-   fr 比例按 单号/分拣码/时间 实际内容需求分配,保证表头与数据行严格对齐 */
-.task-table.hide-loc .task-thead,
-.task-table.hide-loc .task-tr {
-  grid-template-columns: 4.8fr 1.2fr 4fr;   /* 单号 分拣码 时间(库位列已隐藏) */
+.col-time { color: #999; font-size: 10px; }
+/* 退件列表:只读参考(货还在仓、待退回客户),按主单聚合、一行一票
+   卡面两行:上行 分拣码(灰底标签)+票号+时间;下行 退件原因靠左,箱数+展开指示靠右(箱数贴展开按钮);
+   一行一票独立成卡:容器去掉表格底色与边距,每条自带白底圆角+间距,
+   类型色条用左边框(同增值卡片),避免与表格伪元素色条叠成两条;
+   库位是箱子级的(线下找货靠它),点卡展开看该票全部箱子 */
+.task-table.return-mode {
+  background: transparent;        /* 卡片自带底色,容器不留白底 */
+  margin: 0;
 }
-.task-table.hide-loc .col-loc { display: none; }
+.task-table.return-mode .task-thead { display: none; }
+.task-table.return-mode .task-tr {
+  display: block;                 /* 覆盖通用 grid 列布局 */
+  background: #fff;
+  margin: 8px 12px;
+  border-radius: 8px;
+  border-bottom: none;            /* 卡片之间靠间距分隔,不用表格分隔线 */
+  border-left: 4px solid #F5222D; /* 退件 红(同增值卡片的左边框做法) */
+  padding: 12px;
+  cursor: pointer;                /* 整卡可点:展开/收起该票箱子 */
+}
+.task-table.return-mode .task-tr::before { display: none; }   /* 卡片已用左边框,不再画伪元素色条 */
+.rt-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;                 /* 分拣码+票号靠左,时间靠右(票号吸收剩余宽度) */
+}
+/* 分拣码:沿用表格里的灰底标签样式(col-sort),不参与收缩 */
+.rt-head .col-sort { flex-shrink: 0; }
+.rt-no {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rt-time { font-size: 11px; color: #999; flex-shrink: 0; }
+/* 第二行:退件原因靠左(吸收剩余宽度),箱数+展开靠右成一组 */
+.rt-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.rt-reason {
+  flex: 1;
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+/* 箱数:描边轻标签(复用增值卡片 chip 的样式),不与分拣码灰底标签争视觉 */
+.rt-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #999;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1px 7px;
+}
+.rt-toggle {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #00A99D;                 /* 展开/收起:主色 */
+}
+/* 展开区:该票待退的箱子 + 各自库位 */
+.rt-children { margin-top: 8px; border-top: 1px dashed #ececec; padding-top: 4px; }
+.rt-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.rt-child-no {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rt-child-loc { flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: #333; }
 .task-empty {
   text-align: center;
   color: #bbb;
@@ -982,7 +1069,7 @@
 }
 .task-tr--swap::before   { background: #808000; }        /* 换单 橄榄(线上已有) */
 .task-tr--check::before  { background: #FF00FF; }        /* 查验 品红(线上已有) */
-.task-tr--return::before { background: #F5222D; }        /* 退仓 红(本次新增) */
+.task-tr--return::before { background: #F5222D; }        /* 退件 红 */
 .task-tr--vas::before    { background: #00A99D; }        /* 增值 青·主色(本次新增) */
 /* 增值卡片式(单独的 vas-card):独立卡片,色条占满整个左边一列(参考盘点卡片 border-left) */
 .vas-card { border-left: 4px solid #00A99D; }      /* 增值 青·主色(本次新增) */
@@ -1811,6 +1898,8 @@
   text-align: center;
 }
 .ci-dim-input:focus, .ci-weight-input:focus { outline: none; border-color: #00A99D; }
+/* 长宽高输入框:320dp 真机下按剩余宽度均分(3 个固定 76px 宽 + 右侧锁定开关会超出屏幕 44px) */
+.ci-dim-row .ci-dim-input { flex: 1 1 0; width: auto; min-width: 0; }
 .ci-dim-input--locked { background: #f2f2f2; color: #bbb; }
 .ci-weight-input { flex: 1; width: auto; }
 

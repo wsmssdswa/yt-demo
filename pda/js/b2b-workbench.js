@@ -9,7 +9,7 @@ const TABS = [
   { key: 'swap',   text: '换单', count: 2 },
   { key: 'check',  text: '查验', count: 1500 },
   { key: 'count',  text: '盘点', count: 4 },
-  { key: 'return', text: '退仓', count: 2 },
+  { key: 'return', text: '退件', count: 2 },
   { key: 'vas',    text: '增值', count: 3 },
 ];
 
@@ -21,14 +21,13 @@ function fmtCount(n) {
 // 任务列表(演示数据;time 只存时分)
 // 单号格式:no/subNo 均为子单号 = 主单号(YT+16位数字) + U + 3位序号(从U001起累加)
 // 分拣码格式:3位数字+1位字母(如 028A);库位格式:三级 AA-BB-001
+// 分拣码是主单级字段(线上存放于主单表,分拣码=格口号,一票一个) → 同一主单的子单行共用同一个
 const TASKS = [
   { no: 'YT2621000070480966U001', sortCode: '028A', loc: 'AA-BB-001', time: '09:18', type: 'swap'   },
   { no: 'YT2621000070480967U001', sortCode: '114B', loc: 'CC-DD-012', time: '09:25', type: 'check'  },
-  { no: 'YT2621000070480966U003', sortCode: '205C', loc: 'EE-FF-023', time: '09:30', type: 'swap'   },
-  { no: 'YT2621000070480967U005', sortCode: '331D', loc: 'GG-HH-045', time: '09:55', type: 'check'  },
-  // 退仓:库位对退仓无意义(货将退走)故该视图隐藏库位列;时间用完整年月日时分秒(退仓需精确时点)
-  { no: 'YT2621000070480968U001', sortCode: '402E', loc: 'II-JJ-067', time: '10:15', datetime: '2026-07-27 10:15:00', type: 'return' },
-  { no: 'YT2621000070480968U002', sortCode: '518F', loc: 'KK-LL-089', time: '10:22', datetime: '2026-07-27 10:22:00', type: 'return' },
+  { no: 'YT2621000070480966U003', sortCode: '028A', loc: 'EE-FF-023', time: '09:30', type: 'swap'   },
+  { no: 'YT2621000070480967U005', sortCode: '114B', loc: 'GG-HH-045', time: '09:55', type: 'check'  },
+  // 退件不进本数组:TASKS 是子单级任务,退件按主单聚合,见下方 RETURN_ORDERS
   // 增值服务(vas):按子单粒度操作,故用 subNo/mainNo 区分;vasItems 为该子单的增值服务清单与状态
   // 单号格式:主单号 = YT + 16位数字;子单号 = 主单号 + U + 3位序号(从U001起累加)
   { subNo: 'YT2621000070480964U001', mainNo: 'YT2621000070480964', sortCode: '620G', warehouse: '东莞寮步项目仓', loc: 'MM-NN-102', time: '10:30', datetime: '2026-07-28 10:30:05', type: 'vas',
@@ -38,7 +37,7 @@ const TASKS = [
       { name: '复核尺寸', status: 'todo' },
       { name: '复核重量', status: 'todo' },
     ] },
-  { subNo: 'YT2621000070480964U002', mainNo: 'YT2621000070480964', sortCode: '733H', warehouse: '东莞寮步项目仓', loc: 'OO-PP-134', time: '10:48', datetime: '2026-07-28 10:48:18', type: 'vas',
+  { subNo: 'YT2621000070480964U002', mainNo: 'YT2621000070480964', sortCode: '620G', warehouse: '东莞寮步项目仓', loc: 'OO-PP-134', time: '10:48', datetime: '2026-07-28 10:48:18', type: 'vas',
     vasItems: [
       { name: '贴内件标', status: 'done' },
       { name: '清点拍照', status: 'done' },
@@ -49,6 +48,27 @@ const TASKS = [
       { name: '换箱',     status: 'done' },
       { name: '贴外箱标', status: 'done' },
       { name: '复核重量', status: 'done' },
+    ] },
+];
+
+// 退件列表(演示数据;主单一行 + 展开看箱)
+// 退件是整票退:退货执行覆盖该主单全部子单("只要有一个子单退件,推送全部子单"/退货总单按全部子单生成),
+// 故列表按主单聚合、一行一票;分拣码是主单级字段(仓库找货主要看它),展示在票行上;
+// 库位是箱子级的(线下找货靠它),展开后按箱列出
+// 退件原因 = 该票异常件的异常类型(A1-客户要求暂扣 / Y5-异形件)
+const RETURN_ORDERS = [
+  { mainNo: 'YT2621000070480971', sortCode: '402E', datetime: '2026-10-08 16:05',
+    children: [
+      { no: 'YT2621000070480971U001', loc: 'II-JJ-067', reason: 'A1-客户要求暂扣' },
+      { no: 'YT2621000070480971U002', loc: 'KK-LL-089', reason: 'A1-客户要求暂扣' },
+      { no: 'YT2621000070480971U003', loc: 'KK-LL-090', reason: 'A1-客户要求暂扣' },
+      { no: 'YT2621000070480971U004', loc: 'MM-NN-102', reason: 'A1-客户要求暂扣' },
+      { no: 'YT2621000070480971U005', loc: 'MM-NN-103', reason: 'A1-客户要求暂扣' },
+    ] },
+  { mainNo: 'YT2621000070480972', sortCode: '518F', datetime: '2026-10-09 09:40',
+    children: [
+      { no: 'YT2621000070480972U001', loc: 'OO-PP-134', reason: 'Y5-异形件' },
+      { no: 'YT2621000070480972U002', loc: 'OO-PP-135', reason: 'Y5-异形件' },
     ] },
 ];
 
@@ -95,15 +115,10 @@ document.getElementById('app').innerHTML = Layout.shell(`
     </div>
   </div>
 
-  <!-- 任务列表(表格行式 / 盘点卡片式) -->
+  <!-- 任务列表(表格行式 / 盘点卡片式);表头按 Tab 动态渲染 -->
   <div class="scroll-area">
     <div class="task-table" id="taskTable">
-      <div class="task-thead">
-        <span class="col-no">单号</span>
-        <span class="col-sort">分拣码</span>
-        <span class="col-loc">库位</span>
-        <span class="col-time">时间</span>
-      </div>
+      <div class="task-thead" id="taskThead"></div>
       <div class="task-tbody" id="taskTbody"></div>
     </div>
   </div>
@@ -113,7 +128,7 @@ document.getElementById('app').innerHTML = Layout.shell(`
     <button class="count-create" id="countCreate">创建任务</button>
   </div>
 
-  <!-- 全部/退仓/增值 Tab 底部操作栏(文案按 Tab 动态切换) -->
+  <!-- 全部/增值 Tab 底部操作栏(文案按 Tab 动态切换);退件 Tab 为只读列表,无底部按钮 -->
   <div class="count-bar hidden" id="actionBar">
     <button class="count-create" id="actionGo"></button>
   </div>
@@ -129,11 +144,10 @@ document.getElementById('app').innerHTML = Layout.shell(`
   </div>
 `);
 
-// 各 Tab 底部按钮配置:全部 tab 弹操作面板;退仓/增值直达对应页
+// 各 Tab 底部按钮配置:全部 tab 弹操作面板;增值直达增值服务页(退件为只读列表,不配底部按钮)
 // 操作面板 4 项:换单/查验为线上既有入口,退仓扫描/增值服务为本次新增(下级页不在本工作台需求范围)
 const ACTION_BY_TAB = {
   all:    { text: '去操作', panel: true },
-  return: { text: '去退仓扫描', href: './return-scan.html' },
   vas:    { text: '去增值服务', href: './vas.html' },
 };
 // 「去操作」面板选项
@@ -151,36 +165,62 @@ const taskTbody = document.getElementById('taskTbody');
 let currentTab = 'all';
 const filters = { no: '', loc: '' };   // 当前筛选项值
 
+// 表头按 Tab 渲染:其余 Tab 为 单号/分拣码/库位/时间;退件 Tab 是两行式行,表头由 CSS 隐藏
+function renderThead() {
+  document.getElementById('taskThead').innerHTML = currentTab === 'return'
+    ? ''
+    : `<span class="col-no">单号</span>
+       <span class="col-sort">分拣码</span>
+       <span class="col-loc">库位</span>
+       <span class="col-time">时间</span>`;
+}
+
 function renderTasks() {
   let list;
   if (currentTab === 'count') {
     list = COUNT_TASKS.slice();
+  } else if (currentTab === 'return') {
+    list = RETURN_ORDERS.slice();
+  } else if (currentTab === 'all') {
+    // 「全部」混排:退件是整票维度(一行一票),故单号列放票号、分拣码取该主单的分拣码、库位留空
+    // (库位是箱级的,到退件 Tab 展开看,不在混排里铺开)
+    list = [
+      ...TASKS,
+      ...RETURN_ORDERS.map(r => ({ no: r.mainNo, sortCode: r.sortCode, loc: '-', time: r.datetime.slice(11), type: 'return' })),
+    ];
   } else {
-    list = currentTab === 'all' ? TASKS : TASKS.filter(t => t.type === currentTab);
+    list = TASKS.filter(t => t.type === currentTab);
   }
 
   // 实时筛选:单号(包含匹配,不区分大小写);盘点 Tab 不参与库位筛选
+  // 退件为整票维度:单号匹配票号或任一箱子,库位匹配任一箱子所在库位
   if (filters.no) {
     const kw = filters.no.toLowerCase();
-    list = list.filter(t => (t.subNo || t.no || '').toLowerCase().includes(kw));
+    list = list.filter(t => currentTab === 'return'
+      ? (t.mainNo.toLowerCase().includes(kw) || t.children.some(c => c.no.toLowerCase().includes(kw)))
+      : (t.subNo || t.no || '').toLowerCase().includes(kw));
   }
   if (filters.loc && currentTab !== 'count') {
-    list = list.filter(t => t.loc.toLowerCase().includes(filters.loc.toLowerCase()));
+    const kw = filters.loc.toLowerCase();
+    list = list.filter(t => currentTab === 'return'
+      ? t.children.some(c => c.loc.toLowerCase().includes(kw))
+      : t.loc.toLowerCase().includes(kw));
   }
 
   // 增值列表过滤规则:过滤掉"全部增值服务已完成"的子单,只保留存在未完成项的
-  // (退仓/盘点/换单/查验等不涉及该规则)
+  // (退件/盘点/换单/查验等不涉及该规则)
   list = list.filter(t => !t.vasItems || t.vasItems.some(v => v.status !== 'done'));
 
   // Tab 专属模式切换
   document.getElementById('taskTable').classList.toggle('vas-mode', currentTab === 'vas');
   document.getElementById('taskTable').classList.toggle('count-mode', currentTab === 'count');
-  // 退仓:隐藏库位列,时间列加宽以容纳完整年月日时分秒
-  document.getElementById('taskTable').classList.toggle('hide-loc', currentTab === 'return');
+  // 退件:列改为 单号/库位/退件原因/时间(其余 Tab 为 单号/分拣码/库位/时间)
+  document.getElementById('taskTable').classList.toggle('return-mode', currentTab === 'return');
+  renderThead();
   document.getElementById('filterBar').classList.toggle('hidden', currentTab === 'count');
   document.getElementById('countBar').classList.toggle('hidden', currentTab !== 'count');
 
-  // 退仓/增值 Tab:显示底部跳转操作栏,文案随 Tab 切换;其他 Tab 隐藏
+  // 全部/增值 Tab:显示底部跳转操作栏,文案随 Tab 切换;其他 Tab 隐藏
   const actionConf = ACTION_BY_TAB[currentTab];
   const actionBar = document.getElementById('actionBar');
   actionBar.classList.toggle('hidden', !actionConf);
@@ -205,14 +245,51 @@ function renderTasks() {
   // 其他 Tab:原表格式
   // 「全部」含 vas 任务(用 subNo),故单号列取 no || subNo,确保都显示子单号
   // 行左侧色条按 type 区分(全部 tab 混排时一眼分辨类型);单类型 tab 内为同色
-  // 退仓数据:货将退走、库位无意义,库位列留空(退仓 tab 整列隐藏;全部 tab 混排时该格空)
+  // 退件:整票一行(只读参考,货还在仓、待退回客户),点卡展开该票全部箱子与各自库位
+  // 卡面两行:上行 分拣码+票号+时间;下行 退件原因 左、箱数+展开指示 右(箱数贴展开按钮,同一组)
+  if (currentTab === 'return') {
+    taskTbody.innerHTML = list.length
+      ? list.map(r => {
+          // 退件原因按该票箱子的异常类型去重展示
+          const reasons = [...new Set(r.children.map(c => c.reason).filter(Boolean))].join('、');
+          return `
+          <div class="task-tr task-tr--return rt-card">
+            <div class="rt-head">
+              <span class="col-sort">${r.sortCode}</span>
+              <span class="rt-no">${r.mainNo}</span>
+              <span class="rt-time">${r.datetime.slice(5)}</span>
+            </div>
+            <div class="rt-meta">
+              <span class="rt-reason">${reasons || '-'}</span>
+              <span class="rt-count">共 ${r.children.length} 箱</span>
+              <span class="rt-toggle">展开 ▾</span>
+            </div>
+            <div class="rt-children hidden">
+              ${r.children.map(c => `
+                <div class="rt-child">
+                  <span class="rt-child-no">${c.no}</span>
+                  <span class="rt-child-loc">
+                    <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
+                      <path fill="#00A99D" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/>
+                    </svg>
+                    <span>${c.loc}</span>
+                  </span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `}).join('')
+      : `<div class="task-empty">无匹配任务</div>`;
+    return;
+  }
+
   taskTbody.innerHTML = list.length
     ? list.map(t => `
         <div class="task-tr task-tr--${t.type}">
           <span class="col-no">${t.no || t.subNo}</span>
           <span class="col-sort">${t.sortCode}</span>
-          <span class="col-loc">${t.type === 'return' ? '' : t.loc}</span>
-          <span class="col-time">${currentTab === 'return' ? (t.datetime || t.time) : t.time}</span>
+          <span class="col-loc">${t.loc}</span>
+          <span class="col-time">${t.time}</span>
         </div>
       `).join('')
     : `<div class="task-empty">无匹配任务</div>`;
@@ -331,13 +408,24 @@ taskTbody.addEventListener('click', e => {
   Helpers.toast(`继续盘点: ${card.dataset.no}`);
 });
 
+/* ---- 退件行:点行展开/收起该票的待退箱子 ---- */
+taskTbody.addEventListener('click', e => {
+  const card = e.target.closest('.rt-card');
+  if (!card) return;
+  const box = card.querySelector('.rt-children');
+  const toggle = card.querySelector('.rt-toggle');
+  const collapsed = box.classList.contains('hidden');
+  box.classList.toggle('hidden', !collapsed);
+  toggle.textContent = collapsed ? '收起 ▴' : '展开 ▾';
+});
+
 /* ---- 盘点:创建任务 ---- */
 document.getElementById('countCreate').addEventListener('click', () => {
   Helpers.toast('创建新的盘点任务');
 });
 
-/* ---- 全部/退仓/增值:底部按钮(下级页内容不在本工作台需求范围,原型仅 toast 提示) ----
-   全部 tab → 唤起操作选择面板;退仓/增值 → 直达对应页 toast 提示 */
+/* ---- 全部/增值:底部按钮(下级页内容不在本工作台需求范围,原型仅 toast 提示) ----
+   全部 tab → 唤起操作选择面板;增值 → 直达对应页 toast 提示 */
 document.getElementById('actionGo').addEventListener('click', () => {
   const conf = ACTION_BY_TAB[currentTab];
   if (!conf) return;
