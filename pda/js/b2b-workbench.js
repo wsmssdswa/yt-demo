@@ -145,7 +145,8 @@ document.getElementById('app').innerHTML = Layout.shell(`
 `);
 
 // 各 Tab 底部按钮配置:全部 tab 弹操作面板;增值直达增值服务页(退件为只读列表,不配底部按钮)
-// 操作面板 4 项:换单/查验为线上既有入口,退仓扫描/增值服务为本次新增(下级页不在本工作台需求范围)
+// 操作面板 3 项:换单/查验为线上既有入口,增值服务为本次新增(下级页不在本工作台需求范围)
+// 退仓链路整体下线:原「退仓」页签与面板里的「退仓扫描」入口都不再保留
 const ACTION_BY_TAB = {
   all:    { text: '去操作', panel: true },
   vas:    { text: '去增值服务', href: './vas.html' },
@@ -154,7 +155,6 @@ const ACTION_BY_TAB = {
 const ACTION_OPTIONS = [
   { text: '换单作业', href: './swap.html' },
   { text: '关务查验', href: './check.html' },
-  { text: '退仓扫描', href: './return-scan.html' },
   { text: '增值服务', href: './vas.html' },
 ];
 
