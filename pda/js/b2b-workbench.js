@@ -5,7 +5,6 @@
 
 // Tab 分类及任务角标数(演示数据;count 应与下方 TASKS 各分类实际数量一致)
 const TABS = [
-  { key: 'all',    text: '全部', count: 9999 },
   { key: 'swap',   text: '换单', count: 2 },
   { key: 'check',  text: '查验', count: 1500 },
   { key: 'count',  text: '盘点', count: 4 },
@@ -86,8 +85,8 @@ document.getElementById('app').innerHTML = Layout.shell(`
 
   <!-- Tab 分类(带角标) -->
   <div class="wb-tabs" id="wbTabs">
-    ${TABS.map((t, i) => `
-      <div class="wb-tab ${i === 0 ? 'wb-tab--on' : ''}" data-key="${t.key}">
+    ${TABS.map((t) => `
+      <div class="wb-tab ${t.key === 'return' ? 'wb-tab--on' : ''}" data-key="${t.key}">
         <span class="wb-tab-text">${t.text}<span class="wb-tab-badge">${fmtCount(t.count)}</span></span>
       </div>
     `).join('')}
@@ -128,41 +127,24 @@ document.getElementById('app').innerHTML = Layout.shell(`
     <button class="count-create" id="countCreate">创建任务</button>
   </div>
 
-  <!-- 全部/增值 Tab 底部操作栏(文案按 Tab 动态切换);退件 Tab 为只读列表,无底部按钮 -->
+  <!-- 增值 Tab 底部操作栏(文案按 Tab 动态切换);退件 Tab 为只读列表,无底部按钮 -->
   <div class="count-bar hidden" id="actionBar">
     <button class="count-create" id="actionGo"></button>
   </div>
 
-  <!-- 底部操作选择面板(iOS ActionSheet 风格;点"去操作"唤起) -->
-  <div class="action-sheet-mask hidden" id="actionSheetMask">
-    <div class="action-sheet">
-      <div class="action-sheet-title">请选择操作类型</div>
-      <div class="action-sheet-list" id="actionSheetList"></div>
-      <div class="action-sheet-gap"></div>
-      <div class="action-sheet-cancel" id="actionSheetCancel">取消</div>
-    </div>
-  </div>
 `);
 
-// 各 Tab 底部按钮配置:全部 tab 弹操作面板;增值直达增值服务页(退件为只读列表,不配底部按钮)
-// 操作面板 3 项:换单/查验为线上既有入口,增值服务为本次新增(下级页不在本工作台需求范围)
-// 退仓链路整体下线:原「退仓」页签与面板里的「退仓扫描」入口都不再保留
+// 各 Tab 底部按钮配置:增值直达增值服务页(退件为只读列表,不配底部按钮)
+// 退仓链路与「全部」页签均已下线:原「退仓」页签/「退仓扫描」/「去操作」面板不再保留
 const ACTION_BY_TAB = {
-  all:    { text: '去操作', panel: true },
   vas:    { text: '去增值服务', href: './vas.html' },
 };
-// 「去操作」面板选项
-const ACTION_OPTIONS = [
-  { text: '换单作业', href: './swap.html' },
-  { text: '关务查验', href: './check.html' },
-  { text: '增值服务', href: './vas.html' },
-];
 
 Helpers.startClock();
 
 /* ---- Tab 切换 + 实时筛选 ---- */
 const taskTbody = document.getElementById('taskTbody');
-let currentTab = 'all';
+let currentTab = 'return';
 const filters = { no: '', loc: '' };   // 当前筛选项值
 
 // 表头按 Tab 渲染:其余 Tab 为 单号/分拣码/库位/时间;退件 Tab 是两行式行,表头由 CSS 隐藏
@@ -181,13 +163,6 @@ function renderTasks() {
     list = COUNT_TASKS.slice();
   } else if (currentTab === 'return') {
     list = RETURN_ORDERS.slice();
-  } else if (currentTab === 'all') {
-    // 「全部」混排:退件是整票维度(一行一票),故单号列放票号、分拣码取该主单的分拣码、库位留空
-    // (库位是箱级的,到退件 Tab 展开看,不在混排里铺开)
-    list = [
-      ...TASKS,
-      ...RETURN_ORDERS.map(r => ({ no: r.mainNo, sortCode: r.sortCode, loc: '-', time: r.datetime.slice(11), type: 'return' })),
-    ];
   } else {
     list = TASKS.filter(t => t.type === currentTab);
   }
@@ -220,7 +195,7 @@ function renderTasks() {
   document.getElementById('filterBar').classList.toggle('hidden', currentTab === 'count');
   document.getElementById('countBar').classList.toggle('hidden', currentTab !== 'count');
 
-  // 全部/增值 Tab:显示底部跳转操作栏,文案随 Tab 切换;其他 Tab 隐藏
+  // 增值 Tab:显示底部跳转操作栏,文案随 Tab 切换;其他 Tab 隐藏
   const actionConf = ACTION_BY_TAB[currentTab];
   const actionBar = document.getElementById('actionBar');
   actionBar.classList.toggle('hidden', !actionConf);
@@ -243,8 +218,8 @@ function renderTasks() {
   }
 
   // 其他 Tab:原表格式
-  // 「全部」含 vas 任务(用 subNo),故单号列取 no || subNo,确保都显示子单号
-  // 行左侧色条按 type 区分(全部 tab 混排时一眼分辨类型);单类型 tab 内为同色
+  // 单号列取 no || subNo:vas 任务用 subNo,其余任务用 no,原注释:单号列取 no || subNo,确保都显示子单号
+  // 行左侧色条按 type 区分;单类型 tab 内为同色
   // 退件:整票一行(只读参考,货还在仓、待退回客户),点卡展开该票全部箱子与各自库位
   // 卡面两行:上行 分拣码+票号+时间;下行 退件原因 左、箱数+展开指示 右(箱数贴展开按钮,同一组)
   if (currentTab === 'return') {
@@ -424,36 +399,12 @@ document.getElementById('countCreate').addEventListener('click', () => {
   Helpers.toast('创建新的盘点任务');
 });
 
-/* ---- 全部/增值:底部按钮(下级页内容不在本工作台需求范围,原型仅 toast 提示) ----
-   全部 tab → 唤起操作选择面板;增值 → 直达对应页 toast 提示 */
+/* —— 增值:底部按钮(下级页内容不在本工作台需求范围,原型仅 toast 提示) —— */
 document.getElementById('actionGo').addEventListener('click', () => {
   const conf = ACTION_BY_TAB[currentTab];
   if (!conf) return;
-  if (conf.panel) openActionSheet();
-  else Helpers.toast(`跳转：${conf.text}`);
+  Helpers.toast(`跳转：${conf.text}`);
 });
-
-/* ---- 「去操作」选择面板:渲染选项 + 显示 ---- */
-const actionSheetMask = document.getElementById('actionSheetMask');
-const actionSheetList = document.getElementById('actionSheetList');
-function openActionSheet() {
-  actionSheetList.innerHTML = ACTION_OPTIONS.map((o, i) =>
-    `<div class="action-sheet-item" data-i="${i}">${o.text}</div>`
-  ).join('');
-  actionSheetMask.classList.remove('hidden');
-}
-// 点选项 → toast 提示跳转(不真跳转,下级页未建)
-actionSheetList.addEventListener('click', e => {
-  const item = e.target.closest('.action-sheet-item');
-  if (!item) return;
-  const opt = ACTION_OPTIONS[+item.dataset.i];
-  closeActionSheet();
-  Helpers.toast(`跳转：${opt.text}`);
-});
-// 取消 / 点遮罩关闭
-function closeActionSheet() { actionSheetMask.classList.add('hidden'); }
-document.getElementById('actionSheetCancel').addEventListener('click', closeActionSheet);
-actionSheetMask.addEventListener('click', e => { if (e.target === actionSheetMask) closeActionSheet(); });
 
 /* ---- Tab 栏:鼠标滚轮转横向滚动(触摸滑动由 CSS touch-action 处理) ---- */
 const wbTabsEl = document.getElementById('wbTabs');
