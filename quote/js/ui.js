@@ -168,7 +168,7 @@
         <aside class="sidebar">
           <div class="logo">
             <span class="logo-mark">Q</span>
-            <span class="logo-text"><strong>B2B 报价系统</strong><span>QUOTATION CENTER</span></span>
+            <span class="logo-text"><strong>B2B 报价系统</strong><span>B2B RATE DESK</span></span>
           </div>
           <div class="nav-search">
             ${icon("search", 14)}
@@ -176,8 +176,8 @@
           </div>
           <nav class="nav" id="navRoot">${navHTML(opts.active)}</nav>
           <div class="sidebar-foot">
-            <div class="sf-title"><span class="sf-dot"></span>演示环境 · UAT</div>
-            <div class="sf-sub">数据均为示例，交互可点击<br>价格与计费口径以评审结论为准</div>
+            <div class="sf-title"><span class="sf-dot"></span>RATE BOOK · UAT</div>
+            <div class="sf-sub">2026 Q4 · 演示数据<br>口径以评审结论为准</div>
           </div>
         </aside>
         <div class="main">
@@ -202,6 +202,20 @@
       </div>
       <div id="overlayRoot"></div>
       <div class="toast-wrap" id="toastWrap"></div>`;
+
+    const SECTION_EN = {
+      "总览": "OVERVIEW",
+      "基础配置": "MASTER DATA",
+      "产品价格": "PRODUCT RATES",
+      "客户价格": "CUSTOMER RATES",
+      "计重计价": "WEIGHT & PRICING",
+      "询价管理": "INQUIRY DESK",
+      "试算与报价单": "QUOTATION",
+      "计费与财务": "BILLING",
+      "系统": "CONTROL"
+    };
+    const pageRoot = document.querySelector(".page");
+    if (pageRoot) pageRoot.dataset.eyebrow = "B2B RATE DESK / " + (SECTION_EN[nav.group] || "WORKSPACE");
 
     const search = document.getElementById("navSearch");
     if (search) {

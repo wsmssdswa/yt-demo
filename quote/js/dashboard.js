@@ -50,6 +50,7 @@
         <h2>下午好，杨鑫</h2>
         <p>今天有 ${aps.length} 条价格审批、${pendingInq.length} 条询价待推进、${fails.length} 条计费异常需要处理。<br>本月已完成 ${thisMonth.length} 张计费单，报价到计费的链路整体正常。</p>
       </div>
+      <div class="dh-date"><b>22</b><span>OCT<br>2026</span></div>
       <div class="dh-r">
         <div class="dh-stat"><b>${aps.length}</b><span>待我审批</span></div>
         <div class="dh-stat"><b>${pendingInq.length}</b><span>待处理询价</span></div>

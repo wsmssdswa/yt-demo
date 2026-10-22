@@ -73,6 +73,7 @@
 - 共享层：
   - `css/base.css`：设计令牌、布局、表格、表单、抽屉、弹窗、Toast；
   - `css/pages.css`：页面级业务组件（工作台、价格矩阵、报价单、计重等）；
+  - `css/rate-ledger.css`：视觉方向 Rate Ledger（暖纸底、铜色刻度、窄体数字），只覆盖视觉层；
   - `js/data.js`：演示数据；
   - `js/store.js`：localStorage、查询、计重/计价逻辑；
   - `js/ui.js`：导航外壳、图标、表格、抽屉、弹窗、审批等公共组件。
