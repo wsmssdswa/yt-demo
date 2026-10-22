@@ -3,6 +3,8 @@
 > 按《B2B 客户报价 WBS》（91 个包）整理的整套报价系统交互原型。
 > 纯静态 HTML + CSS + JS，零依赖，双击 `index.html` 即可使用。
 
+在线预览：<https://wsmssdswa.github.io/yt-demo/quote/>
+
 ---
 
 ## 一、范围

@@ -115,7 +115,7 @@
 
     <div class="quote-stage print-stage">
       <div class="quote-toolbar no-print">
-        <div class="left"><span class="badge ${q.status === "已发布" ? "b-green" : q.status === "生成失败" ? "b-red" : "b-amber"}">${q.status}</span><span class="tiny muted">版本 ${q.version} · 共 ${rowsForQuote().length} 个价格项</span></div>
+        <div class="left"><span class="badge ${q.status === "已发布" ? "b-green" : q.status === "生成失败" ? "b-red" : "b-amber"}">${q.status}</span><span class="tiny muted">版本 ${q.version} · 全量 ${q.itemCount} 个价格项（示例展示 ${rowsForQuote().length} 条）</span></div>
         <span class="spacer"></span>
         <select class="select sm" style="width:130px" id="verSelect"><option>${q.version}（当前）</option><option>历史版本</option></select>
       </div>
