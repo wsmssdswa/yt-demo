@@ -8,6 +8,7 @@
 |----|------|----------|------|
 | PDA 手持终端 | [`pda/`](./pda) | [wsmssdswa.github.io/yt-demo/pda](https://wsmssdswa.github.io/yt-demo/pda/) | 仓库作业:PDA 工作台、退仓扫描、增值服务等 |
 | PC 桌面端 | [`pc/`](./pc) | [wsmssdswa.github.io/yt-demo/pc](https://wsmssdswa.github.io/yt-demo/pc/) | 仓库作业后台:B2B 订单管理(WinForms 风格) |
+| B2B 报价系统 | [`quote/`](./quote) | [wsmssdswa.github.io/yt-demo/quote](https://wsmssdswa.github.io/yt-demo/quote/) | 报价后台:基础配置、价格、询价、试算、报价单、计费 |
 
 ## 本地预览
 
@@ -15,7 +16,7 @@
 
 ## 发布
 
-push 到 `main` 即自动更新 GitHub Pages(<https://wsmssdswa.github.io/yt-demo/>),无需手动部署,约 1-2 分钟生效。页面 URL 格式:`https://wsmssdswa.github.io/yt-demo/{pda|pc}/{页面名}.html`。
+push 到 `main` 即自动更新 GitHub Pages(<https://wsmssdswa.github.io/yt-demo/>),无需手动部署,约 1-2 分钟生效。页面 URL 格式:`https://wsmssdswa.github.io/yt-demo/{pda|pc|quote}/{页面名}.html`。
 
 ## 目录结构
 
@@ -27,12 +28,18 @@ demo/
 │   ├── js/              # 脚本(layout.js / helpers.js / 各页逻辑)
 │   ├── docs/            # 设计文档与截图存档
 │   └── AGENTS.md        # PDA 开发规范(改 PDA 原型必读)
-└── pc/                  # PC 桌面端原型
+├── pc/                  # PC 桌面端原型
     ├── *.html           # 页面入口(B2B 订单管理 …)
     ├── css/             # 样式(base.css 共用 / pages.css 各页专属)
     ├── js/              # 脚本(layout.js / helpers.js / 各页逻辑)
     ├── docs/            # 设计文档存档
     └── AGENTS.md        # PC 开发规范(改 PC 原型必读)
+└── quote/               # B2B 报价系统(PC Web)
+│   ├── *.html           # 36 个页面入口
+│   ├── css/             # base.css / pages.css
+│   ├── js/              # data / store / ui 与各页逻辑
+│   ├── docs/            # 页面清单与 WBS 映射
+│   └── README.md        # 报价原型说明
 ```
 
 ## 开发规范
